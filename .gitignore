@@ -24,3 +24,9 @@ playwright-videos/
 # Local packaging output and task worktrees
 dist-build/
 .worktrees/
+
+# Local build diagnostics and branch audit snapshot
+/dependency-install.log
+/local-build.log
+/native-diagnostic.log
+/unmerged-branches-vs-local-test-2026-10-01.txt
