@@ -30,3 +30,4 @@ dist-build/
 /local-build.log
 /native-diagnostic.log
 /unmerged-branches-vs-local-test-2026-10-01.txt
+*.log
