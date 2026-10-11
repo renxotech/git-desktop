@@ -1,11 +1,11 @@
 import * as React from 'react'
-import * as Path from 'path'
+import { getWorktreeAlias, setWorktreeAlias } from '../../lib/worktree-alias'
 import { Dispatcher } from '../dispatcher'
 import * as octicons from '../octicons/octicons.generated'
 import { Repository } from '../../models/repository'
 import { ToolbarDropdown, DropdownState } from './dropdown'
 import { FoldoutType, IConstrainedValue } from '../../lib/app-state'
-import { WorktreeEntry } from '../../models/worktree'
+import { WorktreeEntry, getWorktreeDisplayName } from '../../models/worktree'
 import { WorktreeList } from '../worktrees/worktree-list'
 import { showContextualMenu, IMenuItem } from '../../lib/menu-item'
 import { generateWorktreeContextMenuItems } from '../worktrees/worktree-list-item-context-menu'
@@ -54,6 +54,10 @@ export class WorktreeDropdown extends React.Component<
 
     const items = generateWorktreeContextMenuItems({
       path: worktree.path,
+      alias: getWorktreeAlias(worktree.path),
+      onChangeAlias: this.onChangeAlias,
+      onSandboxRule: worktree.branch ? this.onSandboxRule : undefined,
+      onRemoveAlias: this.onRemoveAlias,
       folderActions: this.props.getFolderActions(worktree.path),
       isMainWorktree: worktree.type === 'main',
       isLocked: worktree.isLocked,
@@ -64,6 +68,31 @@ export class WorktreeDropdown extends React.Component<
     showContextualMenu(items)
   }
 
+  private onAliasChanged = () => this.forceUpdate()
+  private onSandboxRule = (path: string) => {
+    this.props.dispatcher.closeFoldout(FoldoutType.Worktree)
+    this.props.dispatcher.showPopup({
+      type: PopupType.SandboxRule,
+      repository: this.props.repository,
+      worktreePath: path,
+      onChanged: () =>
+        this.props.dispatcher.refreshRepository(this.props.repository),
+    })
+  }
+  private onChangeAlias = (path: string) => {
+    this.props.dispatcher.closeFoldout(FoldoutType.Worktree)
+    this.props.dispatcher.showPopup({
+      type: PopupType.ChangeWorktreeAlias,
+      worktreePath: path,
+      onAliasChanged: this.onAliasChanged,
+    })
+  }
+  private onRemoveAlias = (path: string) => {
+    setWorktreeAlias(path, null)
+    this.onAliasChanged()
+  }
+  private getWorktrees = () =>
+    this.props.worktrees.map(w => ({ ...w, alias: getWorktreeAlias(w.path) }))
   private onRenameWorktree = (path: string) => {
     this.props.dispatcher.closeFoldout(FoldoutType.Worktree)
     this.props.dispatcher.showPopup({
@@ -98,6 +127,10 @@ export class WorktreeDropdown extends React.Component<
 
     const items = generateWorktreeContextMenuItems({
       path: currentWorktree.path,
+      alias: getWorktreeAlias(currentWorktree.path),
+      onSandboxRule: currentWorktree.branch ? this.onSandboxRule : undefined,
+      onChangeAlias: this.onChangeAlias,
+      onRemoveAlias: this.onRemoveAlias,
       folderActions: this.props.getFolderActions(currentWorktree.path),
       isMainWorktree: isMain,
       isLocked: currentWorktree.isLocked,
@@ -117,7 +150,7 @@ export class WorktreeDropdown extends React.Component<
   }
 
   private renderWorktreeFoldout = (): JSX.Element | null => {
-    const { worktrees } = this.props
+    const worktrees = this.getWorktrees()
 
     return (
       <WorktreeList
@@ -135,7 +168,7 @@ export class WorktreeDropdown extends React.Component<
 
   private getCurrentWorktree(): WorktreeEntry | null {
     const repoPath = this.props.repository.path
-    return this.props.worktrees.find(wt => wt.path === repoPath) ?? null
+    return this.getWorktrees().find(wt => wt.path === repoPath) ?? null
   }
 
   private onResize = (width: number) => {
@@ -151,7 +184,7 @@ export class WorktreeDropdown extends React.Component<
     const currentState: DropdownState = isOpen ? 'open' : 'closed'
     const currentWorktree = this.getCurrentWorktree()
     const title = currentWorktree
-      ? Path.basename(currentWorktree.path)
+      ? getWorktreeDisplayName(currentWorktree)
       : this.props.repository.name
     const description = __DARWIN__ ? 'Current Worktree' : 'Current worktree'
 

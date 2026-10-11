@@ -1,4 +1,5 @@
 import * as Path from 'path'
+import { assertSandboxWritable } from '../sandbox-rule'
 import {
   getNonForkGitHubRepository,
   isRepositoryWithForkedGitHubRepository,
@@ -1568,6 +1569,7 @@ export class GitStore extends BaseStore {
     moveToTrash: boolean = true,
     askForConfirmationOnDiscardChangesPermanently: boolean = false
   ): Promise<void> {
+    await assertSandboxWritable(this.repository.path)
     const pathsToCheckout = new Array<string>()
     const pathsToReset = new Array<string>()
 

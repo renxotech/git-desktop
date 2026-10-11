@@ -2,6 +2,7 @@ import { Emoji } from '../lib/emoji'
 import { Popup } from './popup'
 
 export enum BannerType {
+  SandboxUpdates = 'SandboxUpdates',
   SuccessfulMerge = 'SuccessfulMerge',
   MergeConflictsFound = 'MergeConflictsFound',
   SuccessfulRebase = 'SuccessfulRebase',
@@ -20,6 +21,12 @@ export enum BannerType {
 }
 
 export type Banner =
+  | {
+      readonly type: BannerType.SandboxUpdates
+      readonly results: ReadonlyArray<
+        import('../lib/git/sandbox-rule').ISandboxUpdateResult
+      >
+    }
   | {
       readonly type: BannerType.SuccessfulMerge
       /** name of the branch that was merged into */

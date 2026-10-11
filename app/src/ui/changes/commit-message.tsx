@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { isSandboxProtected, sandboxRulesChanged } from '../../lib/sandbox-rule'
 import classNames from 'classnames'
 import {
   AutocompletingTextArea,
@@ -241,6 +242,8 @@ interface ICommitMessageProps {
 }
 
 interface ICommitMessageState {
+  readonly sandboxProtected: boolean
+  readonly sandboxProtectionMessage: string | null
   readonly commitMessage: ICommitMessage
 
   readonly commitMessageAutocompletionProviders: ReadonlyArray<
@@ -290,6 +293,8 @@ export class CommitMessage extends React.Component<
   ICommitMessageProps,
   ICommitMessageState
 > {
+  private sandboxMounted = false
+  private sandboxReadGeneration = 0
   private descriptionComponent: AutocompletingTextArea | null = null
 
   private wrapperRef = React.createRef<HTMLDivElement>()
@@ -308,6 +313,8 @@ export class CommitMessage extends React.Component<
     const { commitMessage } = this.props
 
     this.state = {
+      sandboxProtected: true,
+      sandboxProtectionMessage: 'Checking sandbox protection…',
       commitMessage: commitMessage ?? DefaultCommitMessage,
       commitMessageAutocompletionProviders:
         findCommitMessageAutoCompleteProvider(props.autocompletionProviders),
@@ -324,15 +331,49 @@ export class CommitMessage extends React.Component<
     }
   }
 
+  private refreshSandboxProtection = async () => {
+    const generation = ++this.sandboxReadGeneration
+    try {
+      const sandboxProtected = await isSandboxProtected(
+        this.props.repository.path
+      )
+      if (this.sandboxMounted && generation === this.sandboxReadGeneration) {
+        this.setState({
+          sandboxProtected,
+          sandboxProtectionMessage: sandboxProtected
+            ? 'This sandbox follows its source. Commits are disabled. Create a working sandbox to make changes, or disable its fast-forward rule.'
+            : null,
+        })
+      }
+    } catch (error) {
+      log.error('Unable to read sandbox protection', error)
+      if (this.sandboxMounted && generation === this.sandboxReadGeneration) {
+        this.setState({
+          sandboxProtected: true,
+          sandboxProtectionMessage:
+            'Sandbox protection could not be read. Open fast-forward rule settings to inspect or reset the configuration.',
+        })
+      }
+    }
+  }
+
   // Persist our current commit message if the caller wants to
   public componentWillUnmount() {
+    this.sandboxMounted = false
+    sandboxRulesChanged.removeListener('changed', this.refreshSandboxProtection)
     const { props, state } = this
     props.onPersistCommitMessage?.(state.commitMessage)
     window.removeEventListener('keydown', this.onKeyDown)
   }
 
   public async componentDidMount() {
+    this.sandboxMounted = true
     window.addEventListener('keydown', this.onKeyDown)
+    sandboxRulesChanged.on('changed', this.refreshSandboxProtection)
+    await this.refreshSandboxProtection()
+    if (!this.sandboxMounted) {
+      return
+    }
     await this.updateRepoRuleFailures(undefined, undefined, true)
   }
 
@@ -363,6 +404,12 @@ export class CommitMessage extends React.Component<
     prevProps: ICommitMessageProps,
     prevState: ICommitMessageState
   ) {
+    if (
+      this.props.repository.path !== prevProps.repository.path ||
+      this.props.branch !== prevProps.branch
+    ) {
+      await this.refreshSandboxProtection()
+    }
     if (
       this.props.autocompletionProviders !== prevProps.autocompletionProviders
     ) {
@@ -650,6 +697,9 @@ export class CommitMessage extends React.Component<
   }
 
   private canCommit(): boolean {
+    if (this.state.sandboxProtected) {
+      return false
+    }
     return (
       (((this.props.anyFilesSelected === true ||
         this.props.allowEmptyCommit === true) &&
@@ -660,6 +710,9 @@ export class CommitMessage extends React.Component<
   }
 
   private canAmend(): boolean {
+    if (this.state.sandboxProtected) {
+      return false
+    }
     return (
       this.props.commitToAmend !== null &&
       (this.state.commitMessage.summary.length > 0 ||
@@ -1776,6 +1829,9 @@ export class CommitMessage extends React.Component<
         onContextMenu={this.onContextMenu}
         ref={this.wrapperRef}
       >
+        {this.state.sandboxProtected && (
+          <p role="status">{this.state.sandboxProtectionMessage}</p>
+        )}
         <div className={summaryClassName} ref={this.summaryGroupRef}>
           {this.renderAvatar()}
 

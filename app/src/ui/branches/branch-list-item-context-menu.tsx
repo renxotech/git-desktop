@@ -6,6 +6,8 @@ interface IBranchContextMenuConfig {
   folderActions?: ReadonlyArray<IMenuItem>
   branch: Branch
   onRenameBranch?: (branchName: string) => void
+  onSandboxRule?: () => void
+  isSandboxProtected?: boolean
   onViewBranchOnGitHub?: () => void
   onViewPullRequestOnGitHub?: () => void
   onDeleteBranch?: (branchName: string) => void
@@ -25,11 +27,15 @@ export function generateBranchContextMenuItems(
   } = config
   const items = new Array<IMenuItem>()
 
+  if (config.onSandboxRule) {
+    items.push({ label: 'Fast-forward rule…', action: config.onSandboxRule })
+  }
+
   if (onRenameBranch !== undefined) {
     items.push({
       label: 'Rename…',
       action: () => onRenameBranch(branch.name),
-      enabled: branch.type === BranchType.Local,
+      enabled: branch.type === BranchType.Local && !config.isSandboxProtected,
     })
   }
 
@@ -71,6 +77,7 @@ export function generateBranchContextMenuItems(
     items.push({
       label: 'Delete…',
       action: () => onDeleteBranch(branch.name),
+      enabled: !config.isSandboxProtected,
     })
   }
 

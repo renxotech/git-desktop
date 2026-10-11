@@ -1,4 +1,5 @@
 import * as Path from 'path'
+import { assertSandboxWritable } from '../sandbox-rule'
 import * as FS from 'fs'
 import { Repository } from '../../models/repository'
 import { getConfigValue } from './config'
@@ -105,6 +106,7 @@ export async function saveGitIgnore(
   repository: Repository,
   text: string
 ): Promise<void> {
+  await assertSandboxWritable(repository.path)
   const ignorePath = Path.join(repository.path, '.gitignore')
 
   if (text === '') {

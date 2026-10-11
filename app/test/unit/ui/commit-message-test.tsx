@@ -18,6 +18,33 @@ import { CommitMessage } from '../../../src/ui/changes/commit-message'
 const PreviewFeaturesEnv = 'GITHUB_DESKTOP_PREVIEW_FEATURES'
 const previousPreviewFeatures = process.env[PreviewFeaturesEnv]
 
+it('does not attach the commit keyboard listener after unmount during protection lookup', async t => {
+  const component = new CommitMessage(createProps())
+  let finish!: () => void
+  const pending = new Promise<void>(resolve => {
+    finish = resolve
+  })
+  t.mock.method(
+    component as unknown as { refreshSandboxProtection: () => Promise<void> },
+    'refreshSandboxProtection',
+    () => pending
+  )
+  const add = t.mock.method(window, 'addEventListener')
+  const remove = t.mock.method(window, 'removeEventListener')
+  const mounting = component.componentDidMount()
+  component.componentWillUnmount()
+  finish()
+  await mounting
+  assert.equal(
+    add.mock.calls.filter(c => c.arguments[0] === 'keydown').length,
+    1
+  )
+  assert.equal(
+    remove.mock.calls.filter(c => c.arguments[0] === 'keydown').length,
+    1
+  )
+})
+
 type CommitMessageProps = React.ComponentProps<typeof CommitMessage>
 type CopilotButtonProps = {
   readonly ariaLabel?: string

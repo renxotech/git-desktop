@@ -5,6 +5,7 @@ import { FetchProgressParser, executionOptionsWithProgress } from '../progress'
 import { IRemote } from '../../models/remote'
 import { ITrackingBranch } from '../../models/branch'
 import { envForRemoteOperation } from './environment'
+import { readSandboxRules } from '../sandbox-rule'
 
 async function getFetchArgs(
   remote: string,
@@ -120,6 +121,8 @@ export async function fastForwardBranches(
   repository: Repository,
   branches: ReadonlyArray<ITrackingBranch>
 ): Promise<void> {
+  const rules = await readSandboxRules(repository.path)
+  branches = branches.filter(b => !rules.some(r => r.branch === b.ref))
   if (branches.length === 0) {
     return
   }

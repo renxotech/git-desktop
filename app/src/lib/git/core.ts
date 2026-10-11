@@ -17,6 +17,7 @@ import { kStringMaxLength } from 'buffer'
 import { withHooksEnv } from '../hooks/with-hooks-env'
 import { coerceToString } from './coerce-to-string'
 import { pushTerminalChunk } from './push-terminal-chunk'
+import { assertSandboxMutationAllowed } from '../sandbox-rule'
 
 export const isMaxBufferExceededError = (
   error: unknown
@@ -87,6 +88,9 @@ export interface IGitExecutionOptions
   readonly isBackgroundTask?: boolean
 
   readonly interceptHooks?: string[]
+
+  /** Only the validated sandbox fast-forward service may use this path. */
+  readonly sandboxFastForward?: boolean
 }
 
 /**
@@ -228,6 +232,9 @@ export async function git(
   name: string,
   options?: IGitExecutionOptions
 ): Promise<IGitResult> {
+  if (!options?.sandboxFastForward) {
+    await assertSandboxMutationAllowed(args, path)
+  }
   const defaultOptions: IGitExecutionOptions = {
     successExitCodes: new Set([0]),
     expectedErrors: new Set(),

@@ -82,7 +82,10 @@ export enum PopupType {
   ConfirmDiscardSelection = 'ConfirmDiscardSelection',
   MoveToApplicationsFolder = 'MoveToApplicationsFolder',
   ChangeRepositoryAlias = 'ChangeRepositoryAlias',
+  ChangeWorktreeAlias = 'ChangeWorktreeAlias',
   RepairWorktrees = 'RepairWorktrees',
+  SandboxRule = 'SandboxRule',
+  SandboxRuleResults = 'SandboxRuleResults',
   ThankYou = 'ThankYou',
   CommitMessage = 'CommitMessage',
   MultiCommitOperation = 'MultiCommitOperation',
@@ -351,6 +354,23 @@ export type PopupDetail =
   | { type: PopupType.RepairWorktrees; repository: Repository }
   | { type: PopupType.ChangeRepositoryAlias; repository: Repository }
   | {
+      type: PopupType.SandboxRule
+      repository: Repository
+      worktreePath: string
+      onChanged: () => void
+    }
+  | {
+      type: PopupType.SandboxRuleResults
+      results: ReadonlyArray<
+        import('../lib/git/sandbox-rule').ISandboxUpdateResult
+      >
+    }
+  | {
+      type: PopupType.ChangeWorktreeAlias
+      worktreePath: string
+      onAliasChanged: () => void
+    }
+  | {
       type: PopupType.ThankYou
       userContributions: ReadonlyArray<ReleaseNote>
       friendlyName: string
@@ -541,6 +561,8 @@ export type PopupDetail =
       repository: Repository
       initialBranchName?: string
       initialWorktreeName?: string
+      initialStartPoint?: string
+      initialSandboxRule?: import('../lib/sandbox-rule').ISandboxRule
     }
   | {
       type: PopupType.RenameWorktree

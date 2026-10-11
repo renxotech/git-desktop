@@ -1,3 +1,4 @@
+import { getWorktreeAlias, setWorktreeAlias } from '../worktree-alias'
 import * as Path from 'path'
 import { writeFile } from 'fs/promises'
 import {
@@ -351,6 +352,9 @@ import {
   isPullRequestAssociatedWithBranch,
 } from '../helpers/pull-request-matching'
 import { parseRemote } from '../../lib/remote-parsing'
+import { readSandboxRules, assertSandboxWritable } from '../sandbox-rule'
+import { updateSandboxRules } from '../git/sandbox-rule'
+import { sandboxReleaseLoader } from '../sandbox-release-loader'
 import { createTutorialRepository } from './helpers/create-tutorial-repository'
 import { sendNonFatalException } from '../helpers/non-fatal-exception'
 import {
@@ -4413,7 +4417,17 @@ export class AppStore extends TypedBaseStore<IAppState> {
   private async _refreshWorktrees(repository: Repository): Promise<void> {
     try {
       const worktrees = await listWorktrees(repository)
+      // Keep the settings entry point available even when rule parsing fails.
       this.repositoryStateCache.update(repository, () => ({ worktrees }))
+      this.updateResizableConstraints()
+      this.emitUpdate()
+      const rules = await readSandboxRules(repository.path)
+      this.repositoryStateCache.update(repository, () => ({
+        worktrees: worktrees.map(w => ({
+          ...w,
+          sandboxRule: rules.find(r => r.branch === w.branch),
+        })),
+      }))
       this.statsStore.recordWorktreeCount(worktrees.length)
 
       // The presence of linked worktrees determines whether the worktree
@@ -5559,6 +5573,16 @@ export class AppStore extends TypedBaseStore<IAppState> {
   }
 
   public async _pull(repository: Repository): Promise<void> {
+    const rules = await readSandboxRules(repository.path)
+    const branch = await git(
+      ['symbolic-ref', '--quiet', 'HEAD'],
+      repository.path,
+      'sandboxPullBranch',
+      { successExitCodes: new Set([0, 1]) }
+    )
+    if (rules.some(r => r.branch === branch.stdout.trim())) {
+      return this._fetch(repository, FetchType.UserInitiatedTask)
+    }
     return this.withRefreshedGitHubRepository(repository, repository => {
       return this.performPull(repository)
     })
@@ -6063,7 +6087,20 @@ export class AppStore extends TypedBaseStore<IAppState> {
           })
         }
 
-        if (remotes === undefined) {
+        const sandboxRules = await readSandboxRules(repository.path)
+        if (!isBackgroundTask && sandboxRules.length > 0) {
+          const allRemotes = await getRemotes(repository)
+          const selected = remotes ?? allRemotes
+          await gitStore.fetchRemotes(
+            allRemotes.filter(
+              r =>
+                selected.some(s => s.name === r.name) ||
+                sandboxRules.some(rule => rule.remote === r.name)
+            ),
+            false,
+            progressCallback
+          )
+        } else if (remotes === undefined) {
           await gitStore.fetch(isBackgroundTask, progressCallback)
         } else {
           await gitStore.fetchRemotes(
@@ -6091,6 +6128,17 @@ export class AppStore extends TypedBaseStore<IAppState> {
           title: refreshTitle,
           value: fetchWeight + refreshWeight * 0.5,
         })
+
+        if (!isBackgroundTask && sandboxRules.length > 0) {
+          const results = await updateSandboxRules(
+            repository,
+            sandboxReleaseLoader(this.accounts),
+            sandboxRules
+          )
+          if (results.some(r => r.status !== 'current')) {
+            this._setBanner({ type: BannerType.SandboxUpdates, results })
+          }
+        }
 
         // manually refresh branch protections after the push, to ensure
         // any new branch will immediately report as protected
@@ -6271,6 +6319,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
 
     try {
       await removeWorktree(repository.path, worktreePath, force)
+      setWorktreeAlias(worktreePath, null)
     } catch (e) {
       this._closePopup(PopupType.DeleteWorktree)
       this._closePopup(PopupType.DeleteWorktreeFailed)
@@ -6295,6 +6344,11 @@ export class AppStore extends TypedBaseStore<IAppState> {
     newPath: string
   ): Promise<void> {
     await moveWorktree(repository, worktreePath, newPath)
+    const alias = getWorktreeAlias(worktreePath)
+    if (alias !== null) {
+      setWorktreeAlias(newPath, alias)
+      setWorktreeAlias(worktreePath, null)
+    }
 
     // If the worktree being renamed is the currently selected one, switch to
     // its new path so that the subsequent refresh (and any further git calls)
@@ -7417,6 +7471,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
         continue
       }
 
+      await assertSandboxWritable(repository.path)
       await writeFile(absolutePath, resolution.resolvedContent, 'utf8')
       pathsToStage.push(resolution.path)
     }

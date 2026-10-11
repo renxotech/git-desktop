@@ -19,6 +19,7 @@ import { SuccessfulSquash } from './successful-squash'
 import { SuccessBanner } from './success-banner'
 import { ConflictsFoundBanner } from './conflicts-found-banner'
 import { OSVersionNoLongerSupportedBanner } from './os-version-no-longer-supported-banner'
+import { SandboxUpdatesBanner } from './sandbox-updates'
 
 export function renderBanner(
   banner: Banner,
@@ -26,6 +27,14 @@ export function renderBanner(
   onDismissed: () => void
 ): JSX.Element {
   switch (banner.type) {
+    case BannerType.SandboxUpdates:
+      return (
+        <SandboxUpdatesBanner
+          results={banner.results}
+          dispatcher={dispatcher}
+          onDismissed={onDismissed}
+        />
+      )
     case BannerType.SuccessfulMerge:
       return (
         <SuccessfulMerge

@@ -171,6 +171,9 @@ export class BranchDropdown extends React.Component<IBranchDropdownProps> {
     } else if (tip.kind === TipState.Valid) {
       title = tooltip = tip.branch.name
       const { upstream, upstreamWithoutRemote } = tip.branch
+      const rule = repositoryState.worktrees.find(
+        w => w.branch === tip.branch.ref
+      )?.sandboxRule
       if (
         upstream !== null &&
         upstreamWithoutRemote !== null &&
@@ -178,6 +181,20 @@ export class BranchDropdown extends React.Component<IBranchDropdownProps> {
       ) {
         title = `${tip.branch.name} → ${upstream}`
         tooltip = `Current branch is ${tip.branch.name}, tracking ${upstream}`
+      }
+      if (rule) {
+        title = tip.branch.name
+        description =
+          rule.selector === 'branch'
+            ? `Follows ${rule.remote}/${rule.sourceBranch}`
+            : `${
+                rule.selector === 'beta'
+                  ? 'Beta'
+                  : rule.selector === 'stable'
+                  ? 'Stable'
+                  : 'Tag'
+              } · ${rule.lastTag?.replace(/^release-/, '') ?? 'awaiting Fetch'}`
+        tooltip = `${tip.branch.name}: ${description}. Commits are protected.`
       }
     } else {
       return assertNever(tip, `Unknown tip state: ${tipKind}`)
@@ -330,6 +347,17 @@ export class BranchDropdown extends React.Component<IBranchDropdownProps> {
     const items = generateBranchContextMenuItems({
       folderActions: this.getFolderActions(),
       branch,
+      onSandboxRule: () =>
+        this.props.dispatcher.showPopup({
+          type: PopupType.SandboxRule,
+          repository: this.props.repository,
+          worktreePath: this.props.repository.path,
+          onChanged: () =>
+            this.props.dispatcher.refreshRepository(this.props.repository),
+        }),
+      isSandboxProtected: this.props.repositoryState.worktrees.some(
+        w => w.branch === branch.ref && w.sandboxRule !== undefined
+      ),
       onRenameBranch: this.onRenameBranch,
       onViewBranchOnGitHub:
         isRepositoryWithGitHubRepository(this.props.repository) &&

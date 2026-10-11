@@ -233,7 +233,10 @@ import {
 import { HookFailed } from './hook-failed/hook-failed'
 import { CommitProgress } from './commit-progress/commit-progress'
 import { AddWorktreeDialog } from './worktrees/add-worktree-dialog'
+import { ChangeWorktreeAliasDialog } from './worktrees/change-worktree-alias-dialog'
 import { RepairWorktreesDialog } from './worktrees/repair-worktrees-dialog'
+import { SandboxRuleDialog } from './worktrees/sandbox-rule-dialog'
+import { SandboxRuleResults } from './worktrees/sandbox-rule-results'
 import { RenameWorktreeDialog } from './worktrees/rename-worktree-dialog'
 import { DeleteWorktreeDialog } from './worktrees/delete-worktree-dialog'
 import { DeleteWorktreeFailedDialog } from './worktrees/delete-worktree-failed-dialog'
@@ -3065,7 +3068,19 @@ export class App extends React.Component<IAppProps, IAppState> {
             onDismissed={onPopupDismissedFn}
             initialBranchName={popup.initialBranchName}
             initialWorktreeName={popup.initialWorktreeName}
+            initialStartPoint={popup.initialStartPoint}
+            initialSandboxRule={popup.initialSandboxRule}
             allBranches={allBranches}
+          />
+        )
+      }
+      case PopupType.ChangeWorktreeAlias: {
+        return (
+          <ChangeWorktreeAliasDialog
+            key="change-worktree-alias"
+            worktreePath={popup.worktreePath}
+            onAliasChanged={popup.onAliasChanged}
+            onDismissed={onPopupDismissedFn}
           />
         )
       }
@@ -3075,6 +3090,24 @@ export class App extends React.Component<IAppProps, IAppState> {
             repository={popup.repository}
             onDismissed={onPopupDismissedFn}
             onRepaired={this.onWorktreesRepaired}
+          />
+        )
+      case PopupType.SandboxRule:
+        return (
+          <SandboxRuleDialog
+            repository={popup.repository}
+            worktreePath={popup.worktreePath}
+            accounts={this.state.accounts}
+            dispatcher={this.props.dispatcher}
+            onChanged={popup.onChanged}
+            onDismissed={onPopupDismissedFn}
+          />
+        )
+      case PopupType.SandboxRuleResults:
+        return (
+          <SandboxRuleResults
+            results={popup.results}
+            onDismissed={onPopupDismissedFn}
           />
         )
       case PopupType.RenameWorktree: {
@@ -3782,6 +3815,11 @@ export class App extends React.Component<IAppProps, IAppState> {
 
     return (
       <PushPullButton
+        sandboxRule={
+          state.worktrees.find(
+            w => tip.kind === TipState.Valid && w.branch === tip.branch.ref
+          )?.sandboxRule
+        }
         dispatcher={this.props.dispatcher}
         repository={selection.repository}
         aheadBehind={state.aheadBehind}

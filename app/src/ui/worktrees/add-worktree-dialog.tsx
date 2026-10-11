@@ -13,6 +13,8 @@ import memoizeOne from 'memoize-one'
 import { RepositoryPath } from '../lib/repository-path'
 import { Ref } from '../lib/ref'
 import { sanitizedRefName } from '../../lib/sanitize-ref-name'
+import { ISandboxRule } from '../../lib/sandbox-rule'
+import { saveSandboxRule } from '../../lib/git/sandbox-rule'
 
 interface IAddWorktreeDialogProps {
   readonly repository: Repository
@@ -20,6 +22,8 @@ interface IAddWorktreeDialogProps {
   readonly onDismissed: () => void
   readonly initialBranchName?: string
   readonly initialWorktreeName?: string
+  readonly initialStartPoint?: string
+  readonly initialSandboxRule?: ISandboxRule
   readonly allBranches: ReadonlyArray<Branch>
 }
 
@@ -91,6 +95,9 @@ export class AddWorktreeDialog extends React.Component<
     )
 
     try {
+      if (this.props.initialStartPoint && branch) {
+        throw new Error('Choose a new branch name for this sandbox.')
+      }
       if (branch?.type === BranchType.Remote) {
         // Remote branch: create a new local branch from the remote ref
         await addWorktree(this.props.repository, fullPath, {
@@ -106,6 +113,7 @@ export class AddWorktreeDialog extends React.Component<
         // New branch: create it in the new worktree
         await addWorktree(this.props.repository, fullPath, {
           createBranch: effectiveBranchName,
+          commitish: this.props.initialStartPoint,
         })
       }
     } catch (e) {
@@ -127,6 +135,25 @@ export class AddWorktreeDialog extends React.Component<
     }
 
     dispatcher.incrementMetric('worktreeCreatedCount')
+    if (this.props.initialSandboxRule && worktree.branch) {
+      try {
+        await saveSandboxRule(worktree.path, worktree.branch, {
+          ...this.props.initialSandboxRule,
+          branch: worktree.branch,
+          worktreePath: worktree.path,
+        })
+      } catch (error) {
+        dispatcher.postError(
+          new Error(
+            `Sandbox was created, but its fast-forward rule could not be saved: ${String(
+              error
+            )}`
+          )
+        )
+        this.props.onDismissed()
+        return
+      }
+    }
     await dispatcher.switchWorktree(repository, worktree)
 
     this.setState({ creating: false })
@@ -215,6 +242,15 @@ export class AddWorktreeDialog extends React.Component<
             />
           </Row>
           {this.renderBranchStatus()}
+          {this.props.initialStartPoint && (
+            <p>
+              New branch starts at{' '}
+              {this.props.initialStartPoint.substring(0, 10)}
+              {this.props.initialSandboxRule
+                ? ' and follows its configured source.'
+                : '.'}
+            </p>
+          )}
         </DialogContent>
 
         <DialogFooter>

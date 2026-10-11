@@ -858,6 +858,14 @@ export class API {
     this.copilotEndpoint = copilotEndpoint
   }
 
+  /** Do not suppress pagination failures: an incomplete list cannot select a release. */
+  public fetchSandboxReleases(owner: string, name: string) {
+    return this.fetchAll<import('./sandbox-rule').ISandboxRelease>(
+      `repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/releases`,
+      { suppressErrors: false }
+    )
+  }
+
   /**
    * Retrieves the name of the Alive channel used by Desktop to receive
    * high-signal notifications.

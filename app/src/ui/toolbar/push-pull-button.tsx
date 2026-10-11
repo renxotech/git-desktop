@@ -35,6 +35,7 @@ import { formatCompactNumber } from '../../lib/format-number'
 export const DropdownItemClassName = 'push-pull-dropdown-item'
 
 interface IPushPullButtonProps {
+  readonly sandboxRule?: import('../../lib/sandbox-rule').ISandboxRule
   /**
    * The ahead/behind count for the current branch. If null, it indicates the
    * branch doesn't have an upstream.
@@ -433,6 +434,19 @@ export class PushPullButton extends React.Component<
   }
 
   private renderButton() {
+    if (this.props.sandboxRule && !this.props.networkActionInProgress) {
+      const rule = this.props.sandboxRule
+      return (
+        <ToolbarButton
+          title="Fetch all remotes"
+          description={`Follows ${rule.remote}/${
+            rule.selector === 'branch' ? rule.sourceBranch : rule.selector
+          }`}
+          icon={octicons.sync}
+          onClick={this.fetch}
+        />
+      )
+    }
     const {
       progress,
       networkActionInProgress,

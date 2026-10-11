@@ -8,6 +8,10 @@ interface IWorktreeContextMenuConfig {
   readonly path: string
   readonly isMainWorktree: boolean
   readonly isLocked: boolean
+  readonly alias?: string | null
+  readonly onChangeAlias?: (path: string) => void
+  readonly onSandboxRule?: (path: string) => void
+  readonly onRemoveAlias?: (path: string) => void
   readonly onRenameWorktree?: (path: string) => void
   readonly onRemoveWorktree?: (path: string) => void
 }
@@ -20,6 +24,25 @@ export function generateWorktreeContextMenuItems(
   const name = Path.basename(path)
   const items = new Array<IMenuItem>()
 
+  if (config.onSandboxRule !== undefined) {
+    items.push({
+      label: 'Fast-forward rule…',
+      action: () => config.onSandboxRule?.(path),
+    })
+  }
+
+  if (config.onChangeAlias !== undefined) {
+    items.push({
+      label: config.alias ? 'Change alias…' : 'Create alias…',
+      action: () => config.onChangeAlias?.(path),
+    })
+  }
+  if (config.alias && config.onRemoveAlias !== undefined) {
+    items.push({
+      label: 'Remove alias',
+      action: () => config.onRemoveAlias?.(path),
+    })
+  }
   if (onRenameWorktree !== undefined) {
     items.push({
       label: 'Rename…',
