@@ -34,6 +34,23 @@
   }
 
   .toolbar-button {
+    &.toolbar-actions-button,
+    &.toolbar-actions-button.resizable {
+      width: 48px;
+      min-width: 48px;
+      flex: 0 0 48px;
+      margin-left: auto;
+
+      > button {
+        justify-content: center;
+        padding: 0;
+      }
+
+      .icon {
+        margin: 0;
+      }
+    }
+
     &.resizable {
       // Fill the available height of the parent
       flex-grow: 1;

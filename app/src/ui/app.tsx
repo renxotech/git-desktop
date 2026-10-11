@@ -65,6 +65,7 @@ import {
 } from './toolbar'
 import { iconForRepository, OcticonSymbol } from './octicons'
 import * as octicons from './octicons/octicons.generated'
+import { ToolbarButton } from './toolbar/button'
 import {
   showCertificateTrustDialog,
   sendReady,
@@ -232,6 +233,7 @@ import {
 import { HookFailed } from './hook-failed/hook-failed'
 import { CommitProgress } from './commit-progress/commit-progress'
 import { AddWorktreeDialog } from './worktrees/add-worktree-dialog'
+import { RepairWorktreesDialog } from './worktrees/repair-worktrees-dialog'
 import { RenameWorktreeDialog } from './worktrees/rename-worktree-dialog'
 import { DeleteWorktreeDialog } from './worktrees/delete-worktree-dialog'
 import { DeleteWorktreeFailedDialog } from './worktrees/delete-worktree-failed-dialog'
@@ -3067,6 +3069,14 @@ export class App extends React.Component<IAppProps, IAppState> {
           />
         )
       }
+      case PopupType.RepairWorktrees:
+        return (
+          <RepairWorktreesDialog
+            repository={popup.repository}
+            onDismissed={onPopupDismissedFn}
+            onRepaired={this.onWorktreesRepaired}
+          />
+        )
       case PopupType.RenameWorktree: {
         return (
           <RenameWorktreeDialog
@@ -3715,6 +3725,9 @@ export class App extends React.Component<IAppProps, IAppState> {
     showContextualMenu(items)
   }
 
+  private onWorktreesRepaired = (repository: Repository) =>
+    this.props.dispatcher.refreshRepository(repository)
+
   private renderPushPullToolbarButton() {
     const selection = this.state.selectedState
     if (!selection || selection.type !== SelectionType.Repository) {
@@ -4027,6 +4040,53 @@ export class App extends React.Component<IAppProps, IAppState> {
     this.props.dispatcher.clearBanner()
   }
 
+  private onRepairWorktrees = () => {
+    const selection = this.state.selectedState
+    if (selection?.type !== SelectionType.Repository) {
+      return
+    }
+    this.props.dispatcher.showPopup({
+      type: PopupType.RepairWorktrees,
+      repository: selection.repository,
+    })
+  }
+
+  private onToolbarActions = () => {
+    const selection = this.state.selectedState
+    if (
+      selection?.type !== SelectionType.Repository ||
+      !selection.state.worktrees.some(w => w.type === 'linked')
+    ) {
+      return
+    }
+    showContextualMenu([
+      {
+        label: 'Check and repair worktrees…',
+        action: this.onRepairWorktrees,
+      },
+    ])
+  }
+
+  private renderToolbarActionsButton() {
+    const selection = this.state.selectedState
+    if (
+      selection?.type !== SelectionType.Repository ||
+      !selection.state.worktrees.some(w => w.type === 'linked')
+    ) {
+      return null
+    }
+    return (
+      <ToolbarButton
+        className="toolbar-actions-button"
+        ariaLabel="Repository actions"
+        ariaHaspopup="menu"
+        tooltip="Repository actions"
+        icon={octicons.gear}
+        onClick={this.onToolbarActions}
+      />
+    )
+  }
+
   private renderToolbar() {
     /**
      * No toolbar if we're in the blank slate view.
@@ -4045,6 +4105,7 @@ export class App extends React.Component<IAppProps, IAppState> {
         {this.renderWorktreeToolbarButton()}
         {this.renderBranchToolbarButton()}
         {this.renderPushPullToolbarButton()}
+        {this.renderToolbarActionsButton()}
       </Toolbar>
     )
   }

@@ -1,5 +1,57 @@
 @import '../mixins';
 
+#repair-worktrees {
+  .worktree-check-summary {
+    padding: var(--spacing);
+    border: 1px solid var(--box-border-color);
+    border-radius: 4px;
+  }
+
+  .worktree-check-issues {
+    list-style: none;
+    padding: 0;
+
+    > li {
+      border-left: 3px solid var(--error-color);
+      padding: var(--spacing);
+      margin-bottom: var(--spacing);
+      background: var(--box-background-color);
+    }
+
+    h4 {
+      margin: var(--spacing-half) 0;
+    }
+
+    dt {
+      font-weight: var(--font-weight-semibold);
+    }
+
+    dd {
+      margin: 0 0 var(--spacing-half);
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .worktree-issue-label,
+  .worktree-check-error {
+    color: var(--error-color);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .worktree-check-info {
+    color: var(--text-secondary-color);
+    margin-top: var(--spacing);
+
+    summary {
+      cursor: pointer;
+    }
+
+    p {
+      overflow-wrap: anywhere;
+    }
+  }
+}
+
 .worktree-list {
   height: 100%;
   display: flex;

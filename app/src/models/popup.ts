@@ -82,6 +82,7 @@ export enum PopupType {
   ConfirmDiscardSelection = 'ConfirmDiscardSelection',
   MoveToApplicationsFolder = 'MoveToApplicationsFolder',
   ChangeRepositoryAlias = 'ChangeRepositoryAlias',
+  RepairWorktrees = 'RepairWorktrees',
   ThankYou = 'ThankYou',
   CommitMessage = 'CommitMessage',
   MultiCommitOperation = 'MultiCommitOperation',
@@ -347,6 +348,7 @@ export type PopupDetail =
       files: ReadonlyArray<string>
     }
   | { type: PopupType.MoveToApplicationsFolder }
+  | { type: PopupType.RepairWorktrees; repository: Repository }
   | { type: PopupType.ChangeRepositoryAlias; repository: Repository }
   | {
       type: PopupType.ThankYou
