@@ -12,6 +12,7 @@ import { findGitOnPath } from '../is-git-on-path'
 import { parseEnumValue } from '../enum'
 import { pathExists } from '../path-exists'
 import { FoundShell } from './shared'
+import { launchWSL } from './wsl'
 import {
   expandTargetPathArgument,
   ICustomIntegration,
@@ -554,10 +555,7 @@ export function launch(
         cwd: path,
       })
     case Shell.WSL:
-      return spawn('START', ['"WSL"', `"${foundShell.path}"`], {
-        shell: true,
-        cwd: path,
-      })
+      return launchWSL(foundShell.path, path)
     case Shell.Cmd:
       return spawn(
         'START',
