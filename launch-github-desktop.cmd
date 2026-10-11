@@ -2,8 +2,8 @@
 setlocal
 set ELECTRON_RUN_AS_NODE=
 
-if exist "%~dp0dist\GitHubDesktop-win32-x64\GitHubDesktop.exe" (
-  start "" "%~dp0dist\GitHubDesktop-win32-x64\GitHubDesktop.exe" %*
+if exist "%~dp0dist\GitDesktop-win32-x64\GitDesktop.exe" (
+  start "" "%~dp0dist\GitDesktop-win32-x64\GitDesktop.exe" %*
   exit /b 0
 )
 
