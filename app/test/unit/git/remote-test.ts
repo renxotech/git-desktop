@@ -86,8 +86,14 @@ describe('git/remote', () => {
       const url = 'https://github.com/desktop/not-found.git'
       await exec(['remote', 'add', 'hasBlobFilter', url], repository.path)
 
-      // Fetch a remote and add a filter
-      await exec(['fetch', '--filter=blob:none'], repository.path)
+      // Remote enumeration only needs the stored promisor metadata. Avoid a
+      // network fetch against a nonexistent repository (and credential prompts).
+      await setConfigValue(repository, 'remote.hasBlobFilter.promisor', 'true')
+      await setConfigValue(
+        repository,
+        'remote.hasBlobFilter.partialclonefilter',
+        'blob:none'
+      )
 
       // Shows that the new remote does have a filter
       const rawGetRemote = await exec(['remote', '-v'], repository.path)
