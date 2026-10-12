@@ -369,6 +369,7 @@ import {
   IRepositoryHealth,
   IHealthOperationResult,
   performHealthOperation,
+  errorMessage,
   getHealthRepositoryIdentity,
 } from '../repository-health'
 import { isAttributableEmailFor } from '../email'
@@ -5479,9 +5480,47 @@ export class AppStore extends TypedBaseStore<IAppState> {
     signal: AbortSignal,
     onResult: (result: IHealthOperationResult) => void
   ): Promise<void> {
-    const registered = this.repositories
+    const selectedDirectories = new Set(
+      repositories.map(repository => repository.commonDirectory)
+    )
+    const registered = (
+      await Promise.all(
+        this.repositories.map(async repository => {
+          try {
+            const identity = await getHealthRepositoryIdentity(repository.path)
+            return selectedDirectories.has(identity.commonDirectory)
+              ? { repository, commonDirectory: identity.commonDirectory }
+              : null
+          } catch {
+            const selected = repositories.find(
+              selected =>
+                selected.path === repository.path ||
+                selected.worktrees.some(
+                  worktree => worktree.path === repository.path
+                )
+            )
+            return selected
+              ? { repository, commonDirectory: selected.commonDirectory }
+              : null
+          }
+        })
+      )
+    ).filter(
+      (entry): entry is { repository: Repository; commonDirectory: string } =>
+        entry !== null
+    )
+    const release = (commonDirectory: string) => {
+      for (const entry of registered.filter(
+        entry => entry.commonDirectory === commonDirectory
+      )) {
+        this.repositoryStateCache.update(entry.repository, () => ({
+          isPushPullFetchInProgress: false,
+        }))
+      }
+      this.emitUpdate()
+    }
     if (
-      registered.some(r => {
+      registered.some(({ repository: r }) => {
         const state = this.repositoryStateCache.get(r)
         return (
           state.isPushPullFetchInProgress ||
@@ -5494,7 +5533,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
         'Wait for the current Git operation to finish, then try again.'
       )
     }
-    for (const repository of registered) {
+    for (const { repository } of registered) {
       this.repositoryStateCache.update(repository, () => ({
         isPushPullFetchInProgress: true,
       }))
@@ -5521,8 +5560,10 @@ export class AppStore extends TypedBaseStore<IAppState> {
             onResult({
               path: repository.path,
               messages: [],
-              errors: [String(error)],
+              errors: [errorMessage(error)],
             })
+          } finally {
+            release(repository.commonDirectory)
           }
         }
       }
@@ -5530,16 +5571,14 @@ export class AppStore extends TypedBaseStore<IAppState> {
         Array.from({ length: Math.min(4, pending.length) }, worker)
       )
     } finally {
-      for (const repository of registered) {
-        this.repositoryStateCache.update(repository, () => ({
-          isPushPullFetchInProgress: false,
-        }))
+      for (const repository of pending) {
+        release(repository.commonDirectory)
       }
       this.emitUpdate()
       const paths = new Set(
         repositories.flatMap(r => r.worktrees.map(w => w.path))
       )
-      for (const repository of registered) {
+      for (const { repository } of registered) {
         if (paths.has(repository.path)) {
           await this._refreshRepository(repository)
         }

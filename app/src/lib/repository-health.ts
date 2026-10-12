@@ -57,9 +57,25 @@ const excludedDirectories = new Set([
   '.gradle',
   '.dart_tool',
   '__pycache__',
+  'library',
+  'temp',
+  'build',
+  'dist',
+  'target',
+  'vendor',
+  'pods',
+  '.next',
+  '.venv',
+  'venv',
+  'obj',
+  'bin',
+  '.idea',
+  '.vs',
+  '.plugin_symlinks',
+  '.symlinks',
 ])
 
-const errorMessage = (error: unknown) =>
+export const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error)
 
 async function run(path: string, args: string[]) {
