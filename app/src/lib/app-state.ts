@@ -936,6 +936,11 @@ export interface ICompareBranch {
 }
 
 export interface ICompareState {
+  /** Literal, case-insensitive commit-message search within the history tip. */
+  readonly searchQuery?: string
+  readonly searchLoading?: boolean
+  readonly searchHasMore?: boolean
+
   /** The current state of the compare form, based on user input */
   readonly formState: IDisplayHistory | ICompareBranch
 

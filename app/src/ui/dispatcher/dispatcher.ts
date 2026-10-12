@@ -2608,6 +2608,11 @@ export class Dispatcher {
     return this.appStore._executeCompare(repository, action)
   }
 
+  /** Search commit messages in the current branch's complete history. */
+  public searchHistoryCommits(repository: Repository, query: string) {
+    return this.appStore._searchHistoryCommits(repository, query)
+  }
+
   /** Update the compare form state for the current repository */
   public updateCompareForm<K extends keyof ICompareFormUpdate>(
     repository: Repository,

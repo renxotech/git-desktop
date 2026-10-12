@@ -239,6 +239,27 @@ export class GitStore extends BaseStore {
     return commits.map(c => c.sha)
   }
 
+  /** Search the entire pinned history, rather than only the loaded rows. */
+  public async searchCommitBatch(tip: string, query: string, skip: number) {
+    const commits = await this.performFailableOperation(() =>
+      getCommits(this.repository, tip, CommitBatchSize + 1, skip, [
+        '--fixed-strings',
+        '--regexp-ignore-case',
+        `--grep=${query}`,
+      ])
+    )
+    if (commits === undefined) {
+      return null
+    }
+    const batch = commits.slice(0, CommitBatchSize)
+    this.storeCommits(batch)
+    this.emitUpdate()
+    return {
+      shas: batch.map(c => c.sha),
+      hasMore: commits.length > CommitBatchSize,
+    }
+  }
+
   public async refreshTags() {
     const previousTags = this._localTags
     const newTags = await this.performFailableOperation(() =>

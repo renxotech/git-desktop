@@ -1798,7 +1798,56 @@ export class AppStore extends TypedBaseStore<IAppState> {
     const cachedState = compareState.formState
     const action =
       initialAction != null ? initialAction : getInitialAction(cachedState)
+    if (initialAction === undefined && compareState.searchQuery) {
+      return this._searchHistoryCommits(repository, compareState.searchQuery)
+    }
     this._executeCompare(repository, action)
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public async _searchHistoryCommits(repository: Repository, query: string) {
+    if (query.length === 0) {
+      return this._executeCompare(repository, { kind: HistoryTabMode.History })
+    }
+    const gitStore = this.gitStoreCache.get(repository)
+    const { tip } = gitStore
+    const sha =
+      tip.kind === TipState.Valid
+        ? tip.branch.tip.sha
+        : tip.kind === TipState.Detached
+        ? tip.currentSha
+        : null
+    const commitSHAs: ReadonlyArray<string> = []
+    this.repositoryStateCache.updateCompareState(repository, () => ({
+      formState: { kind: HistoryTabMode.History },
+      tip: sha,
+      searchQuery: query,
+      searchLoading: sha !== null,
+      searchHasMore: false,
+      commitSHAs,
+      showBranchList: false,
+      filterText: '',
+    }))
+    this._changeCommitSelection(repository, [], false)
+    this.emitUpdate()
+    if (sha === null) {
+      return
+    }
+    const result = await gitStore.searchCommitBatch(sha, query, 0)
+    const current = this.repositoryStateCache.get(repository).compareState
+    // A new query, branch refresh, or comparison owns a different result array.
+    if (current.commitSHAs !== commitSHAs || current.searchQuery !== query) {
+      return
+    }
+    this.repositoryStateCache.updateCompareState(repository, () => ({
+      commitSHAs: result?.shas ?? [],
+      searchLoading: false,
+      searchHasMore: result?.hasMore ?? false,
+    }))
+    if (result !== null) {
+      this.updateOrSelectFirstCommit(repository, result.shas)
+    }
+    this.emitUpdate()
   }
 
   /** This shouldn't be called directly. See `Dispatcher`. */
@@ -1808,6 +1857,18 @@ export class AppStore extends TypedBaseStore<IAppState> {
   ): Promise<void> {
     const gitStore = this.gitStoreCache.get(repository)
     const kind = action.kind
+    if (this.repositoryStateCache.get(repository).compareState.searchQuery) {
+      this.repositoryStateCache.updateCompareState(repository, () => ({
+        searchQuery: undefined,
+        searchLoading: false,
+        searchHasMore: false,
+        commitSHAs: [],
+      }))
+      this._changeCommitSelection(repository, [], false)
+      this.emitUpdate()
+    }
+    const initialCommits =
+      this.repositoryStateCache.get(repository).compareState.commitSHAs
 
     if (action.kind === HistoryTabMode.History) {
       const { tip } = gitStore
@@ -1831,6 +1892,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
 
       if (
         tipIsUnchanged &&
+        !compareState.searchQuery &&
         formState.kind === HistoryTabMode.History &&
         commitSHAs.length > 0
       ) {
@@ -1842,7 +1904,12 @@ export class AppStore extends TypedBaseStore<IAppState> {
       // load initial group of commits for current branch
       const commits = await gitStore.loadCommitBatch('HEAD', 0)
 
-      if (commits === null) {
+      const current = this.repositoryStateCache.get(repository).compareState
+      if (
+        commits === null ||
+        current.searchQuery ||
+        current.commitSHAs !== initialCommits
+      ) {
         return
       }
 
@@ -1856,6 +1923,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
         commitSHAs: commits,
         filterText: '',
         showBranchList: false,
+        searchQuery: undefined,
+        searchLoading: false,
+        searchHasMore: false,
       }))
       this.updateOrSelectFirstCommit(repository, commits)
 
@@ -1874,6 +1944,8 @@ export class AppStore extends TypedBaseStore<IAppState> {
     action: ICompareToBranch
   ) {
     const gitStore = this.gitStoreCache.get(repository)
+    const initialCommits =
+      this.repositoryStateCache.get(repository).compareState.commitSHAs
 
     const comparisonBranch = action.branch
     const compare = await gitStore.getCompareCommits(
@@ -1891,7 +1963,12 @@ export class AppStore extends TypedBaseStore<IAppState> {
       this.statsStore.increment('defaultBranchComparisons')
     }
 
-    if (compare == null) {
+    const current = this.repositoryStateCache.get(repository).compareState
+    if (
+      compare == null ||
+      current.searchQuery ||
+      current.commitSHAs !== initialCommits
+    ) {
       return
     }
 
@@ -1911,6 +1988,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
       formState: newState,
       filterText: comparisonBranch.name,
       commitSHAs,
+      searchQuery: undefined,
+      searchLoading: false,
+      searchHasMore: false,
     }))
 
     const tip = gitStore.tip
@@ -1996,6 +2076,42 @@ export class AppStore extends TypedBaseStore<IAppState> {
     if (formState.kind === HistoryTabMode.History) {
       const commits = state.compareState.commitSHAs
 
+      const {
+        searchQuery,
+        searchLoading,
+        searchHasMore,
+        tip: searchTip,
+      } = state.compareState
+      if (searchQuery) {
+        if (searchLoading || !searchHasMore || searchTip === null) {
+          return
+        }
+        this.repositoryStateCache.updateCompareState(repository, () => ({
+          searchLoading: true,
+        }))
+        this.emitUpdate()
+        const result = await gitStore.searchCommitBatch(
+          searchTip,
+          searchQuery,
+          commits.length
+        )
+        const current = this.repositoryStateCache.get(repository).compareState
+        if (
+          current.commitSHAs !== commits ||
+          current.searchQuery !== searchQuery ||
+          current.tip !== searchTip
+        ) {
+          return
+        }
+        this.repositoryStateCache.updateCompareState(repository, () => ({
+          commitSHAs: result === null ? commits : commits.concat(result.shas),
+          searchLoading: false,
+          searchHasMore: result?.hasMore ?? false,
+        }))
+        this.emitUpdate()
+        return
+      }
+
       const tip = state.branchesState.tip
 
       let newCommits: string[] | null = null
@@ -2013,7 +2129,12 @@ export class AppStore extends TypedBaseStore<IAppState> {
         newCommits = await gitStore.loadCommitBatch('HEAD', commits.length)
       }
 
-      if (!newCommits) {
+      const current = this.repositoryStateCache.get(repository).compareState
+      if (
+        !newCommits ||
+        current.searchQuery ||
+        current.commitSHAs !== commits
+      ) {
         return
       }
 

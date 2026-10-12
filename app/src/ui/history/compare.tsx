@@ -64,6 +64,7 @@ interface ICompareSidebarProps {
   readonly preferAbsoluteDates: boolean
 }
 interface ICompareSidebarState {
+  readonly searchText: string
   /**
    * This branch should only be used when tracking interactions that the user is performing.
    *
@@ -83,6 +84,7 @@ export class CompareSidebar extends React.Component<
   ICompareSidebarState
 > {
   private textbox: TextBox | null = null
+  private searchTextbox: TextBox | null = null
   private readonly loadChangedFilesScheduler = new ThrottledScheduler(200)
   private branchList: BranchList | null = null
   private commitListRef = React.createRef<CommitList>()
@@ -92,10 +94,20 @@ export class CompareSidebar extends React.Component<
   public constructor(props: ICompareSidebarProps) {
     super(props)
 
-    this.state = { focusedBranch: null }
+    this.state = {
+      focusedBranch: null,
+      searchText: props.compareState.searchQuery ?? '',
+    }
   }
 
   public componentWillReceiveProps(nextProps: ICompareSidebarProps) {
+    if (
+      nextProps.repository.id !== this.props.repository.id ||
+      nextProps.repository.path !== this.props.repository.path ||
+      nextProps.compareState.searchQuery !== this.props.compareState.searchQuery
+    ) {
+      this.setState({ searchText: nextProps.compareState.searchQuery ?? '' })
+    }
     const newFormState = nextProps.compareState.formState
     const oldFormState = this.props.compareState.formState
 
@@ -151,6 +163,7 @@ export class CompareSidebar extends React.Component<
 
   public componentWillUnmount() {
     this.textbox = null
+    this.searchTextbox = null
 
     // by hiding the branch list here when the component is torn down
     // we ensure any ahead/behind computation work is discarded
@@ -180,6 +193,32 @@ export class CompareSidebar extends React.Component<
             onSearchCleared={this.handleEscape}
           />
         </div>
+
+        {this.props.compareState.formState.kind === HistoryTabMode.History && (
+          <div className="commit-search-form">
+            <FancyTextBox
+              ariaLabel="Search commit messages"
+              symbol={octicons.search}
+              type="search"
+              displayClearButton={true}
+              placeholder="Search commit messages…"
+              value={this.state.searchText}
+              onRef={this.onSearchTextBoxRef}
+              onFocus={this.onSearchFocused}
+              onValueChanged={this.onSearchTextChanged}
+              onKeyDown={this.onSearchKeyDown}
+            />
+            <div className="commit-search-status" role="status">
+              {this.props.compareState.searchLoading
+                ? 'Searching commit messages…'
+                : this.props.compareState.searchQuery
+                ? `${formatNumber(this.props.compareState.commitSHAs.length)}${
+                    this.props.compareState.searchHasMore ? '+' : ''
+                  } matching commits`
+                : 'Press Enter to search this branch’s history'}
+            </div>
+          </div>
+        )}
 
         {showBranchList ? this.renderFilterList() : this.renderCommits()}
       </div>
@@ -220,7 +259,11 @@ export class CompareSidebar extends React.Component<
 
     let emptyListMessage: string | JSX.Element
     if (formState.kind === HistoryTabMode.History) {
-      emptyListMessage = 'No history'
+      emptyListMessage = this.props.compareState.searchLoading
+        ? 'Searching commit messages…'
+        : this.props.compareState.searchQuery
+        ? 'No matching commits'
+        : 'No history'
     } else {
       const currentlyComparedBranchName = formState.comparisonBranch.name
 
@@ -248,11 +291,28 @@ export class CompareSidebar extends React.Component<
         selectedSHAs={this.props.selectedCommitShas}
         shasToHighlight={this.props.shasToHighlight}
         localCommitSHAs={this.props.localCommitSHAs}
-        canResetToCommits={formState.kind === HistoryTabMode.History}
-        canUndoCommits={formState.kind === HistoryTabMode.History}
-        canAmendCommits={formState.kind === HistoryTabMode.History}
+        currentTipSha={
+          this.props.compareState.searchQuery
+            ? this.props.compareState.tip ?? undefined
+            : undefined
+        }
+        canResetToCommits={
+          formState.kind === HistoryTabMode.History &&
+          !this.props.compareState.searchQuery
+        }
+        canUndoCommits={
+          formState.kind === HistoryTabMode.History &&
+          !this.props.compareState.searchQuery
+        }
+        canAmendCommits={
+          formState.kind === HistoryTabMode.History &&
+          !this.props.compareState.searchQuery
+        }
         emoji={this.props.emoji}
-        reorderingEnabled={formState.kind === HistoryTabMode.History}
+        reorderingEnabled={
+          formState.kind === HistoryTabMode.History &&
+          !this.props.compareState.searchQuery
+        }
         onViewCommitOnGitHub={this.props.onViewCommitOnGitHub}
         onUndoCommit={this.onUndoCommit}
         onResetToCommit={this.onResetToCommit}
@@ -280,8 +340,14 @@ export class CompareSidebar extends React.Component<
         tagsToPush={this.props.tagsToPush ?? []}
         onRenderCommitDragElement={this.onRenderCommitDragElement}
         onRemoveCommitDragElement={this.onRemoveCommitDragElement}
-        disableReordering={formState.kind === HistoryTabMode.Compare}
-        disableSquashing={formState.kind === HistoryTabMode.Compare}
+        disableReordering={
+          formState.kind === HistoryTabMode.Compare ||
+          !!this.props.compareState.searchQuery
+        }
+        disableSquashing={
+          formState.kind === HistoryTabMode.Compare ||
+          !!this.props.compareState.searchQuery
+        }
         isMultiCommitOperationInProgress={
           this.props.isMultiCommitOperationInProgress
         }
@@ -506,7 +572,8 @@ export class CompareSidebar extends React.Component<
     this.props.dispatcher.changeCommitSelection(
       this.props.repository,
       commits.map(c => c.sha),
-      isContiguous
+      isContiguous &&
+        (!this.props.compareState.searchQuery || commits.length <= 1)
     )
 
     this.loadChangedFilesScheduler.queue(() => {
@@ -555,6 +622,39 @@ export class CompareSidebar extends React.Component<
     this.props.dispatcher.updateCompareForm(this.props.repository, {
       filterText,
     })
+  }
+
+  private onSearchTextBoxRef = (textbox: TextBox) => {
+    this.searchTextbox = textbox
+  }
+
+  private onSearchFocused = () => {
+    this.props.dispatcher.updateCompareForm(this.props.repository, {
+      showBranchList: false,
+    })
+  }
+
+  private onSearchTextChanged = (searchText: string) => {
+    this.setState({ searchText })
+    if (searchText.length === 0) {
+      this.clearCommitSearch()
+    }
+  }
+
+  private clearCommitSearch = () => {
+    this.setState({ searchText: '' })
+    this.props.dispatcher.searchHistoryCommits(this.props.repository, '')
+  }
+
+  private onSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      this.props.dispatcher.searchHistoryCommits(
+        this.props.repository,
+        this.state.searchText
+      )
+      this.searchTextbox?.blur()
+    }
   }
 
   private clearFilterState = () => {

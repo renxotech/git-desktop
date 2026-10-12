@@ -51,6 +51,9 @@ interface ICommitListProps {
   /** Whether or not commits in this list can be amended. */
   readonly canAmendCommits?: boolean
 
+  /** Actual history tip when filtered rows no longer correspond to HEAD. */
+  readonly currentTipSha?: string
+
   /** Whether or the user can reset to commits in this list. */
   readonly canResetToCommits?: boolean
 
@@ -738,7 +741,10 @@ export class CommitList extends React.Component<
       row > 0 && row <= this.props.localCommitSHAs.length
     const canBeResetTo =
       this.props.canResetToCommits === true && isResettableCommit
-    const canBeCheckedOut = row > 0 //Cannot checkout the current commit
+    const canBeCheckedOut =
+      this.props.currentTipSha !== undefined
+        ? commit.sha !== this.props.currentTipSha
+        : row > 0 // Cannot checkout the current commit
 
     let viewOnGitHubLabel = 'View on GitHub'
     const gitHubRepository = this.props.gitHubRepository

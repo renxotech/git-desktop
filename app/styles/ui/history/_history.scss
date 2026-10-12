@@ -40,6 +40,17 @@
     min-height: 0;
   }
 
+  .commit-search-form {
+    padding: var(--spacing-half);
+    border-bottom: var(--base-border);
+  }
+
+  .commit-search-status {
+    color: var(--text-secondary-color);
+    font-size: var(--font-size-sm);
+    margin-top: var(--spacing-half);
+  }
+
   .merge-status {
     background: var(--background-color);
     border-width: 0 var(--spacing-half);
