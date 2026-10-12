@@ -1,5 +1,6 @@
 import { getWorktreeAlias, setWorktreeAlias } from '../worktree-alias'
 import { isWorktreePinned, setWorktreePinned } from '../worktree-pin'
+import pLimit from 'p-limit'
 import * as Path from 'path'
 import { writeFile } from 'fs/promises'
 import {
@@ -5481,35 +5482,49 @@ export class AppStore extends TypedBaseStore<IAppState> {
     signal: AbortSignal,
     onResult: (result: IHealthOperationResult) => void
   ): Promise<void> {
+    if (signal.aborted) {
+      return
+    }
     const selectedDirectories = new Set(
       repositories.map(repository => repository.commonDirectory)
     )
+    const limit = pLimit(4)
     const registered = (
       await Promise.all(
-        this.repositories.map(async repository => {
-          try {
-            const identity = await getHealthRepositoryIdentity(repository.path)
-            return selectedDirectories.has(identity.commonDirectory)
-              ? { repository, commonDirectory: identity.commonDirectory }
-              : null
-          } catch {
-            const selected = repositories.find(
-              selected =>
-                selected.path === repository.path ||
-                selected.worktrees.some(
-                  worktree => worktree.path === repository.path
-                )
-            )
-            return selected
-              ? { repository, commonDirectory: selected.commonDirectory }
-              : null
-          }
-        })
+        this.repositories.map(repository =>
+          limit(async () => {
+            if (signal.aborted) {
+              return null
+            }
+            try {
+              const identity = await getHealthRepositoryIdentity(
+                repository.path
+              )
+              return selectedDirectories.has(identity.commonDirectory)
+                ? { repository, commonDirectory: identity.commonDirectory }
+                : null
+            } catch {
+              const selected = repositories.find(
+                selected =>
+                  selected.path === repository.path ||
+                  selected.worktrees.some(
+                    worktree => worktree.path === repository.path
+                  )
+              )
+              return selected
+                ? { repository, commonDirectory: selected.commonDirectory }
+                : null
+            }
+          })
+        )
       )
     ).filter(
       (entry): entry is { repository: Repository; commonDirectory: string } =>
         entry !== null
     )
+    if (signal.aborted) {
+      return
+    }
     const release = (commonDirectory: string) => {
       for (const entry of registered.filter(
         entry => entry.commonDirectory === commonDirectory

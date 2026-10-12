@@ -44,9 +44,9 @@ queue, retain the common-directory matching needed to lock linked worktrees,
 and stop scheduling lookups when the signal is aborted. A validated identity
 cache could also avoid rediscovering every unrelated checkout on each run.
 
-No incoming application source was changed during this review. This finding
-remains open. No additional actionable defects were found in the reviewed
-merge.
+No incoming application source was changed during the initial review. The
+finding was fixed in the follow-up below. No additional actionable defects
+were found in the reviewed merge.
 
 ## Checked behavior
 
@@ -92,3 +92,32 @@ Validation used the currently installed Node `v22.23.1`; the repository pins
 local source and UI-harness evidence. The app was not rebuilt or relaunched;
 native editor launching, live renderer recovery, and remote service behavior
 were not exercised.
+
+## Follow-up fix (2026-10-12)
+
+The Health operation now limits registered-checkout identity discovery to four
+concurrent lookups using the existing `p-limit` dependency. The limit covers
+the entire lookup, including its two sequential Git commands. Selected common
+Git identities still determine which registered and linked checkouts are
+locked; the existing per-identity release behavior is preserved.
+
+An already-aborted operation returns before discovery. Each queued lookup
+checks the signal before launching Git. Cancellation during discovery waits
+for the at most four admitted lookups to finish, skips the remaining queued
+lookups, and returns before acquiring busy flags or starting Fetch/Update.
+
+Three regression tests were added to `repository-health-locks-test.ts`. They
+instrument the real Git `execFile` path with 24 temporary registered checkouts
+and one selected repository, check that at most four subprocesses overlap,
+verify that cancellation permits at most eight commands from the four
+already-admitted two-command lookups, and assert that a pre-aborted operation
+launches no Git commands. Cancelled discovery makes no busy-flag changes or
+Health result callbacks. The existing linked-checkout locking test remains.
+
+All 16 tests across repository health, Health locking and Health/branch dialog
+suites passed. ESLint, Prettier and whitespace checks passed for the fix.
+Application TypeScript checking passed with `--noEmit --skipLibCheck`. Tests
+used local temporary Git fixtures outside the sandbox because of its `.git`
+write restrictions. Node and native-application validation limits remain as
+described above. Concurrent progress, SSH and submodule edits were excluded
+from this fix.
