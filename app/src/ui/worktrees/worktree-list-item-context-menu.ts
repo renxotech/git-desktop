@@ -8,6 +8,8 @@ interface IWorktreeContextMenuConfig {
   readonly path: string
   readonly isMainWorktree: boolean
   readonly isLocked: boolean
+  readonly isPinned?: boolean
+  readonly onTogglePin?: (path: string) => void
   readonly alias?: string | null
   readonly onChangeAlias?: (path: string) => void
   readonly onSandboxRule?: (path: string) => void
@@ -23,6 +25,13 @@ export function generateWorktreeContextMenuItems(
     config
   const name = Path.basename(path)
   const items = new Array<IMenuItem>()
+
+  if (config.onTogglePin !== undefined) {
+    items.push({
+      label: config.isPinned ? 'Unpin worktree' : 'Pin worktree',
+      action: () => config.onTogglePin?.(path),
+    })
+  }
 
   if (config.onSandboxRule !== undefined) {
     items.push({

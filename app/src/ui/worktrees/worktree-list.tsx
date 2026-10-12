@@ -38,7 +38,7 @@ interface IWorktreeListProps {
   ) => void
 }
 
-type WorktreeGroupIdentifier = 'main' | 'linked'
+type WorktreeGroupIdentifier = 'pinned' | 'main' | 'linked'
 
 export class WorktreeList extends React.Component<IWorktreeListProps> {
   private getGroups = memoizeOne((worktrees: ReadonlyArray<WorktreeEntry>) => {
@@ -46,8 +46,22 @@ export class WorktreeList extends React.Component<IWorktreeListProps> {
       IFilterListGroup<IWorktreeListItem, WorktreeGroupIdentifier>
     > = []
 
-    const mainWorktree = worktrees.find(w => w.type === 'main')
-    const linkedWorktrees = worktrees.filter(w => w.type === 'linked')
+    const pinnedWorktrees = worktrees.filter(w => w.isPinned)
+    const mainWorktree = worktrees.find(w => w.type === 'main' && !w.isPinned)
+    const linkedWorktrees = worktrees.filter(
+      w => w.type === 'linked' && !w.isPinned
+    )
+
+    if (pinnedWorktrees.length > 0) {
+      groups.push({
+        identifier: 'pinned',
+        items: pinnedWorktrees.map(w => ({
+          text: [getWorktreeDisplayName(w)],
+          id: w.path,
+          worktree: w,
+        })),
+      })
+    }
 
     if (mainWorktree) {
       groups.push({
@@ -91,6 +105,9 @@ export class WorktreeList extends React.Component<IWorktreeListProps> {
 
   private getGroupLabel(identifier: WorktreeGroupIdentifier) {
     const worktree = __DARWIN__ ? 'Worktree' : 'worktree'
+    if (identifier === 'pinned') {
+      return `Pinned ${worktree}s`
+    }
     return identifier === 'main' ? `Main ${worktree}` : `Linked ${worktree}s`
   }
 

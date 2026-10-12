@@ -1,4 +1,5 @@
 import { getWorktreeAlias, setWorktreeAlias } from '../worktree-alias'
+import { isWorktreePinned, setWorktreePinned } from '../worktree-pin'
 import * as Path from 'path'
 import { writeFile } from 'fs/promises'
 import {
@@ -6359,6 +6360,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
     try {
       await removeWorktree(repository.path, worktreePath, force)
       setWorktreeAlias(worktreePath, null)
+      setWorktreePinned(worktreePath, false)
     } catch (e) {
       this._closePopup(PopupType.DeleteWorktree)
       this._closePopup(PopupType.DeleteWorktreeFailed)
@@ -6383,6 +6385,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
     newPath: string
   ): Promise<void> {
     await moveWorktree(repository, worktreePath, newPath)
+    const pinned = isWorktreePinned(worktreePath)
+    setWorktreePinned(worktreePath, false)
+    setWorktreePinned(newPath, pinned)
     const alias = getWorktreeAlias(worktreePath)
     if (alias !== null) {
       setWorktreeAlias(newPath, alias)

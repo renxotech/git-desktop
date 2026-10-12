@@ -6,6 +6,7 @@ export type WorktreeType = 'main' | 'linked'
 export type WorktreeEntry = {
   readonly path: string
   readonly alias?: string | null
+  readonly isPinned?: boolean
   readonly sandboxRule?: import('../lib/sandbox-rule').ISandboxRule
   readonly head: string
   /** Full ref name (e.g. `refs/heads/main`), or `null` when HEAD is detached */

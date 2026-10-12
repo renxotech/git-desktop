@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { getWorktreeAlias, setWorktreeAlias } from '../../lib/worktree-alias'
+import { isWorktreePinned, setWorktreePinned } from '../../lib/worktree-pin'
 import { Dispatcher } from '../dispatcher'
 import * as octicons from '../octicons/octicons.generated'
 import { Repository } from '../../models/repository'
@@ -54,6 +55,8 @@ export class WorktreeDropdown extends React.Component<
 
     const items = generateWorktreeContextMenuItems({
       path: worktree.path,
+      isPinned: isWorktreePinned(worktree.path),
+      onTogglePin: this.onTogglePin,
       alias: getWorktreeAlias(worktree.path),
       onChangeAlias: this.onChangeAlias,
       onSandboxRule: worktree.branch ? this.onSandboxRule : undefined,
@@ -69,6 +72,10 @@ export class WorktreeDropdown extends React.Component<
   }
 
   private onAliasChanged = () => this.forceUpdate()
+  private onTogglePin = (path: string) => {
+    setWorktreePinned(path, !isWorktreePinned(path))
+    this.forceUpdate()
+  }
   private onSandboxRule = (path: string) => {
     this.props.dispatcher.closeFoldout(FoldoutType.Worktree)
     this.props.dispatcher.showPopup({
@@ -92,7 +99,11 @@ export class WorktreeDropdown extends React.Component<
     this.onAliasChanged()
   }
   private getWorktrees = () =>
-    this.props.worktrees.map(w => ({ ...w, alias: getWorktreeAlias(w.path) }))
+    this.props.worktrees.map(w => ({
+      ...w,
+      alias: getWorktreeAlias(w.path),
+      isPinned: isWorktreePinned(w.path),
+    }))
   private onRenameWorktree = (path: string) => {
     this.props.dispatcher.closeFoldout(FoldoutType.Worktree)
     this.props.dispatcher.showPopup({
@@ -127,6 +138,8 @@ export class WorktreeDropdown extends React.Component<
 
     const items = generateWorktreeContextMenuItems({
       path: currentWorktree.path,
+      isPinned: isWorktreePinned(currentWorktree.path),
+      onTogglePin: this.onTogglePin,
       alias: getWorktreeAlias(currentWorktree.path),
       onSandboxRule: currentWorktree.branch ? this.onSandboxRule : undefined,
       onChangeAlias: this.onChangeAlias,
