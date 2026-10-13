@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { errorMessage } from '../../lib/repository-health'
 
 import { Branch, BranchType } from '../../models/branch'
 import { Repository } from '../../models/repository'
@@ -145,7 +146,7 @@ export class AddWorktreeDialog extends React.Component<
       } catch (error) {
         dispatcher.postError(
           new Error(
-            `Sandbox was created, but its fast-forward rule could not be saved: ${String(
+            `Sandbox was created, but its fast-forward rule could not be saved: ${errorMessage(
               error
             )}`
           )

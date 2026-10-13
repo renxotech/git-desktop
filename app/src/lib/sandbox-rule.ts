@@ -299,6 +299,10 @@ export async function assertSandboxMutationAllowed(
         )
     }
     if (command === 'push') {
+      // --delete names remote destinations and publishes no local source.
+      if (operands.includes('--delete') || operands.includes('-d')) {
+        return false
+      }
       if (operands.includes('--all') || operands.includes('--mirror')) {
         return true
       }
@@ -329,10 +333,20 @@ export async function assertSandboxMutationAllowed(
       // First positional operand is the remote, not a refspec.
       return pushOperands.slice(1).some(a => {
         const refspec = a.replace(/^\+/, '')
-        return (
-          refspec.split(':').some(ref => matchesBranch(ref, r)) ||
-          refspec.includes('*')
+        // The destination is a remote ref, not the protected local branch.
+        const source = refspec.split(':')[0]
+        if (!source.includes('*')) {
+          return matchesBranch(source, r)
+        }
+        const pattern = new RegExp(
+          '^' +
+            source
+              .split('*')
+              .map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+              .join('.*') +
+            '$'
         )
+        return pattern.test(r.branch) || pattern.test(r.branch.substring(11))
       })
     }
     if (command === 'checkout' || command === 'switch') {

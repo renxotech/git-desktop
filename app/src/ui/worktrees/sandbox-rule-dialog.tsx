@@ -1,3 +1,4 @@
+import { errorMessage } from '../../lib/repository-health'
 import * as React from 'react'
 import { Repository } from '../../models/repository'
 import { Account } from '../../models/account'
@@ -102,7 +103,7 @@ export class SandboxRuleDialog extends React.Component<IProps, IState> {
       if (this.mounted) {
         this.setState({
           loading: false,
-          error: String(error),
+          error: errorMessage(error),
           invalidRules:
             error instanceof InvalidSandboxRulesError ? error.rawValue : null,
         })
@@ -124,7 +125,7 @@ export class SandboxRuleDialog extends React.Component<IProps, IState> {
       this.props.onDismissed()
     } catch (error) {
       if (this.mounted) {
-        this.setState({ saving: false, error: String(error) })
+        this.setState({ saving: false, error: errorMessage(error) })
       }
     }
   }
@@ -204,7 +205,7 @@ export class SandboxRuleDialog extends React.Component<IProps, IState> {
       }
     } catch (error) {
       if (this.mounted) {
-        this.setState({ error: String(error) })
+        this.setState({ error: errorMessage(error) })
       }
     } finally {
       if (this.mounted) {
@@ -229,7 +230,7 @@ export class SandboxRuleDialog extends React.Component<IProps, IState> {
         },
       })
     } catch (error) {
-      this.setState({ error: String(error) })
+      this.setState({ error: errorMessage(error) })
     }
   }
   private onCreateWorkingSandbox = async () => {
@@ -246,7 +247,7 @@ export class SandboxRuleDialog extends React.Component<IProps, IState> {
       })
     } catch (error) {
       if (this.mounted) {
-        this.setState({ error: String(error) })
+        this.setState({ error: errorMessage(error) })
       }
     }
   }
@@ -265,7 +266,7 @@ export class SandboxRuleDialog extends React.Component<IProps, IState> {
       this.props.onDismissed()
     } catch (error) {
       if (this.mounted) {
-        this.setState({ saving: false, error: String(error) })
+        this.setState({ saving: false, error: errorMessage(error) })
       }
     }
   }

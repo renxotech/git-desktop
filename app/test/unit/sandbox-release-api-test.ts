@@ -1,8 +1,23 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { API } from '../../src/lib/api'
+import { sandboxReleaseLoader } from '../../src/lib/sandbox-release-loader'
 
 describe('published sandbox release lookup', () => {
+  it('explains authentication and retry when an anonymous lookup fails', async t => {
+    t.mock.method(
+      globalThis,
+      'fetch',
+      async () =>
+        new Response(JSON.stringify({ message: 'API rate limit exceeded' }), {
+          status: 403,
+        })
+    )
+    await assert.rejects(
+      sandboxReleaseLoader([])('https://github.com/owner/repo.git'),
+      /Sign in to GitHub in Settings.*retry Fetch/
+    )
+  })
   it('follows every page before returning a release list', async t => {
     let pages = 0
     t.mock.method(globalThis, 'fetch', async () => {
