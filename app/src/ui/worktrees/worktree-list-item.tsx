@@ -22,7 +22,9 @@ export class WorktreeListItem extends React.Component<IWorktreeListItemProps> {
   public render() {
     const { worktree, isCurrentWorktree, matches } = this.props
     const name = getWorktreeDisplayName(worktree)
-    const description = getWorktreeDescription(worktree)
+    const description =
+      (worktree.type === 'main' && worktree.isPinned ? 'Main · ' : '') +
+      getWorktreeDescription(worktree)
     const icon = isCurrentWorktree ? octicons.check : octicons.fileDirectory
     const className = classNames('worktrees-list-item', {
       'current-worktree': isCurrentWorktree,

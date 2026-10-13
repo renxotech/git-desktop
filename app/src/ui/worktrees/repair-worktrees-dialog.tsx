@@ -1,3 +1,4 @@
+import { errorMessage } from '../../lib/repository-health'
 import * as React from 'react'
 import { Repository } from '../../models/repository'
 import { resolveMainWorktreePath } from '../../lib/git/worktree'
@@ -41,7 +42,7 @@ export class RepairWorktreesDialog extends React.Component<IProps, IState> {
       }
     } catch (error) {
       if (!this.disposed) {
-        this.setState({ busy: false, error: String(error) })
+        this.setState({ busy: false, error: errorMessage(error) })
       }
     }
   }
@@ -58,7 +59,7 @@ export class RepairWorktreesDialog extends React.Component<IProps, IState> {
       }
     } catch (error) {
       if (!this.disposed) {
-        this.setState({ busy: false, error: String(error) })
+        this.setState({ busy: false, error: errorMessage(error) })
       }
     }
   }

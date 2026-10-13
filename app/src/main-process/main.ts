@@ -476,6 +476,10 @@ app.on('ready', () => {
           menuItem.enabled = state.enabled
           sendMenuChangedEvent = true
         }
+        if (state.label !== undefined && menuItem.label !== state.label) {
+          menuItem.label = state.label
+          sendMenuChangedEvent = true
+        }
       } else {
         fatalError(`Unknown menu id: ${id}`)
       }

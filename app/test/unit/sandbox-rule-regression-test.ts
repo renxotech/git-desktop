@@ -48,7 +48,16 @@ it('allows filenames and rejects protected push refspecs', async t => {
   for (const refspec of [
     '+working:refs/heads/protected',
     ':protected',
+    'refs/heads/working*:refs/heads/protected*',
+  ]) {
+    await assert.doesNotReject(
+      assertSandboxMutationAllowed(['push', '--', 'origin', refspec], repo.path)
+    )
+  }
+  for (const refspec of [
     'protected:working',
+    '+refs/heads/protected:working',
+    'refs/heads/prot*:refs/heads/other*',
   ]) {
     await assert.rejects(
       assertSandboxMutationAllowed(
@@ -61,6 +70,18 @@ it('allows filenames and rejects protected push refspecs', async t => {
   await assert.doesNotReject(
     assertSandboxMutationAllowed(['add', '--', 'protected'], repo.path)
   )
+  await assert.doesNotReject(
+    assertSandboxMutationAllowed(
+      ['push', '--delete', 'origin', 'protected'],
+      repo.path
+    )
+  )
+  for (const flag of ['--all', '--mirror']) {
+    await assert.rejects(
+      assertSandboxMutationAllowed(['push', flag, 'origin'], repo.path),
+      /fast-forward rule/
+    )
+  }
   await assert.rejects(
     assertSandboxMutationAllowed(
       ['push', '--', 'origin', 'protected:protected'],

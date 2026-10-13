@@ -29,7 +29,11 @@ describe('WSL launcher', { skip: process.platform !== 'win32' }, () => {
       assert.deepEqual(args.slice(0, 4), ['/d', '/v:off', '/s', '/c'])
       assert.match(
         args[4],
-        /--distribution Debian-WSL1 --cd "%GITHUB_DESKTOP_WSL_OPEN_PATH%"$/
+        /--distribution "%GITHUB_DESKTOP_WSL_DISTRIBUTION%" --cd "%GITHUB_DESKTOP_WSL_OPEN_PATH%"$/
+      )
+      assert.equal(
+        options.env?.GITHUB_DESKTOP_WSL_DISTRIBUTION,
+        path.includes('Debian-WSL1') ? 'Debian-WSL1' : 'Ubuntu'
       )
       assert.equal(options.env?.GITHUB_DESKTOP_WSL_OPEN_PATH, expectedPath)
       assert.equal(
@@ -41,16 +45,16 @@ describe('WSL launcher', { skip: process.platform !== 'win32' }, () => {
       assert.equal(options.shell, undefined)
     })
   }
-  it('does not start another distribution for a different WSL filesystem', t => {
+  it('opens Ubuntu UNC paths in Ubuntu using a native path', t => {
     const spawn = t.mock.method(
       ChildProcess,
       'spawn',
       () => new ChildProcess.ChildProcess()
     )
-    assert.throws(
-      () => launchWSL('wsl.exe', '\\\\wsl$\\Ubuntu\\home\\repo'),
-      /belongs to Ubuntu/
-    )
-    assert.equal(spawn.mock.callCount(), 0)
+    launchWSL('wsl.exe', '\\\\wsl$\\Ubuntu\\home\\repo')
+    const options = spawn.mock.calls[0]
+      .arguments[2] as ChildProcess.SpawnOptions
+    assert.equal(options.env?.GITHUB_DESKTOP_WSL_DISTRIBUTION, 'Ubuntu')
+    assert.equal(options.env?.GITHUB_DESKTOP_WSL_OPEN_PATH, '/home/repo')
   })
 })

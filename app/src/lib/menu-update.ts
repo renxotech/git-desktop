@@ -15,6 +15,7 @@ import { enableCopilotAppHandoff, enableWorktreeSupport } from './feature-flag'
 
 export interface IMenuItemState {
   readonly enabled?: boolean
+  readonly label?: string
 }
 
 /**
@@ -63,6 +64,11 @@ class MenuStateBuilder {
     return this
   }
 
+  public setLabel(id: MenuIDs, label: string): this {
+    this.updateMenuItem(id, { label })
+    return this
+  }
+
   /**
    * Create a new state builder by merging the current state with the state from
    * the other state builder. This will replace values in `this` with values
@@ -92,6 +98,13 @@ function isRepositoryHostedOnGitHub(
 }
 
 function menuItemStateEqual(state: IMenuItemState, menuItem: MenuItem) {
+  if (
+    state.label !== undefined &&
+    menuItem.type !== 'separator' &&
+    menuItem.label !== state.label
+  ) {
+    return false
+  }
   if (
     state.enabled !== undefined &&
     menuItem.type !== 'separator' &&
@@ -179,6 +192,7 @@ function getRepositoryMenuBuilder(state: IAppState): MenuStateBuilder {
   let branchHasStashEntry = false
   let onContributionTargetDefaultBranch = false
   let hasContributionTargetDefaultBranch = false
+  let onSandboxBranch = false
 
   // check that its a github repo and if so, that is has issues enabled
   const repoIssuesEnabled =
@@ -191,6 +205,11 @@ function getRepositoryMenuBuilder(state: IAppState): MenuStateBuilder {
 
     const { branchesState, changesState } = selectedState.state
     const tip = branchesState.tip
+    onSandboxBranch =
+      tip.kind === TipState.Valid &&
+      selectedState.state.worktrees.some(
+        w => w.sandboxRule?.branch === tip.branch.ref
+      )
     const defaultBranch = branchesState.defaultBranch
 
     onBranch = tip.kind === TipState.Valid
@@ -261,6 +280,14 @@ function getRepositoryMenuBuilder(state: IAppState): MenuStateBuilder {
   const menuStateBuilder = new MenuStateBuilder()
 
   const windowOpen = state.windowState !== 'hidden'
+  menuStateBuilder.setLabel(
+    'pull',
+    onSandboxBranch
+      ? 'Fetch and advance sandbox'
+      : __DARWIN__
+      ? 'Pull'
+      : 'Pu&ll'
+  )
   const inWelcomeFlow = state.showWelcomeFlow
   const repositoryActive = windowOpen && repositorySelected && !inWelcomeFlow
 
@@ -323,7 +350,7 @@ function getRepositoryMenuBuilder(state: IAppState): MenuStateBuilder {
     )
     menuStateBuilder.setEnabled(
       'pull',
-      hasPublishedBranch && !networkActionInProgress
+      (onSandboxBranch || hasPublishedBranch) && !networkActionInProgress
     )
     menuStateBuilder.setEnabled('fetch', hasRemote && !networkActionInProgress)
     menuStateBuilder.setEnabled(
