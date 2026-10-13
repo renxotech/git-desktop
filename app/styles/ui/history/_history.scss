@@ -16,6 +16,16 @@
   flex-grow: 0;
 }
 
+.combined-diff-review {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing);
+  padding: var(--spacing);
+  background: var(--box-alt-background-color);
+  border-bottom: var(--base-border);
+}
+
 #compare-view {
   display: flex;
   flex-direction: column;

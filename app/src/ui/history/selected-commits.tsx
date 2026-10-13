@@ -38,6 +38,8 @@ import { ExpandableCommitSummary } from './expandable-commit-summary'
 import { DiffHeader } from '../diff/diff-header'
 import { Account } from '../../models/account'
 import { Emoji } from '../../lib/emoji'
+import { getCommitRangeSelection } from '../../lib/commit-range-selection'
+import { Button } from '../lib/button'
 
 interface ISelectedCommitsProps {
   readonly repository: Repository
@@ -89,12 +91,18 @@ interface ISelectedCommitsProps {
 
   /** Whether or not the selection of commits is contiguous */
   readonly isContiguous: boolean
+  readonly historyShas: ReadonlyArray<string>
+  readonly isSearching: boolean
 
   readonly accounts: ReadonlyArray<Account>
 }
 
 interface ISelectedCommitsState {
   readonly isExpanded: boolean
+  readonly rangeReview: {
+    readonly originalShas: ReadonlyArray<string>
+    readonly rangeShas: ReadonlyArray<string>
+  } | null
 }
 
 /** The History component. Contains the commit list, commit summary, and diff. */
@@ -109,6 +117,7 @@ export class SelectedCommits extends React.Component<
 
     this.state = {
       isExpanded: false,
+      rangeReview: null,
     }
   }
 
@@ -121,6 +130,21 @@ export class SelectedCommits extends React.Component<
     const file = files[row]
 
     this.props.onOpenInExternalEditor(file.path)
+  }
+
+  public componentWillReceiveProps(nextProps: ISelectedCommitsProps) {
+    const review = this.state.rangeReview
+    if (
+      review !== null &&
+      (nextProps.repository.id !== this.props.repository.id ||
+        nextProps.repository.path !== this.props.repository.path ||
+        nextProps.isSearching ||
+        !nextProps.isContiguous ||
+        nextProps.selectedCommits.length !== review.rangeShas.length ||
+        !nextProps.selectedCommits.every(c => review.rangeShas.includes(c.sha)))
+    ) {
+      this.setState({ rangeReview: null })
+    }
   }
 
   public componentWillUpdate(nextProps: ISelectedCommitsProps) {
@@ -310,6 +334,17 @@ export class SelectedCommits extends React.Component<
 
     return (
       <div id="history" className={className}>
+        {this.state.rangeReview !== null && (
+          <div className="combined-diff-review">
+            <span>
+              Reviewing the full range of {selectedCommits.length} commits,
+              including intervening commits.
+            </span>
+            <Button onClick={this.onReturnToSelection}>
+              Return to original selection
+            </Button>
+          </div>
+        )}
         {this.renderCommitSummary(selectedCommits)}
         <div className="commit-details">
           <Resizable
@@ -338,6 +373,12 @@ export class SelectedCommits extends React.Component<
   }
 
   private renderMultipleCommitsBlankSlate(): JSX.Element {
+    const { selectedCommits, historyShas, isSearching } = this.props
+    const range = getCommitRangeSelection(
+      historyShas,
+      selectedCommits.map(c => c.sha),
+      isSearching
+    )
     const BlankSlateImage = encodePathAsUrl(
       __dirname,
       'static/empty-no-commit.svg'
@@ -348,9 +389,24 @@ export class SelectedCommits extends React.Component<
         <div className="panel blankslate">
           <img src={BlankSlateImage} className="blankslate-image" alt="" />
           <div>
+            <h2>{selectedCommits.length} nonconsecutive commits selected</h2>
             <p>
-              Unable to display diff when multiple non-consecutive selected.
+              A combined diff compares the parent of the oldest commit with the
+              newest commit. It includes intervening changes, rather than only
+              the selected commits. Merge ancestry can exclude commits from that
+              comparison; the diff summary identifies them.
             </p>
+            {range !== null ? (
+              <Button onClick={this.onViewCombinedDiff}>
+                View combined diff of {range.length} commits
+              </Button>
+            ) : (
+              <p>
+                {isSearching
+                  ? 'Clear the commit search and select a range in History to view a combined diff.'
+                  : 'Select these commits again in the current history to view their combined diff.'}
+              </p>
+            )}
             <div>You can:</div>
             <ul>
               <li>
@@ -366,6 +422,40 @@ export class SelectedCommits extends React.Component<
         {this.renderDragOverlay()}
       </div>
     )
+  }
+
+  private onViewCombinedDiff = () => {
+    const {
+      repository,
+      dispatcher,
+      selectedCommits,
+      historyShas,
+      isSearching,
+    } = this.props
+    const originalShas = selectedCommits.map(c => c.sha)
+    const rangeShas = getCommitRangeSelection(
+      historyShas,
+      originalShas,
+      isSearching
+    )
+    if (rangeShas === null) {
+      return
+    }
+    this.setState({ rangeReview: { originalShas, rangeShas } }, () => {
+      dispatcher.changeCommitSelection(repository, rangeShas, true)
+      dispatcher.loadChangedFilesForCurrentSelection(repository)
+    })
+  }
+
+  private onReturnToSelection = () => {
+    const review = this.state.rangeReview
+    if (review === null) {
+      return
+    }
+    const { dispatcher, repository } = this.props
+    this.setState({ rangeReview: null }, () => {
+      dispatcher.changeCommitSelection(repository, review.originalShas, false)
+    })
   }
 
   private onContextMenu = async (

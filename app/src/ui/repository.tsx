@@ -499,6 +499,8 @@ export class RepositoryView extends React.Component<
         selectedCommits={selectedCommits}
         shasInDiff={shasInDiff}
         isContiguous={isContiguous}
+        historyShas={this.props.state.compareState.commitSHAs}
+        isSearching={!!this.props.state.compareState.searchQuery}
         localCommitSHAs={localCommitSHAs}
         changesetData={changesetData}
         selectedFile={file}
