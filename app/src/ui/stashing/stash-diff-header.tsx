@@ -41,7 +41,7 @@ export class StashDiffHeader extends React.Component<
 
     return (
       <div className="header">
-        <h3>Stashed changes</h3>
+        <h3>Stashed changes — {this.props.stashEntry.branchName}</h3>
         <div className="row">
           <OkCancelButtonGroup
             okButtonText="Restore"
@@ -55,7 +55,7 @@ export class StashDiffHeader extends React.Component<
           <div className="explanatory-text" id="restore-description">
             <span className="text">
               <strong>Restore</strong> will move your stashed files to the
-              Changes list.
+              Changes list in the current checkout and remove this stash.
             </span>
           </div>
         </div>

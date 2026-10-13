@@ -30,6 +30,7 @@ import { generateBranchContextMenuItems } from '../branches/branch-list-item-con
 import { IMenuItem, showContextualMenu } from '../../lib/menu-item'
 import { Emoji } from '../../lib/emoji'
 import { enableResizingToolbarButtons } from '../../lib/feature-flag'
+import { createStashMenuItems } from '../stashing/stash-menu'
 
 interface IBranchDropdownProps {
   readonly getFolderActions: (
@@ -370,7 +371,17 @@ export class BranchDropdown extends React.Component<IBranchDropdownProps> {
       onDeleteBranch: this.onDeleteBranch,
     })
 
-    showContextualMenu(items)
+    showContextualMenu([
+      ...items,
+      { type: 'separator' },
+      {
+        label: 'Stashed changes',
+        submenu: createStashMenuItems(
+          this.props.repositoryState.desktopStashes,
+          sha => this.props.dispatcher.showStash(this.props.repository, sha)
+        ),
+      },
+    ])
   }
 
   private getFolderActions = () => {

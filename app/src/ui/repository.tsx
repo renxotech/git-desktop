@@ -436,7 +436,8 @@ export class RepositoryView extends React.Component<
 
   private renderStashedChangesContent(): JSX.Element | null {
     const { changesState } = this.props.state
-    const { selection, stashEntry } = changesState
+    const { selection } = changesState
+    const stashEntry = changesState.previewStashEntry ?? changesState.stashEntry
 
     if (selection.kind !== ChangesSelectionKind.Stash || stashEntry === null) {
       return null

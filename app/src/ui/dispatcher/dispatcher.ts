@@ -361,6 +361,11 @@ export class Dispatcher {
     return this.appStore._selectStashedFile(repository, file)
   }
 
+  /** Preview a Desktop stash without checking out its original branch. */
+  public showStash(repository: Repository, stashSha: string): Promise<void> {
+    return this.appStore._showStash(repository, stashSha)
+  }
+
   /**
    * Commit the changes which were marked for inclusion, using the given commit
    * summary and description and optionally any number of commit message trailers

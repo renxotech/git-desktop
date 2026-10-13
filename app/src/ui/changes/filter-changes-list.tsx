@@ -1116,6 +1116,7 @@ export class FilterChangesList extends React.Component<
       <button
         className={className}
         onClick={this.onStashEntryClicked}
+        aria-label={`Stashed changes from ${this.props.stashEntry.branchName}`}
         tabIndex={0}
         aria-expanded={this.props.isShowingStashEntry}
         aria-controls={

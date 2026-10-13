@@ -360,6 +360,7 @@ export class RepositoryStateCache {
 
 function getInitialRepositoryState(): IRepositoryState {
   return {
+    desktopStashes: [],
     commitSelection: {
       shas: [],
       shasInDiff: [],
@@ -382,6 +383,7 @@ function getInitialRepositoryState(): IRepositoryState {
       showCoAuthoredBy: false,
       conflictState: null,
       stashEntry: null,
+      previewStashEntry: null,
       currentBranchProtected: false,
       currentRepoRulesInfo: new RepoRulesInfo(),
       fileListFilter: {

@@ -269,6 +269,7 @@ function getRepositoryMenuBuilder(state: IAppState): MenuStateBuilder {
     'show-history',
     'show-branches-list',
     'show-worktrees-list',
+    'show-stashes',
     'open-external-editor',
     ...(enableCopilotAppHandoff() ? (['open-in-copilot-app'] as const) : []),
     'open-with-external-editor',
@@ -369,7 +370,12 @@ function getRepositoryMenuBuilder(state: IAppState): MenuStateBuilder {
     )
 
     menuStateBuilder.setEnabled('compare-to-branch', !onDetachedHead)
-    menuStateBuilder.setEnabled('toggle-stashed-changes', branchHasStashEntry)
+    menuStateBuilder.setEnabled(
+      'toggle-stashed-changes',
+      branchHasStashEntry ||
+        (selectedState?.type === SelectionType.Repository &&
+          Boolean(selectedState.state.changesState.previewStashEntry))
+    )
 
     if (
       selectedState &&

@@ -16,6 +16,7 @@ export type MenuEvent =
   | 'delete-branch'
   | 'discard-all-changes'
   | 'stash-all-changes'
+  | 'show-stashes'
   | 'show-preferences'
   | 'choose-repository'
   | 'open-working-directory'

@@ -185,6 +185,7 @@ import { PullRequestReview } from './notifications/pull-request-review'
 import { getRepositoryType } from '../lib/git'
 import { SSHUserPassword } from './ssh/ssh-user-password'
 import { showContextualMenu } from '../lib/menu-item'
+import { createStashMenuItems } from './stashing/stash-menu'
 import { UnreachableCommitsDialog } from './history/unreachable-commits-dialog'
 import { OpenPullRequestDialog } from './open-pull-request/open-pull-request-dialog'
 import { sendNonFatalException } from '../lib/helpers/non-fatal-exception'
@@ -587,6 +588,17 @@ export class App extends React.Component<IAppProps, IAppState> {
         return this.selectAll()
       case 'show-stashed-changes':
         return this.showStashedChanges()
+      case 'show-stashes': {
+        const selected = this.state.selectedState
+        if (selected?.type !== SelectionType.Repository) {
+          return
+        }
+        return showContextualMenu(
+          createStashMenuItems(selected.state.desktopStashes, sha =>
+            this.props.dispatcher.showStash(selected.repository, sha)
+          )
+        )
+      }
       case 'hide-stashed-changes':
         return this.hideStashedChanges()
       case 'find-text':

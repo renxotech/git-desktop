@@ -325,6 +325,7 @@ import {
   createDesktopStashEntry,
   getLastDesktopStashEntryForBranch,
   popStashEntry,
+  getStashedFiles,
   dropDesktopStashEntry,
   moveStashEntry,
 } from '../git/stash'
@@ -607,6 +608,7 @@ const selectedCopilotModelsByAccountKey = 'selected-copilot-models-by-account'
 export const showChangesFilterDefault = true
 
 export class AppStore extends TypedBaseStore<IAppState> {
+  private readonly stashPreviewRequests = new Map<number, number>()
   private readonly gitStoreCache: GitStoreCache
 
   private accounts: ReadonlyArray<Account> = new Array<Account>()
@@ -1438,17 +1440,49 @@ export class AppStore extends TypedBaseStore<IAppState> {
     let selectStashEntry = false
 
     this.repositoryStateCache.updateChangesState(repository, state => {
-      const stashEntry = gitStore.currentBranchStashEntry
+      const previousTip = prevRepositoryState.branchesState.tip
+      const branchChanged =
+        previousTip.kind !== gitStore.tip.kind ||
+        (previousTip.kind === TipState.Valid &&
+          gitStore.tip.kind === TipState.Valid &&
+          previousTip.branch.name !== gitStore.tip.branch.name)
+      if (branchChanged) {
+        this.stashPreviewRequests.set(
+          repository.id,
+          (this.stashPreviewRequests.get(repository.id) ?? 0) + 1
+        )
+      }
+      const preview = state.previewStashEntry
+      const latestPreview =
+        preview === null
+          ? undefined
+          : gitStore.desktopStashEntries.get(preview.branchName)
+      const previewStashEntry =
+        !branchChanged &&
+        preview !== null &&
+        latestPreview !== undefined &&
+        latestPreview.stashSha === preview.stashSha
+          ? { ...latestPreview, files: preview.files }
+          : null
+      if (
+        state.previewStashEntry !== null &&
+        previewStashEntry === null &&
+        state.selection.kind === ChangesSelectionKind.Stash
+      ) {
+        selectWorkingDirectory = true
+      }
+      const stashEntry = previewStashEntry ?? gitStore.currentBranchStashEntry
 
       // Figure out what selection changes we need to make as a result of this
       // change.
       if (state.selection.kind === ChangesSelectionKind.Stash) {
-        if (state.stashEntry !== null) {
+        const previouslyViewed = state.previewStashEntry ?? state.stashEntry
+        if (previouslyViewed !== null) {
           if (stashEntry === null) {
             // We're showing a stash now and the stash entry has just disappeared
             // so we need to switch back over to the working directory.
             selectWorkingDirectory = true
-          } else if (state.stashEntry.stashSha !== stashEntry.stashSha) {
+          } else if (previouslyViewed.stashSha !== stashEntry.stashSha) {
             // The current stash entry has changed from underneath so we must
             // ensure we have a valid selection.
             selectStashEntry = true
@@ -1460,11 +1494,13 @@ export class AppStore extends TypedBaseStore<IAppState> {
         commitMessage: gitStore.commitMessage,
         showCoAuthoredBy: gitStore.showCoAuthoredBy,
         coAuthors: gitStore.coAuthors,
-        stashEntry,
+        stashEntry: gitStore.currentBranchStashEntry,
+        previewStashEntry,
       }
     })
 
     this.repositoryStateCache.update(repository, () => ({
+      desktopStashes: [...gitStore.desktopStashEntries.values()],
       commitLookup: gitStore.commitLookup,
       localCommitSHAs: gitStore.localCommitSHAs,
       localTags: gitStore.localTags,
@@ -3519,9 +3555,14 @@ export class AppStore extends TypedBaseStore<IAppState> {
     repository: Repository,
     files?: ReadonlyArray<WorkingDirectoryFileChange>
   ): Promise<void> {
-    this.repositoryStateCache.updateChangesState(repository, state =>
-      selectWorkingDirectoryFiles(state, files)
+    this.stashPreviewRequests.set(
+      repository.id,
+      (this.stashPreviewRequests.get(repository.id) ?? 0) + 1
     )
+    this.repositoryStateCache.updateChangesState(repository, state => ({
+      ...selectWorkingDirectoryFiles(state, files),
+      previewStashEntry: null,
+    }))
 
     this.updateMenuLabelsForSelectedRepository()
     this.emitUpdate()
@@ -3645,6 +3686,10 @@ export class AppStore extends TypedBaseStore<IAppState> {
   }
 
   public _hideStashedChanges(repository: Repository) {
+    this.stashPreviewRequests.set(
+      repository.id,
+      (this.stashPreviewRequests.get(repository.id) ?? 0) + 1
+    )
     const { changesState } = this.repositoryStateCache.get(repository)
 
     // makes this safe to call even when the stash ui is not visible
@@ -3659,6 +3704,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
         .map(f => f.id)
 
       return {
+        previewStashEntry: null,
         selection: {
           kind: ChangesSelectionKind.WorkingDirectory,
           diff: null,
@@ -3669,6 +3715,61 @@ export class AppStore extends TypedBaseStore<IAppState> {
     this.emitUpdate()
 
     this.updateMenuLabelsForSelectedRepository()
+  }
+
+  /** Preview another branch's stash without changing current-branch state. */
+  public async _showStash(
+    repository: Repository,
+    stashSha: string
+  ): Promise<void> {
+    const request = (this.stashPreviewRequests.get(repository.id) ?? 0) + 1
+    this.stashPreviewRequests.set(repository.id, request)
+    const gitStore = this.gitStoreCache.get(repository)
+    const tip = this.repositoryStateCache.get(repository).branchesState.tip
+    const loaded = await gitStore.performFailableOperation(async () => {
+      await gitStore.loadStashEntries()
+      const entry = [...gitStore.desktopStashEntries.values()].find(
+        s => s.stashSha === stashSha
+      )
+      if (entry === undefined) {
+        throw new Error(
+          'This stash is no longer available. Choose a stash again.'
+        )
+      }
+      const files = await getStashedFiles(repository, stashSha)
+      await gitStore.loadStashEntries()
+      if (
+        gitStore.desktopStashEntries.get(entry.branchName)?.stashSha !==
+        stashSha
+      ) {
+        throw new Error(
+          'This stash changed while loading. Choose a stash again.'
+        )
+      }
+      return {
+        ...entry,
+        files: { kind: StashedChangesLoadStates.Loaded as const, files },
+      }
+    })
+    const currentTip =
+      this.repositoryStateCache.get(repository).branchesState.tip
+    if (
+      loaded === undefined ||
+      loaded === null ||
+      this.stashPreviewRequests.get(repository.id) !== request ||
+      !(this.selectedRepository instanceof Repository) ||
+      this.selectedRepository.id !== repository.id ||
+      currentTip.kind !== tip.kind ||
+      (currentTip.kind === TipState.Valid &&
+        tip.kind === TipState.Valid &&
+        currentTip.branch.name !== tip.branch.name)
+    ) {
+      return
+    }
+    this.repositoryStateCache.updateChangesState(repository, () => ({
+      previewStashEntry: loaded,
+    }))
+    await this._selectStashedFile(repository, null)
   }
 
   /**
@@ -3690,7 +3791,8 @@ export class AppStore extends TypedBaseStore<IAppState> {
     }))
     this.repositoryStateCache.updateChangesState(repository, state => {
       let selectedStashedFile: CommittedFileChange | null = null
-      const { stashEntry, selection } = state
+      const { selection } = state
+      const stashEntry = state.previewStashEntry ?? state.stashEntry
 
       const currentlySelectedFile =
         selection.kind === ChangesSelectionKind.Stash
@@ -3757,7 +3859,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
       return
     }
 
-    const stashEntry = changesStateBeforeLoad.stashEntry
+    const stashEntry =
+      changesStateBeforeLoad.previewStashEntry ??
+      changesStateBeforeLoad.stashEntry
 
     if (stashEntry === null) {
       return
@@ -3792,6 +3896,10 @@ export class AppStore extends TypedBaseStore<IAppState> {
 
     // Something has changed during our async getCommitDiff, bail
     if (
+      (
+        changesStateAfterLoad.previewStashEntry ??
+        changesStateAfterLoad.stashEntry
+      )?.stashSha !== stashEntry.stashSha ||
       changesStateAfterLoad.selection.kind !== ChangesSelectionKind.Stash ||
       changesStateAfterLoad.selection.selectedStashedFile !==
         selectionBeforeLoad.selectedStashedFile

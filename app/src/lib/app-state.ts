@@ -547,6 +547,8 @@ export type ConflictState =
   | CherryPickConflictState
 
 export interface IRepositoryState {
+  /** Latest Desktop-created stash for each branch, in newest-first order. */
+  readonly desktopStashes: ReadonlyArray<IStashEntry>
   readonly commitSelection: ICommitSelection
   readonly changesState: IChangesState
   readonly compareState: ICompareState
@@ -846,6 +848,9 @@ export interface IChangesState {
    * if no stash exists for the current branch.
    */
   readonly stashEntry: IStashEntry | null
+
+  /** Stash being previewed, independent of the current branch's stash. */
+  readonly previewStashEntry: IStashEntry | null
 
   /**
    * The current selection state in the Changes view. Can be either

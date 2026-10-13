@@ -464,6 +464,11 @@ export function buildDefaultMenuTemplate({
       accelerator: 'CmdOrCtrl+Shift+S',
       click: emit('stash-all-changes'),
     },
+    {
+      label: __DARWIN__ ? 'Stashed Changes…' : 'Stashed changes…',
+      id: 'show-stashes',
+      click: emit('show-stashes'),
+    },
     separator,
     {
       label: __DARWIN__

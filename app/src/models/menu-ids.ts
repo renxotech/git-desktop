@@ -39,6 +39,7 @@ export type MenuIDs =
   | 'create-pull-request'
   | 'compare-to-branch'
   | 'toggle-stashed-changes'
+  | 'show-stashes'
   | 'create-issue-in-repository-on-github'
   | 'create-worktree'
   | 'show-worktrees-list'
