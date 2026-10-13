@@ -95,7 +95,9 @@ export function getWindowsDeltaNugetPackagePath() {
 }
 
 export function getWindowsIdentifierName() {
-  return 'GitDesktop'
+  return process.env.DESKTOP_BUILD_TARGET === 'test'
+    ? 'GitDesktop-Test'
+    : 'GitDesktop'
 }
 
 export function getBundleSizes() {

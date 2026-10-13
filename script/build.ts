@@ -47,6 +47,7 @@ import {
   getChannel,
   getDistArchitecture,
   getDistRoot,
+  getDistPath,
   getExecutableName,
   getIconDirectory,
   isPublishable,
@@ -82,7 +83,7 @@ console.log(`Building for ${getChannel()}…`)
 
 if (!shouldSkipPackaging) {
   console.log('Removing old distribution…')
-  rmSync(getDistRoot(), { recursive: true, force: true })
+  rmSync(getDistPath(), { recursive: true, force: true })
 }
 
 console.log('Copying dependencies…')
