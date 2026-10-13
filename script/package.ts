@@ -89,7 +89,8 @@ function packageWindows() {
     process.exit(1)
   }
 
-  const iconUrl = 'https://desktop.githubusercontent.com/app-icon.ico'
+  const iconUrl =
+    'https://raw.githubusercontent.com/renxotech/git-desktop/HEAD/app/static/logos/prod/icon-logo.ico'
 
   const nugetPkgName = getWindowsIdentifierName()
   const options: electronInstaller.Options = {

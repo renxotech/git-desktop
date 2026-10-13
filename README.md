@@ -1,4 +1,22 @@
-# [GitHub Desktop](https://desktop.github.com)
+# [Git Desktop](https://github.com/renxotech/git-desktop)
+
+Git Desktop is an open-source desktop client for managing Git repositories,
+branches, and worktrees. It is based on
+[GitHub Desktop](https://github.com/desktop/desktop), built with Electron,
+TypeScript, and React.
+
+Visit this fork's [releases](https://github.com/renxotech/git-desktop/releases)
+for published builds and [issue tracker](https://github.com/renxotech/git-desktop/issues)
+for feedback. For a local Windows build, use `script/build-local.ps1`.
+
+The Git logo is by Jason Long, licensed under
+[CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).
+See [artwork sources and regeneration](app/static/logos/README.md).
+
+## Upstream GitHub Desktop documentation
+
+The documentation below describes the upstream project, including its screenshots
+and official download channels. Those downloads install upstream GitHub Desktop.
 
 [GitHub Desktop](https://desktop.github.com/) is an open-source [Electron](https://www.electronjs.org/)-based
 GitHub app. It is written in [TypeScript](https://www.typescriptlang.org) and

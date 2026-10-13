@@ -1,4 +1,4 @@
-import { Menu, shell, app, BrowserWindow } from 'electron'
+import { Menu, shell, BrowserWindow } from 'electron'
 import { ensureItemIds } from './ensure-item-ids'
 import { MenuEvent } from './menu-event'
 import { truncateWithEllipsis } from '../../lib/truncate-with-ellipsis'
@@ -12,6 +12,7 @@ import { MenuLabelsEvent } from '../../models/menu-labels'
 import * as ipcWebContents from '../ipc-webcontents'
 import { mkdir } from 'fs/promises'
 import { buildTestMenu } from './build-test-menu'
+import { ProjectURL, ProjectIssuesURL } from '../../lib/branding'
 
 const createPullRequestLabel = __DARWIN__
   ? 'Create Pull Request'
@@ -558,19 +559,17 @@ export function buildDefaultMenuTemplate({
     label: __DARWIN__ ? 'Report Issue…' : 'Report issue…',
     click() {
       shell
-        .openExternal('https://github.com/desktop/desktop/issues/new/choose')
+        .openExternal(`${ProjectIssuesURL}/new/choose`)
         .catch(err => log.error('Failed opening issue creation page', err))
     },
   }
 
-  const contactSupportItem: Electron.MenuItemConstructorOptions = {
-    label: __DARWIN__ ? 'Contact GitHub Support…' : '&Contact GitHub support…',
+  const projectItem: Electron.MenuItemConstructorOptions = {
+    label: __DARWIN__ ? 'Git Desktop Project…' : '&Git Desktop project…',
     click() {
       shell
-        .openExternal(
-          `https://github.com/contact?from_desktop_app=1&app_version=${app.getVersion()}`
-        )
-        .catch(err => log.error('Failed opening contact support page', err))
+        .openExternal(ProjectURL)
+        .catch(err => log.error('Failed opening project page', err))
     },
   }
 
@@ -612,7 +611,7 @@ export function buildDefaultMenuTemplate({
 
   const helpItems = [
     submitIssueItem,
-    contactSupportItem,
+    projectItem,
     showUserGuides,
     showKeyboardShortcuts,
     showLogsItem,

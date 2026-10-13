@@ -18,10 +18,11 @@ import { encodePathAsUrl } from '../../lib/path'
 import { isOSNoLongerSupportedByElectron } from '../../lib/get-os'
 import { AriaLiveContainer } from '../accessibility/aria-live-container'
 import { formatDate } from '../../lib/format-date'
+import { ProjectURL, ProjectIssuesURL } from '../../lib/branding'
 
-const logoPath = __DARWIN__
-  ? 'static/logo-64x64@2x.png'
-  : 'static/windows-logo-64x64@2x.png'
+const logoPath = __DEV__
+  ? 'static/git-desktop-dev.svg'
+  : 'static/git-desktop.svg'
 const DesktopLogo = encodePathAsUrl(__dirname, logoPath)
 
 interface IAboutProps {
@@ -224,30 +225,12 @@ export class About extends React.Component<IAboutProps> {
         <DialogError>
           Couldn't determine the last time an update check was performed. You
           may be running an old version. Please try manually checking for
-          updates and contact GitHub Support if the problem persists
+          updates and report an issue if the problem persists.
         </DialogError>
       )
     }
 
     return null
-  }
-
-  private renderBetaLink() {
-    if (__RELEASE_CHANNEL__ === 'beta') {
-      return
-    }
-
-    return (
-      <div>
-        <p className="no-padding">Looking for the latest features?</p>
-        <p className="no-padding">
-          Check out the{' '}
-          <LinkButton uri="https://desktop.github.com/beta">
-            Beta Channel
-          </LinkButton>
-        </p>
-      </div>
-    )
   }
 
   public render() {
@@ -281,7 +264,17 @@ export class About extends React.Component<IAboutProps> {
           </p>
           {this.renderUpdateDetails()}
           {this.renderUpdateButton()}
-          {this.renderBetaLink()}
+          <p className="upstream-credit">
+            Based on{' '}
+            <LinkButton uri="https://github.com/desktop/desktop">
+              GitHub Desktop
+            </LinkButton>
+          </p>
+          <p className="no-padding">
+            <LinkButton uri={ProjectURL}>Project on GitHub</LinkButton>
+            {' · '}
+            <LinkButton uri={ProjectIssuesURL}>Report an issue</LinkButton>
+          </p>
           <div className="terms-and-license-container">
             <p className="no-padding terms-and-license">
               <LinkButton onClick={this.props.onShowTermsAndConditions}>

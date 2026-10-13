@@ -5,9 +5,10 @@ import { getAppPath } from '../lib/app-proxy'
 import { Loading } from '../lib/loading'
 import { LinkButton } from '../lib/link-button'
 import { Dialog, DialogContent, DefaultDialogFooter } from '../dialog'
+import { ProjectURL } from '../../lib/branding'
 
-const WebsiteURL = 'https://desktop.github.com'
-const RepositoryURL = 'https://github.com/desktop/desktop'
+const WebsiteURL = ProjectURL
+const RepositoryURL = ProjectURL
 
 interface IAcknowledgementsProps {
   /** The function to call when the dialog should be dismissed. */
@@ -128,6 +129,24 @@ export class Acknowledgements extends React.Component<
           </p>
 
           {desktopLicense}
+          <p>
+            Based on{' '}
+            <LinkButton uri="https://github.com/desktop/desktop">
+              GitHub Desktop
+            </LinkButton>
+            , originally developed by GitHub, Inc.
+          </p>
+          <p>
+            Git logo by Jason Long, licensed under{' '}
+            <LinkButton uri="https://creativecommons.org/licenses/by/3.0/">
+              Creative Commons Attribution 3.0
+            </LinkButton>
+            . Icons are resized from the{' '}
+            <LinkButton uri="https://git-scm.com/community/logos">
+              original Git logo
+            </LinkButton>
+            ; development icons include a DEV badge.
+          </p>
 
           <p>Git Desktop also distributes these libraries:</p>
 

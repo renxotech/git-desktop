@@ -45,7 +45,7 @@ interface IWelcomeState {
 // changes to these will have to be reflected in the crash process as well.
 const WelcomeRightImageUri = encodePathAsUrl(
   __dirname,
-  'static/welcome-illustration-right.svg'
+  'static/git-branches.svg'
 )
 export const WelcomeLeftTopImageUri = encodePathAsUrl(
   __dirname,

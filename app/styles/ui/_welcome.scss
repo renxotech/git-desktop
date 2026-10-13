@@ -276,6 +276,12 @@
   flex-direction: column;
 
   .start-content {
+    .welcome-logo {
+      width: calc(64px * var(--welcome-scale));
+      height: calc(64px * var(--welcome-scale));
+      margin-bottom: var(--spacing-double);
+    }
+
     // Make content take of remaining height of container besides the footer.
     flex-grow: 1;
     display: flex;

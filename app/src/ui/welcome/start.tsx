@@ -8,6 +8,12 @@ import { Button } from '../lib/button'
 import { Loading } from '../lib/loading'
 import { BrowserRedirectMessage } from '../lib/authentication-form'
 import { SamplesURL } from '../../lib/stats'
+import { encodePathAsUrl } from '../../lib/path'
+
+const DesktopLogo = encodePathAsUrl(
+  __dirname,
+  __DEV__ ? 'static/git-desktop-dev.svg' : 'static/git-desktop.svg'
+)
 
 /**
  * The URL to the sign-up page on GitHub.com. Used in conjunction
@@ -23,7 +29,7 @@ interface IStartProps {
 }
 
 /** The first step of the Welcome flow. */
-export class Start extends React.Component<IStartProps, {}> {
+export class Start extends React.Component<IStartProps> {
   public render() {
     return (
       <section
@@ -32,15 +38,16 @@ export class Start extends React.Component<IStartProps, {}> {
         aria-describedby="start-description"
       >
         <div className="start-content">
+          <img className="welcome-logo" src={DesktopLogo} alt="" />
           <h1 className="welcome-title">
             Welcome to <span>Git Desktop</span>
           </h1>
           {!this.props.loadingBrowserAuth ? (
             <>
               <p id="start-description" className="welcome-text">
-                Git Desktop is a seamless way to contribute to projects on
-                GitHub and GitHub Enterprise. Sign in below to get started with
-                your existing projects.
+                Manage your Git repositories, branches, and worktrees in one
+                place. Sign in to GitHub to access your hosted projects, or
+                continue without signing in to work with local repositories.
               </p>
             </>
           ) : (
@@ -79,7 +86,7 @@ export class Start extends React.Component<IStartProps, {}> {
               </LinkButton>
             </p>
             <LinkButton className="skip-button" onClick={this.skip}>
-              Skip this step
+              Continue without signing in
             </LinkButton>
           </div>
         </div>

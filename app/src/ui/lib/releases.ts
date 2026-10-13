@@ -1,4 +1,3 @@
-export const ReleaseNotesUri =
-  __RELEASE_CHANNEL__ === 'beta'
-    ? 'https://desktop.github.com/release-notes/?env=beta'
-    : 'https://desktop.github.com/release-notes/'
+import { ProjectReleasesURL } from '../../lib/branding'
+
+export const ReleaseNotesUri = ProjectReleasesURL

@@ -54,7 +54,7 @@ describe('tutorial welcome surfaces', () => {
     assert.ok(screen.getByText(`Welcome to ${__APP_NAME__}`))
     assert.ok(
       screen.getByText(
-        'Use this tutorial to get comfortable with Git, GitHub, and GitHub Desktop.'
+        'Use this tutorial to get comfortable with Git, GitHub, and Git Desktop.'
       )
     )
     assert.equal(definitions.length, 3)

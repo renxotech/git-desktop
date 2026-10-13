@@ -37,6 +37,11 @@ dialog#about {
       margin-top: var(--spacing);
     }
 
+    .upstream-credit {
+      color: var(--text-secondary-color);
+      margin-top: var(--spacing);
+    }
+
     .version-text {
       cursor: pointer;
       .octicon {

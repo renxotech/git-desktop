@@ -11,6 +11,7 @@ import { getVersion } from '../ui/lib/app-proxy'
 import { getOS } from '../lib/get-os'
 import * as ipcRenderer from '../lib/ipc-renderer'
 import { getCurrentWindowState } from '../ui/main-process-proxy'
+import { ProjectIssuesURL } from '../lib/branding'
 
 type CrashAppProps = Record<string, never>
 
@@ -40,7 +41,7 @@ const BottomImageUri = encodePathAsUrl(
   'static/welcome-illustration-left-bottom.svg'
 )
 
-const issuesUri = 'https://github.com/desktop/desktop/issues'
+const issuesUri = ProjectIssuesURL
 
 /**
  * Formats an error by attempting to strip out user-identifiable information
