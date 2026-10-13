@@ -333,6 +333,14 @@ app.on('ready', () => {
 
   readyTime = now() - launchTime
 
+  log.info(
+    `[Profile] app=${app.getName()} executable=${app.getPath(
+      'exe'
+    )} userData=${app.getPath('userData')} sessionStorage=${
+      session.defaultSession.storagePath
+    }`
+  )
+
   if (!__APP_NAME__.endsWith('-test')) {
     possibleProtocols.forEach(protocol => setAsDefaultProtocolClient(protocol))
   }

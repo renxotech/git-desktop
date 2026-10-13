@@ -40,12 +40,24 @@ foreach ($file in $sourceFiles) {
 }
 Assert-AppsClosed
 $hadTestProfile = Test-Path -LiteralPath $testProfile
-if ($hadTestProfile) { Move-Item -LiteralPath $testProfile -Destination $backupProfile }
+if ($hadTestProfile) { [IO.Directory]::Move($testProfile, $backupProfile) }
 try {
-    Move-Item -LiteralPath $stagingProfile -Destination $testProfile
+    # Directory.Move fails if the destination exists; Move-Item can silently
+    # nest staging inside a profile recreated between the process check and move.
+    [IO.Directory]::Move($stagingProfile, $testProfile)
 } catch {
-    if ($hadTestProfile) { Move-Item -LiteralPath $backupProfile -Destination $testProfile }
+    if ($hadTestProfile -and !(Test-Path -LiteralPath $testProfile)) {
+        [IO.Directory]::Move($backupProfile, $testProfile)
+    }
     throw
+}
+$installedFiles = @(Get-ChildItem -LiteralPath $testProfile -File -Recurse -Force)
+if ($sourceFiles.Count -ne $installedFiles.Count) { throw "Installed profile count mismatch; previous Test profile retained at $backupProfile" }
+foreach ($file in $sourceFiles) {
+    $relativePath = $file.FullName.Substring($sourceProfile.Length)
+    if ((Get-FileHash -LiteralPath $file.FullName).Hash -ne (Get-FileHash -LiteralPath ($testProfile + $relativePath)).Hash) {
+        throw "Installed profile verification failed: $relativePath; previous Test profile retained at $backupProfile"
+    }
 }
 Write-Output "Refreshed $testProfile from $sourceProfile; verified $($sourceFiles.Count) files."
 if ($hadTestProfile) { Write-Output "Previous Test profile: $backupProfile" }

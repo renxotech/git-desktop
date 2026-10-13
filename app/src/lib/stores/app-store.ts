@@ -800,6 +800,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
     super()
 
     this.showWelcomeFlow = !hasShownWelcomeFlow()
+    log.info(`[Profile] showWelcomeFlow=${this.showWelcomeFlow}`)
 
     if (__WIN32__) {
       const useWindowsOpenSSH = getBoolean(UseWindowsOpenSSHKey)

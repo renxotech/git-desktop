@@ -26,6 +26,20 @@ the backup. Profiles evolve independently between explicit refreshes.
 To restore a backup, close the apps, preserve the current Test folder under a
 different name, then rename the chosen backup to `Git Desktop-test`.
 
+## Manual Test launch
+
+For manual Test launches, use the explicit profile launcher:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File D:\code\git-desktop\script\start-test.ps1
+```
+
+It validates the packaged Test identity and passes the permanent
+`%APPDATA%\Git Desktop-test` profile explicitly to the Test executable. It does
+not refresh or reset the profile. `-UserDataDirectory` and
+`-RemoteDebuggingPort` are optional arguments for isolated restart regression
+checks; normal launches need neither.
+
 ## Implementation verification (2026-10-13)
 
 - Removed the clean `.worktrees/test` checkout and fully merged local `test`
