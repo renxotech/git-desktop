@@ -1,5 +1,39 @@
 # Local Prod, Test and Dev builds
 
+## Version numbers
+
+Git Desktop has its own semantic version in `app/package.json` (`version`),
+starting at 1.0.0. Increment that version for fork releases: patch for fixes,
+minor for compatible features, major for breaking changes. This is the version
+shown in About and used for packaged application metadata.
+
+The separate `upstreamVersion` field records the GitHub Desktop release on
+which this fork is based (currently 3.6.10). About displays it as
+“Based on GitHub Desktop v3.6.10”. When integrating upstream, retain the fork's
+version and update `upstreamVersion` to the integrated upstream release.
+Fork release notes continue to link to this project's releases.
+
+Version separation verified on 2026-10-28: production compilation and Windows
+x64 packaging passed. The package in `dist/prod-1.0.0/GitDesktop-win32-x64`
+contains version 1.0.0 and upstreamVersion 3.6.10; the executable's product and
+file versions are both 1.0.0. The compiled renderer includes the versioned
+upstream credit. Source review confirmed application version consumers still
+use the fork's `version` and release notes still target the fork's releases.
+Formatting and whitespace checks passed. The packaged About dialog has not
+been checked interactively; no automated tests were added for this display
+and metadata change. The alternate output avoids the locked standard Prod
+directory observed during the preceding build.
+
+Commit review on 2026-10-28 found no actionable defects in the version
+metadata, shared branding export, About rendering, or accompanying records.
+Prettier and focused ESLint passed; the lint command disabled only the
+unavailable installed rule `@typescript-eslint/no-empty-object-type`, as in
+the earlier feature validation. Prior production compilation and packaging
+receipts above remain applicable; no production code changed after that
+build. Submodule contents were not reviewed because their Git metadata is
+inaccessible in the restricted environment. Interactive About acceptance
+remains unverified.
+
 The main checkout at `D:\code\git-desktop` uses branch `desktop-improvements`.
 Dev remains in `.worktrees/dev` on branch `dev`. Test uses the main checkout's
 current source, including any uncommitted changes, and has no separate branch.

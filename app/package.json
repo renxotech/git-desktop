@@ -3,7 +3,8 @@
   "productName": "Git Desktop",
   "bundleID": "com.github.GitHubClient",
   "companyName": "Git Desktop contributors",
-  "version": "3.6.10",
+  "version": "1.0.0",
+  "upstreamVersion": "3.6.10",
   "main": "./main.js",
   "repository": {
     "type": "git",

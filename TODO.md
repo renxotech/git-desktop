@@ -87,3 +87,29 @@ Earlier task records are retained below. The Current merge resolution section at
 - Request: remove unused C:\Users\vinni\.codex\worktrees\file-history-explorer\git-desktop checkout. Owner: Codex.
 - Preserve active D:\code\git-desktop\.worktrees\file-history-explorer and all other worktrees; no branch deletion or merge changes.
 - Verified detached base 376e819596 is retained in desktop-improvements ancestry. Next: recheck clean status including untracked files, remove exact unused checkout, verify registration and path removal.
+- Cleanup result: Git registration and checkout contents removed; active D: feature worktree preserved. Exact C: git-desktop directory is empty but Windows refuses final removal because another process is using it. Pending: close the process holding that folder, then remove only the empty directory. No permissions changed, branches deleted, or merge state altered.
+
+## Production build — 2026-10-28
+- Request: please build; use Prod target consistent with this chat's previous request. Owner: Codex.
+- Checkout: D:\code\git-desktop; branch desktop-improvements; starting HEAD b2278e884930715d7b15cd2e129f682b18389613. Only existing TODO.md changes reported at start.
+- Status: building with required Windows Node 24.22.1 and vendored Yarn; no Desktop process found. Command: node vendor/yarn-1.21.1.js build:prod. Log: prod-build-20261028.log.
+- Scope: compile and package local Windows x64 Prod app. Next: verify build exit and packaged executable, record receipt. Earlier unrelated cleanup and visual-acceptance limits remain as recorded above.
+- Build update: production compilation passed. Existing dist\GitDesktop-win32-x64 is locked by another process (replacement and backup rename both refused outside sandbox). Packaging through the existing build script with distribution-path exports redirected to dist\prod-20261028; existing package preserved. Log: prod-package-20261028.log.
+- Completed: production Webpack compilation passed; Windows x64 Electron 44.1.1 packaging exited 0. Verified executable and packaged app metadata at dist\prod-20261028\GitDesktop-win32-x64\GitDesktop.exe; source HEAD remains b2278e884930715d7b15cd2e129f682b18389613. Logs: prod-build-20261028.log (compile and locked-output failure), prod-package-20261028.log (successful alternate-output packaging). Build request complete; app not launched, tests not rerun. Standard output path remains the older locked package; use the new explicit executable path. No source edits or commits by this build task.
+
+## Independent Git Desktop version — 2026-10-28
+- Request: own version numbers in About; upstream credit should say Based on GitHub Desktop v3.6.10. Owner: Codex; checkout D:\code\git-desktop, branch desktop-improvements, base b2278e884930715d7b15cd2e129f682b18389613.
+- Decision: start fork SemVer at 1.0.0 in app/package.json; separate upstreamVersion metadata 3.6.10, rendered in About. Future fork releases increment own version; upstream merges update base separately.
+- Chunk: metadata, About credit, version policy documentation, focused verification; then refresh local Prod package using alternate directory if original remains locked. No commit/push requested.
+- Status: implementation in progress. Existing TODO history and unrelated pending cleanup preserved.
+- Completed: app/package.json now declares version 1.0.0 and upstreamVersion 3.6.10; About credit reads Based on GitHub Desktop v3.6.10. Version policy and review/verification receipts are in docs/prod-test-builds.md.
+- Validation: production compilation and Windows x64 packaging passed; verified packaged JSON, compiled renderer credit and executable product/file version 1.0.0. Prettier and whitespace checks passed. No executed tests or interactive About acceptance for this metadata/display change.
+- Output: dist/prod-1.0.0/GitDesktop-win32-x64/GitDesktop.exe. Logs: prod-version-build-20261028.log and prod-version-package-20261028.log. Request complete locally; no commit/push. Original distribution lock and earlier unrelated cleanup remain unresolved as documented; neither blocks this new package.
+
+## Review and commit version separation — 2026-10-28
+- Request: review and commit all uncommitted files in this checkout. Owner: Codex; branch desktop-improvements; starting HEAD b2278e884930715d7b15cd2e129f682b18389613.
+- Scope: five pending files (version metadata, branding export, About credit, build/version policy, existing ledger receipts). No other source changes or untracked files reported with submodules ignored.
+- Review: traced package version through build replacements, app version accessor and executable metadata; checked upstream credit uses separate upstreamVersion and release notes retain fork destination. No actionable source defects found. Prior full production compilation/package receipts remain valid; no production edits since that build.
+- Next: focused formatting/lint and whitespace checks, persist review result, stage the exact five files and create local commit. Submodule metadata remains inaccessible; submodule contents and interactive About acceptance are outside verified scope.
+- Verification: Prettier and focused ESLint passed (only unavailable installed rule @typescript-eslint/no-empty-object-type disabled). Review receipt persisted in docs/prod-test-builds.md. Source/package build evidence is unchanged; no tests or rebuild repeated without source changes.
+- Completion checkpoint: reviewed scope ready for local commit; all five pending files included. The commit containing this checkpoint completes the local review/commit request after successful Git verification. No push requested; historical cleanup and interactive acceptance limitations remain visible above.
