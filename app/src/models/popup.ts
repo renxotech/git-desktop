@@ -27,7 +27,7 @@ import { ISecretScanResult } from '../ui/secret-scanning/push-protection-error-d
 import { BypassReasonType } from '../ui/secret-scanning/bypass-push-protection-dialog'
 import { TerminalOutput, TerminalOutputListener } from '../lib/git'
 import type { IBYOKModel, IBYOKProvider } from '../lib/copilot/byok'
-import { WorktreeEntry } from './worktree'
+import { IDeleteWorktreeOptions, WorktreeEntry } from './worktree'
 
 export enum PopupType {
   RenameBranch = 'RenameBranch',
@@ -112,6 +112,7 @@ export enum PopupType {
   TestAbout = 'TestAbout',
   TestCLIAction = 'TestCLIAction',
   TestCopilotSnapshotCard = 'TestCopilotSnapshotCard',
+  TestTokenExpiration = 'TestTokenExpiration',
   PushProtectionError = 'PushProtectionError',
   BypassPushProtection = 'BypassPushProtection',
   GenerateCommitMessageOverrideWarning = 'GenerateCommitMessageOverrideWarning',
@@ -514,6 +515,9 @@ export type PopupDetail =
       type: PopupType.TestCopilotSnapshotCard
     }
   | {
+      type: PopupType.TestTokenExpiration
+    }
+  | {
       type: PopupType.PushProtectionError
       secrets: ReadonlyArray<ISecretScanResult>
     }
@@ -573,6 +577,7 @@ export type PopupDetail =
       type: PopupType.DeleteWorktree
       repository: Repository
       worktreePath: string
+      options: IDeleteWorktreeOptions
     }
   | {
       type: PopupType.DeleteWorktreeFailed
@@ -580,5 +585,6 @@ export type PopupDetail =
       worktreePath: string
       error: Error
       originalWorktree: WorktreeEntry | null
+      options: IDeleteWorktreeOptions
     }
 export type Popup = IBasePopup & PopupDetail
