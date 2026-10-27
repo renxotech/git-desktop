@@ -1,6 +1,6 @@
 # File history explorer specification and reuse assessment
 
-Research date: 2026-10-19. Status: proposed specification, with the user requirements below fixed. Implementation is not started.
+Research date: 2026-10-19. Implementation date: 2026-10-28. Status: implemented in `codex/file-history-explorer`, with source review and focused local validation recorded in `docs/reviews/file-history-explorer-review.md` and `docs/reviews/file-history-explorer-tests.md`. Packaged visual acceptance and large-repository performance remain unverified.
 
 The proposed Files tab combines a tracked-file explorer, file revision list, and the existing diff viewer. The best reuse path is to adapt tree algorithms and tests from upstream-linked TypeScript implementations, keep the app's existing diff presentation, and add a small file-history and exact-snapshot comparison layer. A wholesale cherry-pick would bring unrelated Changes-tab behavior and would not implement the requested explorer.
 
@@ -144,4 +144,4 @@ The remaining product choices are proposals: author-date display, uncompressed i
 
 ## Implementation tracking update — 2026-10-28
 
-The research and proposed-design statements above describe the 2026-10-19 assessment. Subsequent implementation is tracked separately on branch codex/file-history-explorer in D:\code\git-desktop\.worktrees\file-history-explorer; see that worktree's TODO.md for its current status. This specification commit does not include that implementation.
+The research and proposed-design statements above describe the 2026-10-19 assessment. Implementation from codex/file-history-explorer is now being integrated into desktop-improvements in D:\code\git-desktop. See TODO.md and the review and test reports linked above for current integration status and validation limits.

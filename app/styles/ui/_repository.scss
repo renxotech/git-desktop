@@ -34,3 +34,61 @@
     }
   }
 }
+
+.file-history-explorer {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  > .resizable-component {
+    display: flex;
+    flex-direction: column;
+    border-right: var(--base-border);
+  }
+  header {
+    padding: 8px;
+    overflow-wrap: anywhere;
+    flex-shrink: 0;
+  }
+  .list {
+    flex: 1;
+    min-height: 0;
+  }
+  input {
+    margin: 4px;
+  }
+  .list-row {
+    padding: 4px 8px;
+  }
+  strong,
+  span,
+  p {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  strong {
+    display: block;
+  }
+  p {
+    margin: 4px 0;
+  }
+  details {
+    max-height: 180px;
+    overflow: auto;
+  }
+  pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .file-history-diff {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  button {
+    margin: 4px;
+  }
+}

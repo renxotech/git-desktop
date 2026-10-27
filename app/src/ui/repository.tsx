@@ -1,3 +1,4 @@
+import { FileHistoryRequestEvent } from './history/file-history-navigation'
 import * as React from 'react'
 import { Repository } from '../models/repository'
 import { Commit, CommitOneLine } from '../models/commit'
@@ -10,6 +11,7 @@ import { FilesChangedBadge } from './changes/files-changed-badge'
 import { SelectedCommits, CompareSidebar } from './history'
 import { Resizable } from './resizable'
 import { TabBar } from './tab-bar'
+import { FileHistoryExplorer } from './history/file-history-explorer'
 import {
   IRepositoryState,
   RepositorySectionTab,
@@ -146,11 +148,14 @@ interface IRepositoryViewProps {
 interface IRepositoryViewState {
   readonly changesListScrollTop: number
   readonly compareListScrollTop: number
+  readonly showFiles: boolean
+  readonly fileHistoryPath?: string
 }
 
 const enum Tab {
   Changes = 0,
   History = 1,
+  Files = 2,
 }
 
 export class RepositoryView extends React.Component<
@@ -176,6 +181,7 @@ export class RepositoryView extends React.Component<
     this.state = {
       changesListScrollTop: 0,
       compareListScrollTop: 0,
+      showFiles: false,
     }
   }
 
@@ -192,6 +198,7 @@ export class RepositoryView extends React.Component<
 
     this.setState({
       compareListScrollTop: 0,
+      showFiles: false,
     })
   }
 
@@ -215,10 +222,11 @@ export class RepositoryView extends React.Component<
   }
 
   private renderTabs(): JSX.Element {
-    const selectedTab =
-      this.props.state.selectedSection === RepositorySectionTab.Changes
-        ? Tab.Changes
-        : Tab.History
+    const selectedTab = this.state.showFiles
+      ? Tab.Files
+      : this.props.state.selectedSection === RepositorySectionTab.Changes
+      ? Tab.Changes
+      : Tab.History
 
     return (
       <TabBar selectedIndex={selectedTab} onTabClicked={this.onTabClicked}>
@@ -230,6 +238,7 @@ export class RepositoryView extends React.Component<
         <div className="with-indicator" id="history-tab">
           <span>History</span>
         </div>
+        <span id="files-tab">Files</span>
       </TabBar>
     )
   }
@@ -646,6 +655,28 @@ export class RepositoryView extends React.Component<
   }
 
   public render() {
+    if (this.state.showFiles) {
+      return (
+        <UiView id="repository">
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              flex: 1,
+              minWidth: 0,
+            }}
+          >
+            {this.renderTabs()}
+            <FileHistoryExplorer
+              key={this.props.repository.path}
+              repository={this.props.repository}
+              initialPath={this.state.fileHistoryPath}
+              refreshToken={this.props.state.changesState.workingDirectory}
+            />
+          </div>
+        </UiView>
+      )
+    }
     return (
       <UiView id="repository">
         {this.renderSidebar()}
@@ -669,10 +700,15 @@ export class RepositoryView extends React.Component<
 
   public componentDidMount() {
     window.addEventListener('keydown', this.onGlobalKeyDown)
+    window.addEventListener(FileHistoryRequestEvent, this.onFileHistoryRequest)
   }
 
   public componentWillUnmount() {
     window.removeEventListener('keydown', this.onGlobalKeyDown)
+    window.removeEventListener(
+      FileHistoryRequestEvent,
+      this.onFileHistoryRequest
+    )
   }
 
   public componentDidUpdate(): void {
@@ -705,7 +741,20 @@ export class RepositoryView extends React.Component<
     }
   }
 
+  private onFileHistoryRequest = (event: Event) => {
+    const detail = (
+      event as CustomEvent<{ repositoryPath: string; path: string }>
+    ).detail
+    if (detail.repositoryPath === this.props.repository.path) {
+      this.setState({ showFiles: true, fileHistoryPath: detail.path })
+    }
+  }
+
   private changeTab() {
+    if (this.state.showFiles) {
+      this.onTabClicked(Tab.Changes)
+      return
+    }
     const section =
       this.props.state.selectedSection === RepositorySectionTab.History
         ? RepositorySectionTab.Changes
@@ -718,6 +767,10 @@ export class RepositoryView extends React.Component<
   }
 
   private onTabClicked = (tab: Tab) => {
+    this.setState({ showFiles: tab === Tab.Files })
+    if (tab === Tab.Files) {
+      return
+    }
     const section =
       tab === Tab.History
         ? RepositorySectionTab.History

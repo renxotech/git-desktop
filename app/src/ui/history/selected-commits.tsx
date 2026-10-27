@@ -1,3 +1,4 @@
+import { requestFileHistory } from './file-history-navigation'
 import * as React from 'react'
 import { writeClipboardText } from '../main-process-proxy'
 import * as Path from 'path'
@@ -493,6 +494,10 @@ export class SelectedCommits extends React.Component<
       : DefaultEditorLabel
 
     const items: IMenuItem[] = [
+      {
+        label: 'View File History',
+        action: () => requestFileHistory(repository, file.path),
+      },
       {
         label: RevealInFileManagerLabel,
         action: () => revealInFileManager(repository, file.path),
