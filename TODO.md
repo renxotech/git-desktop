@@ -87,3 +87,17 @@ Earlier task records are retained below. The Current merge resolution section at
 - Request: remove unused C:\Users\vinni\.codex\worktrees\file-history-explorer\git-desktop checkout. Owner: Codex.
 - Preserve active D:\code\git-desktop\.worktrees\file-history-explorer and all other worktrees; no branch deletion or merge changes.
 - Verified detached base 376e819596 is retained in desktop-improvements ancestry. Next: recheck clean status including untracked files, remove exact unused checkout, verify registration and path removal.
+
+## Files tab width correction 2026-10-28
+- User reports tab bar spreads across full screen when switching Changes to Files; correction supersedes initial interpretation that tabs disappear.
+- Branch codex/file-history-explorer at b2278e8849, D:\code\git-desktop\.worktrees\file-history-explorer. Main checkout at1b6a413fe1; preserve unrelated version/build work.
+- Cause: Files renders shared tab bar in a full-width column instead of constrained repository sidebar.
+- Chunk: constrain shared tab presentation to configured sidebar width; keep Files content full width; add focused switching/width regression; static and focused test validation after implementation.
+- Status: implementing. No build/deployment/commit requested in this turn.
+- Completed: shared sidebar-width navigation frame fixes spread-out tabs, 2 regression tests added. 9/9 focused UI tests, TypeScript skipLibCheck, focused lint, whitespace checks pass.
+- Source remains uncommitted in feature worktree. Next: review/apply this fix to desktop-improvements and rebuild for installed-app visual verification; no main checkout merge or packaging performed in this turn.
+
+## Commit merge and rebuild request 2026-10-28
+- User authorizes committing tab-width correction, merging to desktop-improvements in D:\code\git-desktop, and rebuilding app for manual verification.
+- Plan: commit reviewed/tested fix; merge current main (clean at1b6a413fe1); run combined focused validation; build Prod into unlocked distinct output (existing prod-1.0.0 application PID29948 running).
+- Preserve source version/build changes and running app; no push requested. Status: commit/merge pending.
