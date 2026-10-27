@@ -113,3 +113,18 @@ Earlier task records are retained below. The Current merge resolution section at
 - Next: focused formatting/lint and whitespace checks, persist review result, stage the exact five files and create local commit. Submodule metadata remains inaccessible; submodule contents and interactive About acceptance are outside verified scope.
 - Verification: Prettier and focused ESLint passed (only unavailable installed rule @typescript-eslint/no-empty-object-type disabled). Review receipt persisted in docs/prod-test-builds.md. Source/package build evidence is unchanged; no tests or rebuild repeated without source changes.
 - Completion checkpoint: reviewed scope ready for local commit; all five pending files included. The commit containing this checkpoint completes the local review/commit request after successful Git verification. No push requested; historical cleanup and interactive acceptance limitations remain visible above.
+
+## Files tab width correction 2026-10-28
+- User reports tab bar spreads across full screen when switching Changes to Files; correction supersedes initial interpretation that tabs disappear.
+- Branch codex/file-history-explorer at b2278e8849, D:\code\git-desktop\.worktrees\file-history-explorer. Main checkout at1b6a413fe1; preserve unrelated version/build work.
+- Cause: Files renders shared tab bar in a full-width column instead of constrained repository sidebar.
+- Chunk: constrain shared tab presentation to configured sidebar width; keep Files content full width; add focused switching/width regression; static and focused test validation after implementation.
+- Status: implementing. No build/deployment/commit requested in this turn.
+- Completed: shared sidebar-width navigation frame fixes spread-out tabs, 2 regression tests added. 9/9 focused UI tests, TypeScript skipLibCheck, focused lint, whitespace checks pass.
+- Source remains uncommitted in feature worktree. Next: review/apply this fix to desktop-improvements and rebuild for installed-app visual verification; no main checkout merge or packaging performed in this turn.
+
+## Commit merge and rebuild request 2026-10-28
+- User authorizes committing tab-width correction, merging to desktop-improvements in D:\code\git-desktop, and rebuilding app for manual verification.
+- Plan: commit reviewed/tested fix; merge current main (clean at1b6a413fe1); run combined focused validation; build Prod into unlocked distinct output (existing prod-1.0.0 application PID29948 running).
+- Preserve source version/build changes and running app; no push requested. Status: commit/merge pending.
+- Integration: preserved both ledger histories resolving the sole TODO.md conflict. Production source merged cleanly; build target is standard dist/GitDesktop-win32-x64, distinct from running dist/prod-1.0.0.

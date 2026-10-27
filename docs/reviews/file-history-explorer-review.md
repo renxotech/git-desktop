@@ -34,3 +34,11 @@ No unresolved P1/P2 source findings from this review remain at the revised code-
 ## Remaining coverage limits
 
 Source review does not establish runtime layout, focus behavior, screen-reader semantics, performance in very large repositories, or successful packaged launch. The tree uses the existing list accessibility model with folder descriptions, rather than a full ARIA tree widget. Commit details now include author/committer dates and local timezone. Pagination reloads an increasing prefix rather than keeping a cursor; this is safe only while the resolved HEAD is stable and may be expensive because each revision performs a changed-file query. These limits must remain visible in the final implementation report.
+
+## Files tab bar width correction 2026-10-28
+- User clarification: navigation tabs remain present but spread across the full screen in Files mode.
+- Cause verified in repository.tsx: Changes/History render the tab bar inside the sized sidebar, while Files renders it in an unconstrained full-width column.
+- Fix: one shared RepositoryTabs component constrains navigation to clamp(sidebarWidth), max-width100%, flex-shrink0 in all modes. Files content remains full width. Badge/selection/keyboard TabBar code is reused unchanged.
+- Review: inspected both call paths through renderTabs; no mode-specific label lists or tab indices introduced. Main checkout/version changes preserved.
+- Validation: 9/9 focused UI tests pass (2 new width/switching regressions, 3 existing TabBar and 4 explorer integration tests). TypeScript --noEmit --skipLibCheck and focused ESLint (only documented missing-rule override) pass; git diff --check passes.
+- Limits: tests exercise DOM styles and navigation, not Electron pixel layout. Running installed app not rebuilt or replaced by this change.

@@ -10,7 +10,7 @@ import { MultipleSelection } from './changes/multiple-selection'
 import { FilesChangedBadge } from './changes/files-changed-badge'
 import { SelectedCommits, CompareSidebar } from './history'
 import { Resizable } from './resizable'
-import { TabBar } from './tab-bar'
+import { RepositoryTabs } from './history/repository-tabs'
 import { FileHistoryExplorer } from './history/file-history-explorer'
 import {
   IRepositoryState,
@@ -229,17 +229,12 @@ export class RepositoryView extends React.Component<
       : Tab.History
 
     return (
-      <TabBar selectedIndex={selectedTab} onTabClicked={this.onTabClicked}>
-        <span className="with-indicator" id="changes-tab">
-          <span>Changes</span>
-          {this.renderChangesBadge()}
-        </span>
-
-        <div className="with-indicator" id="history-tab">
-          <span>History</span>
-        </div>
-        <span id="files-tab">Files</span>
-      </TabBar>
+      <RepositoryTabs
+        width={clamp(this.props.sidebarWidth)}
+        selectedIndex={selectedTab}
+        onTabClicked={this.onTabClicked}
+        changesBadge={this.renderChangesBadge()}
+      />
     )
   }
 
