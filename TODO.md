@@ -128,3 +128,12 @@ Earlier task records are retained below. The Current merge resolution section at
 - Plan: commit reviewed/tested fix; merge current main (clean at1b6a413fe1); run combined focused validation; build Prod into unlocked distinct output (existing prod-1.0.0 application PID29948 running).
 - Preserve source version/build changes and running app; no push requested. Status: commit/merge pending.
 - Integration: preserved both ledger histories resolving the sole TODO.md conflict. Production source merged cleanly; build target is standard dist/GitDesktop-win32-x64, distinct from running dist/prod-1.0.0.
+
+## Tab width fix commit merge and build completion 2026-10-28
+- Request complete: fix commit03dae5006c merged into desktop-improvements at757dd057e7 in D:\code\git-desktop. Only TODO.md conflicted; both histories retained. No push.
+- Combined validation: 9/9 focused UI tests pass in main checkout; TypeScript --noEmit --skipLibCheck passes. Merge whitespace check passed.
+- Build: production Webpack compilation succeeded. Standard packaging failed EPERM replacing dist/GitDesktop-win32-x64; running old app at dist/prod-1.0.0 left open.
+- Recovery: reused compiled out bundle with normal script/build.ts, overriding getDistRoot/getDistPath in the process only to dist/files-tab-fix-20261028. No source build-script changes. Package completed exit0.
+- Verified executable: D:\code\git-desktop\dist\files-tab-fix-20261028\GitDesktop-win32-x64\GitDesktop.exe; productVersion1.0.0, package upstreamVersion3.6.10; packaged renderer includes repository-tabs width correction.
+- Evidence logs: file-history-tab-build.log and file-history-tab-package.log (ignored local build logs). Nonblocking existing Webpack warning: branding.ts named upstreamVersion JSON export; build completed.
+- Next: user closes old instance and launches new executable for visual acceptance. New binary not launched during this turn to avoid old single-instance app intercepting launch. No source tasks pending; interactive acceptance remains pending user.
