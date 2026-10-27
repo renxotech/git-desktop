@@ -910,7 +910,10 @@ export async function getBlobImage(
   const extension = Path.extname(path)
   const contents = await getBlobContents(repository, commitish, path)
   return new Image(
-    contents.buffer,
+    contents.buffer.slice(
+      contents.byteOffset,
+      contents.byteOffset + contents.byteLength
+    ),
     contents.toString('base64'),
     getMediaType(extension),
     contents.length
@@ -931,7 +934,10 @@ export async function getWorkingDirectoryImage(
 ): Promise<Image> {
   const contents = await readFile(Path.join(repository.path, file.path))
   return new Image(
-    contents.buffer,
+    contents.buffer.slice(
+      contents.byteOffset,
+      contents.byteOffset + contents.byteLength
+    ),
     contents.toString('base64'),
     getMediaType(Path.extname(file.path)),
     contents.length
@@ -1004,3 +1010,90 @@ async function getFilesUsingBinaryMergeDriver(
 // https://git-scm.com/docs/gitglossary#Documentation/gitglossary.txt-top
 const ensureRelativePath = (path: string) =>
   isAbsolute(path) ? `:(top,literal)${path}` : path
+
+/** Compare explicit snapshot buffers. Reuses raw diff parsing and image presentation,
+ * without getImageDiff's legacy implicit parent convention. */
+export async function getFileSnapshotDiff(
+  repository: Repository,
+  path: string,
+  oldContents: Buffer | null,
+  newContents: Buffer | null,
+  hideWhitespace: boolean
+): Promise<IDiff> {
+  const extension = Path.extname(path).toLowerCase()
+  if (
+    oldContents
+      ?.subarray(0, 80)
+      .toString()
+      .startsWith('version https://git-lfs.github.com/spec/v1') ||
+    newContents
+      ?.subarray(0, 80)
+      .toString()
+      .startsWith('version https://git-lfs.github.com/spec/v1')
+  ) {
+    return { kind: DiffType.Binary }
+  }
+  if (
+    imageFileExtensions.has(extension) &&
+    (oldContents !== null || newContents !== null)
+  ) {
+    const image = (contents: Buffer | null) =>
+      contents === null
+        ? undefined
+        : new Image(
+            contents.buffer.slice(
+              contents.byteOffset,
+              contents.byteOffset + contents.byteLength
+            ),
+            contents.toString('base64'),
+            getMediaType(extension),
+            contents.length
+          )
+    return {
+      kind: DiffType.Image,
+      previous: image(oldContents),
+      current: image(newContents),
+    }
+  }
+  if (oldContents?.includes(0) || newContents?.includes(0)) {
+    return { kind: DiffType.Binary }
+  }
+  const oldFile = getTempFilePath('file-history-old')
+  const newFile = getTempFilePath('file-history-new')
+  try {
+    await writeFile(oldFile, oldContents ?? Buffer.alloc(0))
+    await writeFile(newFile, newContents ?? Buffer.alloc(0))
+    const result = await git(
+      [
+        'diff',
+        '--no-index',
+        '--no-ext-diff',
+        '--no-textconv',
+        '--patch-with-raw',
+        '-z',
+        '--no-color',
+        ...(hideWhitespace ? ['-w'] : []),
+        '--',
+        oldFile,
+        newFile,
+      ],
+      repository.path,
+      'fileHistoryDiff',
+      { successExitCodes: new Set([0, 1]), encoding: 'buffer' }
+    )
+    if (!isValidBuffer(result.stdout)) {
+      return { kind: DiffType.Unrenderable }
+    }
+    const parsed = diffFromRawDiffOutput(result.stdout)
+    return {
+      kind: isDiffTooLarge(parsed) ? DiffType.LargeText : DiffType.Text,
+      text: parsed.contents,
+      hunks: parsed.hunks,
+      maxLineNumber: parsed.maxLineNumber,
+      hasHiddenBidiChars: parsed.hasHiddenBidiChars,
+    }
+  } finally {
+    await unlink(oldFile).catch(() => {})
+    await unlink(newFile).catch(() => {})
+  }
+}

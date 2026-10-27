@@ -1,3 +1,4 @@
+import { requestFileHistory } from '../history/file-history-navigation'
 import * as React from 'react'
 import * as Path from 'path'
 
@@ -782,6 +783,11 @@ export class FilterChangesList extends React.Component<
     } else {
       items.push(
         { type: 'separator' },
+        {
+          label: 'View File History',
+          enabled: file.status.kind !== AppFileStatusKind.Untracked,
+          action: () => requestFileHistory(this.props.repository, file.path),
+        },
         this.getCopyPathMenuItem(file),
         this.getCopyRelativePathMenuItem(file)
       )
@@ -821,6 +827,11 @@ export class FilterChangesList extends React.Component<
     const enabled = status.kind !== AppFileStatusKind.Deleted
 
     items.push(
+      {
+        label: 'View File History',
+        enabled: file.status.kind !== AppFileStatusKind.Untracked,
+        action: () => requestFileHistory(this.props.repository, file.path),
+      },
       this.getCopyPathMenuItem(file),
       this.getCopyRelativePathMenuItem(file),
       { type: 'separator' },
