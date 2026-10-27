@@ -29,7 +29,7 @@ describe('WSL launcher', { skip: process.platform !== 'win32' }, () => {
       assert.deepEqual(args.slice(0, 4), ['/d', '/v:off', '/s', '/c'])
       assert.match(
         args[4],
-        /--distribution "%GITHUB_DESKTOP_WSL_DISTRIBUTION%" --cd "%GITHUB_DESKTOP_WSL_OPEN_PATH%"$/
+        /--distribution %GITHUB_DESKTOP_WSL_DISTRIBUTION% --cd "%GITHUB_DESKTOP_WSL_OPEN_PATH%"$/
       )
       assert.equal(
         options.env?.GITHUB_DESKTOP_WSL_DISTRIBUTION,
@@ -56,5 +56,20 @@ describe('WSL launcher', { skip: process.platform !== 'win32' }, () => {
       .arguments[2] as ChildProcess.SpawnOptions
     assert.equal(options.env?.GITHUB_DESKTOP_WSL_DISTRIBUTION, 'Ubuntu')
     assert.equal(options.env?.GITHUB_DESKTOP_WSL_OPEN_PATH, '/home/repo')
+  })
+  it('keeps distribution names with shell metacharacters quoted', t => {
+    const spawn = t.mock.method(
+      ChildProcess,
+      'spawn',
+      () => new ChildProcess.ChildProcess()
+    )
+    launchWSL('wsl.exe', '\\\\wsl$\\Custom & Linux\\home\\repo')
+    const [, args, options] = spawn.mock.calls[0].arguments as unknown as [
+      string,
+      string[],
+      ChildProcess.SpawnOptions
+    ]
+    assert.match(args[4], /--distribution "%GITHUB_DESKTOP_WSL_DISTRIBUTION%"/)
+    assert.equal(options.env?.GITHUB_DESKTOP_WSL_DISTRIBUTION, 'Custom & Linux')
   })
 })
