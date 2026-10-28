@@ -137,3 +137,19 @@ Earlier task records are retained below. The Current merge resolution section at
 - Verified executable: D:\code\git-desktop\dist\files-tab-fix-20261028\GitDesktop-win32-x64\GitDesktop.exe; productVersion1.0.0, package upstreamVersion3.6.10; packaged renderer includes repository-tabs width correction.
 - Evidence logs: file-history-tab-build.log and file-history-tab-package.log (ignored local build logs). Nonblocking existing Webpack warning: branding.ts named upstreamVersion JSON export; build completed.
 - Next: user closes old instance and launches new executable for visual acceptance. New binary not launched during this turn to avoid old single-instance app intercepting launch. No source tasks pending; interactive acceptance remains pending user.
+
+## Credential helper push failure — 2026-10-28
+- Request: diagnose and fix screenshot push failure (credential-desktop missing).
+- Owner: Codex; checkout D:\code\git-desktop, branch desktop-improvements, initially ahead 4; no push authorized.
+- Cause: build.ts hardcodes ucrt64 while installed dugite resolves mingw64; helper copied into unused directory.
+- Scope: select the bundled Git core directory from its actual executable layout; repair missing helper in recent local packages; validate helper dispatch without network or credentials.
+- Status: complete locally; source packaging fix selects mingw64 when present, otherwise ucrt64.
+- Repaired missing helper in files-tab-fix-20261028, prod-1.0.0 and prod-20261028 packages. Each bundled Git now invokes credential-desktop; it reaches the expected DESKTOP_PORT guard outside the app. No credentials accessed or network push attempted.
+- Validation: source Prettier and whitespace checks passed. Full rebuild not run; future builds use corrected helper placement. Changes uncommitted. Next: user retries Push origin in app; authenticated push acceptance remains pending.
+
+## Review commit and build — 2026-10-28
+- Request: review and commit all pending files, then build. Owner: Codex; desktop-improvements in D:\code\git-desktop.
+- Reviewed scope: TODO.md and script/build.ts only. Helper selection matches installed Git layout; no actionable findings. No push authorized.
+- Plan: formatting/lint/whitespace checks, local commit, production compilation and package to distinct dist/credential-helper-fix-20261028 output; verify packaged helper dispatch.
+- Status: review complete; validation and commit next.
+- Checks: Prettier and whitespace passed. Focused lint reports existing no-var-requires at unchanged build.ts:325; rerun with that existing rule violation excluded.
