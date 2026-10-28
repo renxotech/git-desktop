@@ -20,6 +20,7 @@ import {
 import { getFileSnapshotDiff } from '../../lib/git/diff'
 
 interface IProps {
+  readonly navigation?: React.ReactNode
   readonly initialPath?: string
   readonly repository: Repository
   readonly refreshToken: unknown
@@ -394,10 +395,13 @@ export class FileHistoryExplorer extends React.Component<IProps, IState> {
           onResize={treeWidth => this.setState({ treeWidth })}
           onReset={() => this.setState({ treeWidth: 240 })}
         >
-          <header title={this.props.repository.path}>
-            {this.props.repository.path}
+          {this.props.navigation}
+          <div className="file-history-toolbar">
+            <span className="file-history-title">
+              {this.props.repository.path}
+            </span>
             <button onClick={this.refresh}>Refresh</button>
-          </header>
+          </div>
           <input
             aria-label="Filter tracked files"
             placeholder="Filter tracked files"
@@ -527,8 +531,13 @@ export class FileHistoryExplorer extends React.Component<IProps, IState> {
           onResize={historyWidth => this.setState({ historyWidth })}
           onReset={() => this.setState({ historyWidth: 290 })}
         >
-          <header>
-            {path || 'File revisions'}
+          <header
+            className="file-history-header"
+            aria-label="Revision controls"
+          >
+            <span className="file-history-title">
+              {path || 'File revisions'}
+            </span>
             <label>
               <input
                 type="checkbox"
@@ -651,8 +660,13 @@ export class FileHistoryExplorer extends React.Component<IProps, IState> {
             )}
         </Resizable>
         <section className="file-history-diff" aria-label="File comparison">
-          <header>
-            {path} · {this.state.heading}
+          <header
+            className="file-history-header"
+            aria-label="Comparison controls"
+          >
+            <span className="file-history-title">
+              {path ? `${path} · ${this.state.heading}` : 'File comparison'}
+            </span>
             <button
               onClick={() =>
                 this.setState({ swapped: !this.state.swapped }, this.compare)

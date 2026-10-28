@@ -3,6 +3,7 @@ import { before, beforeEach, describe, it, mock } from 'node:test'
 import * as React from 'react'
 import { Repository } from '../../../src/models/repository'
 import { DiffType } from '../../../src/models/diff'
+import { RepositoryTabs } from '../../../src/ui/history/repository-tabs'
 import { fireEvent, render, screen, waitFor } from '../../helpers/ui/render'
 import type {
   IFileInventory,
@@ -98,7 +99,7 @@ before(async () => {
         rowRenderer: (index: number) => React.ReactNode
         onRowClick: (index: number, source: unknown) => void
       }) => (
-        <div aria-label={props.ariaLabel}>
+        <div role="region" aria-label={props.ariaLabel}>
           {Array.from({ length: props.rowCount }, (_, index) => (
             <button
               key={index}
@@ -146,6 +147,47 @@ const mount = () =>
   render(<Explorer repository={repo} initialPath="a.txt" refreshToken={0} />)
 
 describe('FileHistoryExplorer integration', () => {
+  it('keeps navigation in the file pane and controls in their own pane headers', async () => {
+    const onTabClicked = mock.fn()
+    const view = render(
+      <Explorer
+        repository={repo}
+        refreshToken={0}
+        navigation={
+          <RepositoryTabs
+            width="100%"
+            selectedIndex={2}
+            onTabClicked={onTabClicked}
+            changesBadge={null}
+          />
+        }
+      />
+    )
+    await waitFor(() => assert.ok(screen.getByText('a.txt')))
+    const tabs = view.container.querySelector('.repository-tabs')!
+    const treePane = screen.getByLabelText('Tracked file tree').parentElement!
+    assert.equal(tabs.parentElement, treePane)
+    assert.equal(treePane.firstElementChild, tabs)
+    assert.equal((tabs as HTMLElement).style.width, '100%')
+    const revisionHeader = screen.getByLabelText('Revision controls')
+    assert.equal(
+      screen.getByLabelText('Preview').closest('header'),
+      revisionHeader
+    )
+    assert.equal(
+      revisionHeader.parentElement!.firstElementChild,
+      revisionHeader
+    )
+    const diffHeader = screen.getByLabelText('Comparison controls')
+    assert.equal(
+      screen.getByLabelText('Side by side').closest('header'),
+      diffHeader
+    )
+    assert.equal(diffHeader.parentElement!.firstElementChild, diffHeader)
+    fireEvent.click(screen.getByText('Changes'))
+    assert.equal(onTabClicked.mock.calls[0].arguments[0], 0)
+  })
+
   it('compares one row against its actual parent and two rows as exact endpoints', async () => {
     mount()
     await waitFor(() => assert.ok(screen.getByText(/new-parent.*→.*new/)))

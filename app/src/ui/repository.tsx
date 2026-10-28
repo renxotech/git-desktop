@@ -221,7 +221,9 @@ export class RepositoryView extends React.Component<
     return <FilesChangedBadge filesChangedCount={filesChangedCount} />
   }
 
-  private renderTabs(): JSX.Element {
+  private renderTabs(
+    width: number | string = clamp(this.props.sidebarWidth)
+  ): JSX.Element {
     const selectedTab = this.state.showFiles
       ? Tab.Files
       : this.props.state.selectedSection === RepositorySectionTab.Changes
@@ -230,7 +232,7 @@ export class RepositoryView extends React.Component<
 
     return (
       <RepositoryTabs
-        width={clamp(this.props.sidebarWidth)}
+        width={width}
         selectedIndex={selectedTab}
         onTabClicked={this.onTabClicked}
         changesBadge={this.renderChangesBadge()}
@@ -661,8 +663,8 @@ export class RepositoryView extends React.Component<
               minWidth: 0,
             }}
           >
-            {this.renderTabs()}
             <FileHistoryExplorer
+              navigation={this.renderTabs('100%')}
               key={this.props.repository.path}
               repository={this.props.repository}
               initialPath={this.state.fileHistoryPath}

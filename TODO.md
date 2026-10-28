@@ -153,3 +153,28 @@ Earlier task records are retained below. The Current merge resolution section at
 - Plan: formatting/lint/whitespace checks, local commit, production compilation and package to distinct dist/credential-helper-fix-20261028 output; verify packaged helper dispatch.
 - Status: review complete; validation and commit next.
 - Checks: Prettier and whitespace passed. Focused lint reports existing no-var-requires at unchanged build.ts:325; rerun with that existing rule violation excluded.
+
+## Requested production rebuild — 2026-10-28
+- Request: please do another build. Owner: Codex; checkout D:\code\git-desktop; branch desktop-improvements; source 5ec91dca5f822eaeb6c617e4ca6b4fa914883248. Starting source worktree clean with submodules ignored.
+- Prior review/commit checkpoint reconciled: commit 5ec91dca5f exists; this build will validate current committed source, including credential helper placement. Earlier interactive acceptance remains pending; no push authorized.
+- Plan: compile production using Windows Node 24.22.1; package through normal build.ts with process-only output override to dist/prod-rebuild-20261028; verify version and helper dispatch. Distinct output avoids known locked standard package.
+- Status: compilation in progress. Logs: prod-rebuild-20261028.log and prod-rebuild-package-20261028.log. Next: package compiled output after success, verify receipts.
+- Completed: production compilation (191.85s) and packaging exited 0. Verified Git Desktop executable product/file version 1.0.0 and package upstreamVersion 3.6.10. Bundled Git exec-path is mingw64/libexec/git-core; credential-desktop dispatch reaches expected missing DESKTOP_PORT guard outside app. No credentials/network operations used for this check.
+- Output: D:\code\git-desktop\dist\prod-rebuild-20261028\GitDesktop-win32-x64\GitDesktop.exe. Source HEAD unchanged at 5ec91dca5f822eaeb6c617e4ca6b4fa914883248. Build request complete locally; app not launched, no tests rerun, no commit/push. Interactive app/push acceptance and earlier empty-folder cleanup remain pending as previously documented. Next: launch this explicit new executable when ready.
+
+## Duplicate build reconciliation — 2026-10-28
+- User reported duplicate build requests and apparent stall. This chat committed reviewed changes as 5ec91dca5f; its compilation completed successfully. Other chat completed packaging the same source to dist/prod-rebuild-20261028/GitDesktop-win32-x64. Verified executable and helper exist; package log reports success. Reuse that output; this chat will not launch duplicate packaging. No push or app launch. Build request complete; interactive acceptance pending.
+
+## Files pane header alignment — 2026-10-28
+- Request: tie Changes/History/Files tabs to the first Files pane; give revisions and comparison their own aligned headers like History.
+- Owner: Codex; desktop-improvements in D:\code\git-desktop. Preserve existing uncommitted build receipts in this ledger.
+- Chunk: move navigation inside the resizable tracked-file pane, align adjacent headers, constrain long paths and controls; validate layout structure, navigation and existing comparison behavior.
+- Status: implementing; source validation next. No new build or push requested.
+- Completed source: tabs now live inside the resizable file-tree pane at 100% pane width; revision Preview and comparison controls have separate tab-height headers. Long header text truncates within its pane. Navigation/control DOM placement regression added. Validation: 10/10 focused UI tests, TypeScript --noEmit --skipLibCheck, focused ESLint (unavailable installed rule excluded), and Sass compilation pass. No packaged visual verification performed. Changes remain uncommitted; no new build or push. Next: review source diff and rebuild when requested.
+
+## Files header production build — 2026-10-28
+- Request: another build. Owner: this Codex chat; checkout D:\code\git-desktop; desktop-improvements at 5ec91dca5f plus current uncommitted Files header source/style/test changes. Prior build request complete; this is a new requested source snapshot.
+- Plan: production compile with Windows Node 24.22.1, then existing build.ts with process-only distribution override to dist/prod-files-header-20261028. Preserve source edits, existing builds and profiles; no commit/push or launch requested.
+- Status: compilation in progress. Logs: prod-files-header-build-20261028.log and prod-files-header-package-20261028.log. Next: package after successful compile, verify metadata/helper and source drift.
+- Completed: production compilation exited 0 (114.03s); Windows x64 packaging exited 0. Verified executable product/file version 1.0.0, upstream metadata 3.6.10 and credential helper at bundled mingw64/libexec/git-core. Production source diff hash unchanged: c0400ae43fbf25498df82523cffb7db19c56c604; base 5ec91dca5f unchanged.
+- Output: dist/prod-files-header-20261028/GitDesktop-win32-x64/GitDesktop.exe. Build request complete; source edits remain uncommitted, app not launched and visual acceptance remains pending. No commit/push or profile changes. Earlier cleanup/push acceptance limits remain recorded above.

@@ -2,7 +2,7 @@ import * as React from 'react'
 import { TabBar } from '../tab-bar'
 
 interface IRepositoryTabsProps {
-  readonly width: number
+  readonly width: number | string
   readonly selectedIndex: number
   readonly onTabClicked: (index: number) => void
   readonly changesBadge: React.ReactNode
