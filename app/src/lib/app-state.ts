@@ -1,3 +1,5 @@
+import { AdditionalShell } from './shells/configured-shell'
+import { AdditionalEditor, EditorTarget } from './editors/configured-editor'
 import type {
   CopilotModelsByAccount,
   CopilotModelSelectionsByAccount,
@@ -369,6 +371,9 @@ export interface IAppState {
   readonly useCustomEditor: boolean
 
   /** Info needed to launch a custom editor chosen by the user. */
+  readonly additionalShells: ReadonlyArray<AdditionalShell>
+  readonly defaultEditorTarget: EditorTarget | null
+  readonly additionalEditors: ReadonlyArray<AdditionalEditor>
   readonly customEditor: ICustomIntegration | null
 
   /** Whether or not the user wants to use a custom shell. */

@@ -1,3 +1,7 @@
+import * as Path from 'path'
+import { pathExists } from '../../lib/path-exists'
+import { showContextualMenu } from '../../lib/menu-item'
+import { IMenuItem } from '../../lib/menu-item'
 import * as React from 'react'
 import { Repository } from '../../models/repository'
 import { AppFileStatusKind, CommittedFileChange } from '../../models/status'
@@ -20,6 +24,7 @@ import {
 import { getFileSnapshotDiff } from '../../lib/git/diff'
 
 interface IProps {
+  readonly getFileEditorActions?: (fullPath: string) => ReadonlyArray<IMenuItem>
   readonly navigation?: React.ReactNode
   readonly initialPath?: string
   readonly repository: Repository
@@ -474,6 +479,20 @@ export class FileHistoryExplorer extends React.Component<IProps, IState> {
                     : ''}
                   {row.path.split('/').at(-1)}
                 </span>
+              )
+            }}
+            onRowContextMenu={async (index, event) => {
+              const row = rows[index]
+              if (row.folder || !this.props.getFileEditorActions) {
+                return
+              }
+              event.preventDefault()
+              const fullPath = Path.join(this.props.repository.path, row.path)
+              const exists = await pathExists(fullPath)
+              showContextualMenu(
+                this.props
+                  .getFileEditorActions(fullPath)
+                  .map(item => ({ ...item, enabled: exists }))
               )
             }}
             onRowClick={index => {

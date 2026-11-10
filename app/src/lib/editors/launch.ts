@@ -1,3 +1,5 @@
+import { stat } from 'fs/promises'
+import { EditorTarget, suggestedEditorTarget } from './configured-editor'
 import { spawn, SpawnOptions } from 'child_process'
 import { pathExists } from '../path-exists'
 import { ExternalEditorError, FoundEditor } from './shared'
@@ -11,8 +13,16 @@ async function launchEditor(
   editorPath: string,
   args: readonly string[],
   editorName: string,
-  spawnAsDarwinApp: boolean
+  spawnAsDarwinApp: boolean,
+  target: EditorTarget,
+  fullPath: string
 ) {
+  if (target === 'files' && (await stat(fullPath)).isDirectory()) {
+    throw new ExternalEditorError(
+      `${editorName} is configured to open files only. Choose a folder-capable editor in Options to open a repository.`,
+      { openPreferences: true }
+    )
+  }
   const exists = await pathExists(editorPath)
   const label = __DARWIN__ ? 'Settings' : 'Options'
   if (!exists) {
@@ -58,8 +68,19 @@ async function launchEditor(
  * @param fullPath A folder or file path to pass as an argument when launching the editor.
  * @param editor The external editor to launch.
  */
-export const launchExternalEditor = (fullPath: string, editor: FoundEditor) =>
-  launchEditor(editor.path, [fullPath], `'${editor.editor}'`, __DARWIN__)
+export const launchExternalEditor = (
+  fullPath: string,
+  editor: FoundEditor,
+  target: EditorTarget = suggestedEditorTarget(editor.editor)
+) =>
+  launchEditor(
+    editor.path,
+    [fullPath],
+    `'${editor.editor}'`,
+    __DARWIN__,
+    target,
+    fullPath
+  )
 
 /**
  * Open a given file or folder in the desired custom external editor.
@@ -69,7 +90,8 @@ export const launchExternalEditor = (fullPath: string, editor: FoundEditor) =>
  */
 export const launchCustomExternalEditor = (
   fullPath: string,
-  customEditor: ICustomIntegration
+  customEditor: ICustomIntegration,
+  target: EditorTarget = 'files-and-folders'
 ) => {
   const argv = parseCustomIntegrationArguments(customEditor.arguments)
 
@@ -82,5 +104,12 @@ export const launchCustomExternalEditor = (
   const spawnAsDarwinApp = __DARWIN__ && customEditor.bundleID !== undefined
   const editorName = `custom editor at path '${customEditor.path}'`
 
-  return launchEditor(customEditor.path, args, editorName, spawnAsDarwinApp)
+  return launchEditor(
+    customEditor.path,
+    args,
+    editorName,
+    spawnAsDarwinApp,
+    target,
+    fullPath
+  )
 }

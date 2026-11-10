@@ -1,3 +1,4 @@
+import { IMenuItem } from '../../lib/menu-item'
 import * as React from 'react'
 import { IConstrainedValue, IPullRequestState } from '../../lib/app-state'
 import { getDotComAPIEndpoint } from '../../lib/api'
@@ -62,6 +63,7 @@ interface IOpenPullRequestDialogProps {
   readonly imageDiffType: ImageDiffType
 
   /** Label for selected external editor */
+  readonly getFileEditorActions?: (fullPath: string) => ReadonlyArray<IMenuItem>
   readonly externalEditorLabel?: string
 
   /**
@@ -178,6 +180,7 @@ export class OpenPullRequestDialog extends React.Component<IOpenPullRequestDialo
       <PullRequestFilesChanged
         diff={diff}
         dispatcher={dispatcher}
+        getFileEditorActions={this.props.getFileEditorActions}
         externalEditorLabel={externalEditorLabel}
         fileListWidth={fileListWidth}
         files={files}

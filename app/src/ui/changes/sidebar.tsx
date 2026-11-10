@@ -1,3 +1,4 @@
+import { IMenuItem } from '../../lib/menu-item'
 import * as Path from 'path'
 import * as React from 'react'
 
@@ -72,6 +73,7 @@ interface IChangesSidebarProps {
   readonly isShowingModal: boolean
   readonly isShowingFoldout: boolean
   /** The name of the currently selected external editor */
+  readonly getFileEditorActions?: (fullPath: string) => ReadonlyArray<IMenuItem>
   readonly externalEditorLabel?: string
 
   /**
@@ -476,6 +478,7 @@ export class ChangesSidebar extends React.Component<IChangesSidebarProps, {}> {
           commitToAmend={this.props.commitToAmend}
           showCoAuthoredBy={showCoAuthoredBy}
           coAuthors={coAuthors}
+          getFileEditorActions={this.props.getFileEditorActions}
           externalEditorLabel={this.props.externalEditorLabel}
           onOpenItemInExternalEditor={this.onOpenItemInExternalEditor}
           onChangesListScrolled={this.props.onChangesListScrolled}

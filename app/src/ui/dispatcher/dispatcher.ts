@@ -1,3 +1,8 @@
+import { AdditionalShell } from '../../lib/shells/configured-shell'
+import {
+  AdditionalEditor,
+  EditorTarget,
+} from '../../lib/editors/configured-editor'
 import { Disposable } from 'event-kit'
 import {
   HealthOperation,
@@ -1694,12 +1699,14 @@ export class Dispatcher {
   public async openInSelectedExternalEditor(
     fullPath: string,
     selectedEditor: string | null,
-    customEditor: ICustomIntegration | null
+    customEditor: ICustomIntegration | null,
+    target?: EditorTarget
   ): Promise<void> {
     return this.appStore._openInSelectedExternalEditor(
       fullPath,
       selectedEditor,
-      customEditor
+      customEditor,
+      target
     )
   }
 
@@ -2227,6 +2234,20 @@ export class Dispatcher {
   /**
    * Sets the user's preference for an external program to open repositories in.
    */
+  public setAdditionalShells(shells: ReadonlyArray<AdditionalShell>) {
+    this.appStore._setAdditionalShells(shells)
+  }
+  public setDefaultEditorTarget(target: EditorTarget | null) {
+    this.appStore._setDefaultEditorTarget(target)
+  }
+  public openInCustomShell(path: string, shell: ICustomIntegration) {
+    return this.appStore._openShell(path, undefined, shell)
+  }
+
+  public setAdditionalEditors(editors: ReadonlyArray<AdditionalEditor>) {
+    this.appStore._setAdditionalEditors(editors)
+  }
+
   public setExternalEditor(editor: string): Promise<void> {
     return this.appStore._setExternalEditor(editor)
   }

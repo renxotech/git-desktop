@@ -385,20 +385,15 @@ async function findWSL(): Promise<string | null> {
     'System32'
   )
   const wslPath = Path.join(system32, 'wsl.exe')
-  const wslConfigPath = Path.join(system32, 'wslconfig.exe')
 
   if (!(await pathExists(wslPath))) {
     log.debug(`[WSL] wsl.exe does not exist at '${wslPath}'`)
     return null
   }
-  if (!(await pathExists(wslConfigPath))) {
-    log.debug(
-      `[WSL] found wsl.exe, but wslconfig.exe does not exist at '${wslConfigPath}'`
-    )
-    return null
-  }
   const exitCode = new Promise<number>((resolve, reject) => {
-    const wslDistros = spawn(wslConfigPath, ['/list'])
+    const wslDistros = spawn(wslPath, ['--list', '--quiet'], {
+      windowsHide: true,
+    })
     wslDistros.on('error', reject)
     wslDistros.on('exit', resolve)
   })
@@ -406,14 +401,12 @@ async function findWSL(): Promise<string | null> {
   try {
     const result = await exitCode
     if (result !== 0) {
-      log.debug(
-        `[WSL] found wsl.exe and wslconfig.exe, but no distros are installed. Error Code: ${result}`
-      )
+      log.debug(`[WSL] wsl --list failed. Error Code: ${result}`)
       return null
     }
     return wslPath
   } catch (err) {
-    log.error(`[WSL] unhandled error when invoking 'wsl /list'`, err)
+    log.error(`[WSL] unhandled error when invoking 'wsl --list --quiet'`, err)
   }
   return null
 }

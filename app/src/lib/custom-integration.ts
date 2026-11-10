@@ -20,6 +20,8 @@ export const TargetPathArgument = '%TARGET_PATH%'
 
 /** The interface representing a custom integration (external editor or shell) */
 export interface ICustomIntegration {
+  /** Optional friendly name for custom editors. */
+  readonly name?: string
   /** The path to the custom integration */
   readonly path: string
   /** The arguments to pass to the custom integration */

@@ -1,3 +1,9 @@
+import { AdditionalShell, customShellName } from '../shells/configured-shell'
+import {
+  AdditionalEditor,
+  EditorTarget,
+  customEditorName,
+} from '../editors/configured-editor'
 import { getWorktreeAlias, setWorktreeAlias } from '../worktree-alias'
 import { isWorktreePinned, setWorktreePinned } from '../worktree-pin'
 import pLimit from 'p-limit'
@@ -574,6 +580,9 @@ const pullRequestSuggestedNextActionKey =
   'pull-request-suggested-next-action-key'
 
 export const useCustomEditorKey = 'use-custom-editor'
+const additionalShellsKey = 'additional-shells'
+const defaultEditorTargetKey = 'default-editor-target'
+const additionalEditorsKey = 'additional-editors'
 const customEditorKey = 'custom-editor'
 const copilotAppPathKey = 'copilot-app-path'
 
@@ -745,6 +754,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
   private currentDragElement: DragElement | null = null
   private lastThankYou: ILastThankYou | undefined
 
+  private additionalShells: ReadonlyArray<AdditionalShell> = []
+  private defaultEditorTarget: EditorTarget | null = null
+  private additionalEditors: ReadonlyArray<AdditionalEditor> = []
   private useCustomEditor: boolean = false
   private customEditor: ICustomIntegration | null = null
   private copilotAppPath: string | null = null
@@ -1358,6 +1370,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
       lastThankYou: this.lastThankYou,
       useCustomEditor: this.useCustomEditor,
       customEditor: this.customEditor,
+      additionalEditors: this.additionalEditors,
+      additionalShells: this.additionalShells,
+      defaultEditorTarget: this.defaultEditorTarget,
       useCustomShell: this.useCustomShell,
       customShell: this.customShell,
       copilotAppPath: this.copilotAppPath,
@@ -2769,6 +2784,21 @@ export class AppStore extends TypedBaseStore<IAppState> {
     this.useCustomEditor =
       enableCustomIntegration() && getBoolean(useCustomEditorKey, false)
     this.customEditor = getObject<ICustomIntegration>(customEditorKey) ?? null
+    this.additionalShells =
+      getObject<ReadonlyArray<AdditionalShell>>(additionalShellsKey) ??
+      (__WIN32__
+        ? (await getAvailableShells())
+            .filter(
+              entry =>
+                ['Command Prompt', 'WSL', 'PowerShell'].includes(entry.shell) &&
+                entry.shell !== this.selectedShell
+            )
+            .map(entry => ({ shell: entry.shell }))
+        : [])
+    this.defaultEditorTarget =
+      getObject<EditorTarget>(defaultEditorTargetKey) ?? null
+    this.additionalEditors =
+      getObject<ReadonlyArray<AdditionalEditor>>(additionalEditorsKey) ?? []
     this.copilotAppPath = localStorage.getItem(copilotAppPathKey)
 
     this.useCustomShell =
@@ -3066,8 +3096,12 @@ export class AppStore extends TypedBaseStore<IAppState> {
     } = this
 
     const labels: MenuLabelsEvent = {
-      selectedShell: useCustomShell ? null : selectedShell,
-      selectedExternalEditor: useCustomEditor ? null : selectedExternalEditor,
+      selectedShell: useCustomShell
+        ? customShellName(this.customShell)
+        : selectedShell,
+      selectedExternalEditor: useCustomEditor
+        ? customEditorName(this.customEditor)
+        : selectedExternalEditor,
       askForConfirmationOnRepositoryRemoval,
       askForConfirmationOnForcePush,
     }
@@ -8126,12 +8160,20 @@ export class AppStore extends TypedBaseStore<IAppState> {
   }
 
   /** This shouldn't be called directly. See `Dispatcher`. */
-  public async _openShell(path: string, requestedShell?: Shell) {
+  public async _openShell(
+    path: string,
+    requestedShell?: Shell,
+    requestedCustomShell?: ICustomIntegration
+  ) {
     this.statsStore.increment('openShellCount')
     const { useCustomShell, customShell } = this.getState()
 
     try {
-      if (requestedShell !== undefined) {
+      if (requestedCustomShell !== undefined) {
+        await launchCustomShell(requestedCustomShell, path, error =>
+          this._pushError(error)
+        )
+      } else if (requestedShell !== undefined) {
         const available = await getAvailableShells()
         const match = available.find(s => s.shell === requestedShell)
         if (match === undefined) {
@@ -8171,7 +8213,11 @@ export class AppStore extends TypedBaseStore<IAppState> {
 
     try {
       if (useCustomEditor && customEditor) {
-        await launchCustomExternalEditor(fullPath, customEditor)
+        await launchCustomExternalEditor(
+          fullPath,
+          customEditor,
+          this.defaultEditorTarget ?? undefined
+        )
       } else {
         const match = await findEditorOrDefault(selectedExternalEditor)
         if (match === null) {
@@ -8184,7 +8230,11 @@ export class AppStore extends TypedBaseStore<IAppState> {
           return
         }
 
-        await launchExternalEditor(fullPath, match)
+        await launchExternalEditor(
+          fullPath,
+          match,
+          this.defaultEditorTarget ?? undefined
+        )
       }
     } catch (error) {
       this.emitError(error)
@@ -8238,11 +8288,12 @@ export class AppStore extends TypedBaseStore<IAppState> {
   public async _openInSelectedExternalEditor(
     fullPath: string,
     selectedEditor: string | null,
-    customEditor: ICustomIntegration | null
+    customEditor: ICustomIntegration | null,
+    target?: EditorTarget
   ): Promise<void> {
     try {
       if (customEditor && customEditor.path) {
-        await launchCustomExternalEditor(fullPath, customEditor)
+        await launchCustomExternalEditor(fullPath, customEditor, target)
         return
       }
 
@@ -8261,7 +8312,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
         return
       }
 
-      await launchExternalEditor(fullPath, match)
+      await launchExternalEditor(fullPath, match, target)
     } catch (error) {
       this.emitError(error)
     }
@@ -9972,27 +10023,49 @@ export class AppStore extends TypedBaseStore<IAppState> {
     this.emitUpdate()
   }
 
+  public _setAdditionalShells(shells: ReadonlyArray<AdditionalShell>) {
+    this.additionalShells = shells
+    setObject(additionalShellsKey, shells)
+    this.emitUpdate()
+  }
+
+  public _setDefaultEditorTarget(target: EditorTarget | null) {
+    this.defaultEditorTarget = target
+    localStorage.setItem(defaultEditorTargetKey, JSON.stringify(target))
+    this.emitUpdate()
+  }
+
+  public _setAdditionalEditors(editors: ReadonlyArray<AdditionalEditor>) {
+    this.additionalEditors = editors
+    setObject(additionalEditorsKey, editors)
+    this.emitUpdate()
+  }
+
   public _setUseCustomEditor(useCustomEditor: boolean) {
     setBoolean(useCustomEditorKey, useCustomEditor)
     this.useCustomEditor = useCustomEditor
+    this.updateMenuLabelsForSelectedRepository()
     this.emitUpdate()
   }
 
   public _setCustomEditor(customEditor: ICustomIntegration) {
     setObject(customEditorKey, customEditor)
     this.customEditor = customEditor
+    this.updateMenuLabelsForSelectedRepository()
     this.emitUpdate()
   }
 
   public _setUseCustomShell(useCustomShell: boolean) {
     setBoolean(useCustomShellKey, useCustomShell)
     this.useCustomShell = useCustomShell
+    this.updateMenuLabelsForSelectedRepository()
     this.emitUpdate()
   }
 
   public _setCustomShell(customShell: ICustomIntegration) {
     setObject(customShellKey, customShell)
     this.customShell = customShell
+    this.updateMenuLabelsForSelectedRepository()
     this.emitUpdate()
   }
 
@@ -10635,7 +10708,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
       defaultBranch,
       imageDiffType,
       repository,
-      externalEditorLabel: selectedExternalEditor ?? undefined,
+      externalEditorLabel: this.useCustomEditor
+        ? customEditorName(this.customEditor)
+        : selectedExternalEditor ?? undefined,
       nonLocalCommitSHA,
       showSideBySideDiff,
       currentBranchHasPullRequest: currentPullRequest !== null,

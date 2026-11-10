@@ -1,3 +1,4 @@
+import { IMenuItem } from '../lib/menu-item'
 import { FileHistoryRequestEvent } from './history/file-history-navigation'
 import * as React from 'react'
 import { Repository } from '../models/repository'
@@ -87,6 +88,7 @@ interface IRepositoryViewProps {
   readonly isExternalEditorAvailable: boolean
 
   /** The name of the currently selected external editor */
+  readonly getFileEditorActions?: (fullPath: string) => ReadonlyArray<IMenuItem>
   readonly externalEditorLabel?: string
 
   /** A cached entry representing an external editor found on the user's machine */
@@ -316,6 +318,7 @@ export class RepositoryView extends React.Component<
         accounts={this.props.accounts}
         isShowingModal={this.props.isShowingModal}
         isShowingFoldout={this.props.isShowingFoldout}
+        getFileEditorActions={this.props.getFileEditorActions}
         externalEditorLabel={this.props.externalEditorLabel}
         onOpenInExternalEditor={this.props.onOpenInExternalEditor}
         onChangesListScrolled={this.onChangesListScrolled}
@@ -515,6 +518,7 @@ export class RepositoryView extends React.Component<
         emoji={this.props.emoji}
         commitSummaryWidth={this.props.commitSummaryWidth}
         selectedDiffType={this.props.imageDiffType}
+        getFileEditorActions={this.props.getFileEditorActions}
         externalEditorLabel={this.props.externalEditorLabel}
         onOpenInExternalEditor={this.props.onOpenInExternalEditor}
         onViewCommitOnGitHub={this.props.onViewCommitOnGitHub}
@@ -664,6 +668,7 @@ export class RepositoryView extends React.Component<
             }}
           >
             <FileHistoryExplorer
+              getFileEditorActions={this.props.getFileEditorActions}
               navigation={this.renderTabs('100%')}
               key={this.props.repository.path}
               repository={this.props.repository}

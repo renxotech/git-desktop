@@ -55,6 +55,7 @@ interface ISelectedCommitsProps {
   readonly commitSummaryWidth: IConstrainedValue
   readonly selectedDiffType: ImageDiffType
   /** The name of the currently selected external editor */
+  readonly getFileEditorActions?: (fullPath: string) => ReadonlyArray<IMenuItem>
   readonly externalEditorLabel?: string
 
   /**
@@ -503,11 +504,13 @@ export class SelectedCommits extends React.Component<
         action: () => revealInFileManager(repository, file.path),
         enabled: fileExistsOnDisk,
       },
-      {
-        label: openInExternalEditor,
-        action: () => this.props.onOpenInExternalEditor(file.path),
-        enabled: fileExistsOnDisk,
-      },
+      ...(this.props.getFileEditorActions?.(fullPath) ?? [
+        {
+          label: openInExternalEditor,
+          action: () => this.props.onOpenInExternalEditor(file.path),
+          enabled: fileExistsOnDisk,
+        },
+      ]),
       {
         label: OpenWithDefaultProgramLabel,
         action: () => this.onOpenItem(file.path),

@@ -1,3 +1,8 @@
+import { AdditionalShell } from '../../lib/shells/configured-shell'
+import {
+  AdditionalEditor,
+  EditorTarget,
+} from '../../lib/editors/configured-editor'
 import * as React from 'react'
 import { Account, isDotComAccount } from '../../models/account'
 import { PreferencesTab } from '../../models/preferences'
@@ -114,6 +119,9 @@ interface IPreferencesProps {
   readonly selectedTabSize: number
   readonly alwaysShowWorktreeList: boolean
   readonly useCustomEditor: boolean
+  readonly additionalShells: ReadonlyArray<AdditionalShell>
+  readonly defaultEditorTarget: EditorTarget | null
+  readonly additionalEditors: ReadonlyArray<AdditionalEditor>
   readonly customEditor: ICustomIntegration | null
   readonly useCustomShell: boolean
   readonly customShell: ICustomIntegration | null
@@ -130,6 +138,7 @@ interface IPreferencesProps {
 }
 
 interface IPreferencesState {
+  readonly editorError?: string
   readonly selectedIndex: PreferencesTab
   readonly committerName: string
   readonly committerEmail: string
@@ -156,6 +165,9 @@ interface IPreferencesState {
   readonly uncommittedChangesStrategy: UncommittedChangesStrategy
   readonly availableEditors: ReadonlyArray<string>
   readonly useCustomEditor: boolean
+  readonly additionalShells: ReadonlyArray<AdditionalShell>
+  readonly defaultEditorTarget: EditorTarget | null
+  readonly additionalEditors: ReadonlyArray<AdditionalEditor>
   readonly customEditor: ICustomIntegration
   readonly useCustomShell: boolean
   readonly customShell: ICustomIntegration
@@ -230,6 +242,9 @@ export class Preferences extends React.Component<
       availableEditors: [],
       useCustomEditor: this.props.useCustomEditor,
       customEditor: this.props.customEditor ?? DefaultCustomIntegration,
+      additionalEditors: this.props.additionalEditors,
+      additionalShells: this.props.additionalShells,
+      defaultEditorTarget: this.props.defaultEditorTarget,
       useCustomShell: this.props.useCustomShell,
       customShell: this.props.customShell ?? DefaultCustomIntegration,
       copilotAppPath: this.props.copilotAppPath ?? '',
@@ -342,6 +357,9 @@ export class Preferences extends React.Component<
       availableEditors,
       useCustomEditor: this.props.useCustomEditor,
       customEditor: this.props.customEditor ?? DefaultCustomIntegration,
+      additionalEditors: this.props.additionalEditors,
+      additionalShells: this.props.additionalShells,
+      defaultEditorTarget: this.props.defaultEditorTarget,
       useCustomShell: this.props.useCustomShell,
       customShell: this.props.customShell ?? DefaultCustomIntegration,
       copilotAppPath: this.props.copilotAppPath ?? '',
@@ -391,6 +409,9 @@ export class Preferences extends React.Component<
         onSubmit={this.onSave}
       >
         {this.renderDisallowedCharactersError()}
+        {this.state.editorError && (
+          <DialogError>{this.state.editorError}</DialogError>
+        )}
         <div className="preferences-container">
           <TabBar
             onTabClicked={this.onTabClicked}
@@ -403,7 +424,9 @@ export class Preferences extends React.Component<
             </span>
             <span id={this.getTabId(PreferencesTab.Integrations)}>
               <Octicon className="icon" symbol={octicons.person} />
-              Integrations
+              <span className="integration-tab-label">
+                Editors, Shells and other Integrations
+              </span>
             </span>
             {this.isCopilotSdkEnabled && (
               <span id={this.getTabId(PreferencesTab.Copilot)}>
@@ -563,6 +586,12 @@ export class Preferences extends React.Component<
             selectedShell={this.state.selectedShell}
             useCustomEditor={this.state.useCustomEditor}
             customEditor={this.state.customEditor}
+            additionalShells={this.state.additionalShells}
+            onAdditionalShellsChanged={this.onAdditionalShellsChanged}
+            defaultEditorTarget={this.state.defaultEditorTarget}
+            onDefaultEditorTargetChanged={this.onDefaultEditorTargetChanged}
+            additionalEditors={this.state.additionalEditors}
+            onAdditionalEditorsChanged={this.onAdditionalEditorsChanged}
             useCustomShell={this.state.useCustomShell}
             customShell={this.state.customShell}
             copilotAppPath={this.state.copilotAppPath}
@@ -881,7 +910,7 @@ export class Preferences extends React.Component<
   }
 
   private onSelectedEditorChanged = (editor: string) => {
-    this.setState({ selectedExternalEditor: editor })
+    this.setState({ selectedExternalEditor: editor, defaultEditorTarget: null })
   }
 
   private onSelectedShellChanged = (shell: Shell) => {
@@ -907,7 +936,19 @@ export class Preferences extends React.Component<
   }
 
   private onUseCustomEditorChanged = (useCustomEditor: boolean) => {
-    this.setState({ useCustomEditor })
+    this.setState({ useCustomEditor, defaultEditorTarget: null })
+  }
+
+  private onDefaultEditorTargetChanged = (defaultEditorTarget: EditorTarget) =>
+    this.setState({ defaultEditorTarget })
+  private onAdditionalShellsChanged = (
+    additionalShells: ReadonlyArray<AdditionalShell>
+  ) => this.setState({ additionalShells, editorError: undefined })
+
+  private onAdditionalEditorsChanged = (
+    additionalEditors: ReadonlyArray<AdditionalEditor>
+  ) => {
+    this.setState({ additionalEditors, editorError: undefined })
   }
 
   private onCustomEditorChanged = (customEditor: ICustomIntegration) => {
@@ -1015,6 +1056,61 @@ export class Preferences extends React.Component<
 
   private onSave = async () => {
     const { dispatcher } = this.props
+    this.setState({ editorError: undefined })
+    const customEditors = [
+      ...(this.state.useCustomEditor ? [this.state.customEditor] : []),
+      ...this.state.additionalEditors.flatMap(entry =>
+        entry.customEditor ? [entry.customEditor] : []
+      ),
+    ]
+    for (const editor of customEditors) {
+      if (!(await isValidCustomIntegration(editor))) {
+        this.setState({
+          selectedIndex: PreferencesTab.Integrations,
+          editorError:
+            'Each custom editor needs a valid executable and arguments containing %TARGET_PATH%.',
+        })
+        return
+      }
+    }
+    if (
+      this.state.additionalEditors.some(
+        entry => entry.customEditor && !entry.customEditor.name?.trim()
+      )
+    ) {
+      this.setState({
+        selectedIndex: PreferencesTab.Integrations,
+        editorError: 'Enter a friendly name for each additional custom editor.',
+      })
+      return
+    }
+    const customShells = this.state.additionalShells.flatMap(entry =>
+      entry.customShell ? [entry.customShell] : []
+    )
+    if (this.state.useCustomShell) {
+      customShells.push(this.state.customShell)
+    }
+    for (const shell of customShells) {
+      if (!(await isValidCustomIntegration(shell))) {
+        this.setState({
+          selectedIndex: PreferencesTab.Integrations,
+          editorError:
+            'Each custom shell needs a valid executable and arguments containing %TARGET_PATH%.',
+        })
+        return
+      }
+    }
+    if (
+      this.state.additionalShells.some(
+        entry => entry.customShell && !entry.customShell.name?.trim()
+      )
+    ) {
+      this.setState({
+        selectedIndex: PreferencesTab.Integrations,
+        editorError: 'Enter a friendly name for each additional custom shell.',
+      })
+      return
+    }
     const copilotAppPath = this.state.copilotAppPath.trim()
     const initialCopilotAppPath = this.props.copilotAppPath?.trim() ?? ''
     const copilotAppPathChanged = copilotAppPath !== initialCopilotAppPath
@@ -1104,6 +1200,10 @@ export class Preferences extends React.Component<
       dispatcher.postError(e)
       return
     }
+
+    dispatcher.setAdditionalEditors(this.state.additionalEditors)
+    dispatcher.setAdditionalShells(this.state.additionalShells)
+    dispatcher.setDefaultEditorTarget(this.state.defaultEditorTarget)
 
     dispatcher.setUseWindowsOpenSSH(this.state.useWindowsOpenSSH)
     dispatcher.setShowCommitLengthWarning(this.state.showCommitLengthWarning)

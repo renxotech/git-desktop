@@ -1,4 +1,15 @@
-import { getAvailableEditors } from '../lib/editors'
+import { IMenuItem } from '../lib/menu-item'
+import {
+  AdditionalEditor,
+  EditorTarget,
+  configuredEditorActions,
+  suggestedEditorTarget,
+  customEditorName,
+} from '../lib/editors/configured-editor'
+import {
+  AdditionalShell,
+  customShellName,
+} from '../lib/shells/configured-shell'
 import * as React from 'react'
 import { addFolderRepositories } from './repositories-list/add-folder-repositories'
 import * as Path from 'path'
@@ -13,7 +24,6 @@ import {
   CommitOptions,
 } from '../lib/app-state'
 import { Dispatcher } from './dispatcher'
-import { Shell } from '../lib/shells'
 import { getFolderActions } from './lib/folder-actions'
 import { writeClipboardText } from './main-process-proxy'
 import { AppStore, GitHubUserStore, IssuesStore } from '../lib/stores'
@@ -322,8 +332,6 @@ export class App extends React.Component<IAppProps, IAppState> {
   private getOnPopupDismissedFn = memoizeOne((popupId: number) => {
     return () => this.onPopupDismissed(popupId)
   })
-
-  private availableFolderEditors: ReadonlyArray<string> = []
 
   public constructor(props: IAppProps) {
     super(props)
@@ -1157,12 +1165,6 @@ export class App extends React.Component<IAppProps, IAppState> {
   }
 
   public componentDidMount() {
-    getAvailableEditors()
-      .then(editors => {
-        this.availableFolderEditors = editors.map(editor => editor.editor)
-        this.forceUpdate()
-      })
-      .catch(error => log.error('Could not detect folder editors', error))
     document.ondragover = e => {
       if (e.dataTransfer != null) {
         if (this.isShowingModal) {
@@ -1483,12 +1485,11 @@ export class App extends React.Component<IAppProps, IAppState> {
   }
 
   /**
-   * Gets a label string for the currently selected external editor, or
-   * `undefined` if the user has selected a custom editor.
+   * Gets the friendly name of the configured default editor.
    */
   private get externalEditorLabel() {
     return this.state.useCustomEditor
-      ? undefined
+      ? customEditorName(this.state.customEditor)
       : this.state.selectedExternalEditor ?? undefined
   }
 
@@ -1875,6 +1876,9 @@ export class App extends React.Component<IAppProps, IAppState> {
             selectedTabSize={this.state.selectedTabSize}
             useCustomEditor={this.state.useCustomEditor}
             customEditor={this.state.customEditor}
+            additionalEditors={this.state.additionalEditors}
+            additionalShells={this.state.additionalShells}
+            defaultEditorTarget={this.state.defaultEditorTarget}
             useCustomShell={this.state.useCustomShell}
             customShell={this.state.customShell}
             copilotAppPath={this.state.copilotAppPath}
@@ -2851,6 +2855,7 @@ export class App extends React.Component<IAppProps, IAppState> {
             pullRequestState={pullRequestState}
             prRecentBaseBranches={prRecentBaseBranches}
             repository={repository}
+            getFileEditorActions={this.getFileEditorActions}
             externalEditorLabel={externalEditorLabel}
             showSideBySideDiff={showSideBySideDiff}
             currentBranchHasPullRequest={currentBranchHasPullRequest}
@@ -3595,22 +3600,48 @@ export class App extends React.Component<IAppProps, IAppState> {
     this.props.dispatcher.openShell(repository.path)
   }
 
-  private openFolderShell = (path: string, shell?: Shell) => {
+  private openFolderShell = (path: string, shell?: AdditionalShell) => {
     if (shell === undefined) {
       this.props.dispatcher.openShell(path)
+    } else if (shell.customShell !== undefined) {
+      this.props.dispatcher.openInCustomShell(path, shell.customShell)
     } else {
-      this.props.dispatcher.openInSpecificShell(path, shell)
+      this.props.dispatcher.openInSpecificShell(path, shell.shell)
     }
   }
+
+  private get defaultEditorTarget(): EditorTarget {
+    return (
+      this.state.defaultEditorTarget ??
+      suggestedEditorTarget(
+        this.state.useCustomEditor
+          ? undefined
+          : this.state.selectedExternalEditor ?? undefined
+      )
+    )
+  }
+
+  private getFileEditorActions = (fullPath: string): ReadonlyArray<IMenuItem> =>
+    configuredEditorActions(
+      this.externalEditorLabel,
+      this.state.additionalEditors,
+      'file',
+      this.defaultEditorTarget
+    ).map(entry => ({
+      label: `Open in ${entry.name}`,
+      action: () => this.openFolderEditor(fullPath, entry.editor),
+    }))
 
   private getFolderActions = (path: string, missing = false) =>
     getFolderActions({
       path,
       missing,
-      availableEditors: this.availableFolderEditors,
+      additionalEditors: this.state.additionalEditors,
+      additionalShells: this.state.additionalShells,
+      defaultEditorTarget: this.defaultEditorTarget,
       editorLabel: this.externalEditorLabel,
       shellLabel: this.state.useCustomShell
-        ? 'Custom Shell'
+        ? customShellName(this.state.customShell)
         : this.state.selectedShell,
       openShell: this.openFolderShell,
       openEditor: this.openFolderEditor,
@@ -3622,11 +3653,16 @@ export class App extends React.Component<IAppProps, IAppState> {
     this.props.dispatcher.openInExternalEditor(fullPath)
   }
 
-  private openFolderEditor = (path: string, editor?: string) => {
+  private openFolderEditor = (path: string, editor?: AdditionalEditor) => {
     if (editor === undefined) {
       this.props.dispatcher.openInExternalEditor(path)
     } else {
-      this.props.dispatcher.openInSelectedExternalEditor(path, editor, null)
+      this.props.dispatcher.openInSelectedExternalEditor(
+        path,
+        editor.editor ?? null,
+        editor.customEditor ?? null,
+        editor.target ?? suggestedEditorTarget(editor.editor)
+      )
     }
   }
 
@@ -4265,6 +4301,7 @@ export class App extends React.Component<IAppProps, IAppState> {
           isExternalEditorAvailable={
             state.useCustomEditor || state.selectedExternalEditor !== null
           }
+          getFileEditorActions={this.getFileEditorActions}
           resolvedExternalEditor={state.resolvedExternalEditor}
           onOpenInExternalEditor={this.onOpenInExternalEditor}
           appMenu={state.appMenuState[0]}

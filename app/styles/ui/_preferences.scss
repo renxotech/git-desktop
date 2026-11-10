@@ -52,6 +52,14 @@
     }
   }
 
+  .integration-tab-label {
+    display: inline-block;
+    max-width: 125px;
+    white-space: normal;
+    text-align: left;
+    vertical-align: middle;
+  }
+
   .tab-bar {
     .icon {
       width: 16px;
