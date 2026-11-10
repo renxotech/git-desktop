@@ -16,7 +16,9 @@ import { fileURLToPath } from 'node:url'
 const require = createRequire(import.meta.url)
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const bundle = join(root, 'out')
-const dist = join(root, 'dist')
+const dist = process.env.DESKTOP_DIST_ROOT
+  ? resolve(process.env.DESKTOP_DIST_ROOT)
+  : join(root, 'dist')
 const target = join(dist, 'GitDesktop-win32-x64')
 if (dirname(target) !== dist || !dist.startsWith(`${root}\\`)) {
   throw new Error('The local package must stay inside this checkout')

@@ -1,5 +1,13 @@
 # Working on GitHub Desktop
 
+## Authorized upstream integration
+
+Before editing or committing, honor the cooperative sync lock described in
+[the upstream workflow](docs/upstream-sync.md). After a Codex-requested commit
+leaves this checkout clean, immediately execute that workflow. Do not trigger
+it for integration-created commits. Dirty/busy checkouts skip. Follow its
+isolated merge, validation, build and promotion safeguards; never push or launch.
+
 Follow the repository's [contribution guidance](.github/CONTRIBUTING.md)
 and [development instructions](.github/copilot-instructions.md).
 These instructions supplement those guides; they do not change contribution

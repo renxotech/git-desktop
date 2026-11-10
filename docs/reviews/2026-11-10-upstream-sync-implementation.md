@@ -1,0 +1,27 @@
+# Upstream sync implementation and activation
+
+User authorized daily and Codex clean-post-commit upstream merge/resolve/commit/build, wrapper repair and testing. Owner: this chat; D:/code/git-desktop desktop-improvements. Concurrent date-version commit became 2b4125b71d during trial. Separate unmerged-branches-dialog edit belongs to another owner and was preserved.
+
+Implemented shared candidate workflow and cooperative lock; clean/index/untracked/submodule and unfinished-operation checks; explicit starting branch and immutable SHAs; isolated candidate merge; exact-head validation receipt; ancestry checks; unchanged clean original required for fast-forward promotion; retained failed candidates and explicit abandonment. Codex performs semantic resolution/independent review/tests/build per docs/upstream-sync.md. Receipts are agent attestations backed by logs. Human-ambiguous conflicts stop. Noncooperative external writers cannot be locked by Git status; instructed to skip without exclusive ownership. No push, forced update, stash/reset/clean, app termination or launch.
+
+Post-commit activation is AGENTS.md instruction for participating Codex chats, not a native Git hook or arbitrary Git-client event. Daily automation git-desktop-daily-upstream-integration created ACTIVE through app tool, interval 24 hours in this chat. Requires computer/app running. Dirty checkout skips, including current uncommitted implementation. Automation-created commits excluded to prevent recursion; coalesced by lock. No blind retries. No actual upstream merge/promotion performed in this checkout.
+
+Wrapper uses npm instead of deleted bundled Yarn; production compiler uses 8 GB heap after confirmed 4 GB OOM; supports separate bounded output directory and rejects explicit standard dist target. Existing version behavior retained; shares sync-lock admission guard, permits only the active candidate while sync owns repository. Source/version build checks remain enforced. Package output override stays within checkout. New configuration fields are paths, not boolean flags; switches default false.
+
+Validation: disposable real-Git end-to-end test passes (untracked skip, lock exclusion, isolated merge, missing/wrong receipt rejection, original dirty preservation, successful promotion and release). Existing build-version suite 18 checks passes. Final wrapper ownership/output check via LaunchOnly/NoLaunch passes, no launch performed. First npm build fails expected 4 GB OOM; second compiles/packages but rejects source drift when concurrent owner commits (no tag). Stable isolated trial at .worktrees/upstream-wrapper-trial (HEAD 2b4125b71d plus wrapper/package patches) succeeds compilation, packaging and final source-state guard. Dependency/static junctions reuse local inputs; independent build outputs. The extra admission/output guards added afterward were verified separately without repeating expensive compilation.
+
+Successful package: D:/code/git-desktop/.worktrees/upstream-wrapper-trial/dist/trial/GitDesktop-win32-x64/GitDesktop.exe. Version v2026.11.10_01-dirty, sourceDirty true, sourceHead 2b4125b71d8e923a643a31b899a6b73817ddd72d, executable SHA256 902250ec68bfa7e0e7ec47400cfe75e20910034f8d8137dcce4e4d2d39135cad. No trial release tag. Manual installed acceptance unverified. Trial checkout retained for evidence.
+
+Logs in main root: upstream-workflow-tests.log, upstream-version-tests.log, upstream-wrapper-guard-check.log, upstream-trial-build.log, upstream-trial-build-8gb.log, upstream-isolated-build.log. No active test/build operations. Source left uncommitted; initial implementation commit is not implied by daily activation.
+
+Findings/dispositions: prior assessment A1-A4 implemented with explicit cooperative-writer and agent-receipt limits; A5 wrapper prerequisites fixed and stable package validated; A6 scheduler limitation addressed through project post-commit instructions. Informational remaining limits: no automatic enforcement for external clients, no installed UI acceptance, no exhaustive review of future upstream changes. No ready authorized implementation items outstanding.
+
+Final source SHA256:
+- AGENTS.md: b7dc0d767239c80f0a3118eb4717397bf6e3e6cee250963cd069f6cd23029029
+- docs/upstream-sync.md: a6d219cb0f549de1b4a2570973c4b92e6098606282db5a7963cacf53de41b12a
+- script/upstream-sync.cjs: 3eabf8469d564792aa8bf5562f0c6ec9c95e66799259702efef83e5df20a7ccd
+- script/upstream-sync-test.cjs: 8e5c8bd6ddecabba20a08214edcffe07e4e383c2067d99183770be0e7dd66f99
+- script/build-local.ps1: 5713eb9c13c0de974b8a872c45ff42801240a4286327707da91abf18e116c4c0
+- script/package-local.mjs: 682ff8b8aacdd9ee2aca5cc15bc8fdbadb391054d11524abda59eec1e7c75781
+
+Commit scope assessment - 2026-11-10: all six recorded implementation hashes match the validated source. Reviewed the eight-file owned scope against current HEAD fd476fd9bc; index initially empty, no other source changes included. JavaScript and PowerShell parsing, scoped Prettier and whitespace checks pass. Prior disposable workflow/version checks and isolated package evidence remain applicable; no redundant build or frontend tests run. Cooperative sync lock absent. Full submodule status currently fails with permission denied for choosealicense.com Git metadata; integration must fail closed unless normal authorized access resolves that error. No additional actionable source defect found in this scoped assessment. This review is a commit-scope/static assessment, not exhaustive future integration acceptance.

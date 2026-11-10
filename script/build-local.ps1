@@ -3,13 +3,14 @@ param(
     [switch]$NonInteractive,
     [switch]$NoLaunch,
     [switch]$LaunchOnly,
-    [switch]$AllowDirty
+    [switch]$AllowDirty,
+    [string]$OutputDirectory
 )
 
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent $PSScriptRoot
 $taskOldLocation = Get-Location
-$taskEnvNames = @('NODE_ENV', 'DESKTOP_SKIP_PACKAGE', 'DESKTOP_LOCAL_BUNDLE', 'DESKTOP_BUILD_VERSION', 'DESKTOP_PACKAGE_VERSION', 'DESKTOP_FILE_VERSION')
+$taskEnvNames = @('NODE_ENV', 'DESKTOP_SKIP_PACKAGE', 'DESKTOP_LOCAL_BUNDLE', 'DESKTOP_BUILD_VERSION', 'DESKTOP_PACKAGE_VERSION', 'DESKTOP_FILE_VERSION', 'DESKTOP_DIST_ROOT')
 $taskOldEnv = @{}
 foreach ($taskName in $taskEnvNames) {
     $taskOldEnv[$taskName] = [Environment]::GetEnvironmentVariable($taskName, 'Process')
@@ -28,6 +29,22 @@ try {
         throw 'This build requires Windows PowerShell and Windows Node. From WSL, use bash script/build-local.sh.'
     }
     Set-Location -LiteralPath $taskRoot
+    $taskCommon = (& git rev-parse --git-common-dir)
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect repository ownership.' }
+    $taskCommonRoot = if ([IO.Path]::IsPathRooted($taskCommon)) { [IO.Path]::GetFullPath($taskCommon) } else { [IO.Path]::GetFullPath((Join-Path $taskRoot $taskCommon)) }
+    $taskSyncState = Join-Path $taskCommonRoot 'codex-upstream-sync'
+    if (Test-Path (Join-Path $taskSyncState 'lock')) {
+        $taskActiveFile = Join-Path $taskSyncState 'active.json'
+        if (!(Test-Path $taskActiveFile)) { throw 'An upstream sync owns this repository.' }
+        $taskActive = Get-Content -LiteralPath $taskActiveFile -Raw | ConvertFrom-Json
+        if ([IO.Path]::GetFullPath($taskActive.candidate) -ne $taskRoot) { throw 'An upstream sync owns this repository.' }
+    }
+    if ($OutputDirectory) {
+        $taskOutputRoot = [IO.Path]::GetFullPath((Join-Path $taskRoot $OutputDirectory))
+        if (!$taskOutputRoot.StartsWith($taskRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Output must stay inside this checkout.' }
+        if ($taskOutputRoot -eq (Join-Path $taskRoot 'dist')) { throw 'Choose a separate output subdirectory.' }
+        $env:DESKTOP_DIST_ROOT = $taskOutputRoot
+    }
     . (Join-Path $PSScriptRoot 'build-version.ps1')
     if (!$LaunchOnly) {
         $taskVersion = New-DesktopBuildVersion -AllowDirty:$AllowDirty
@@ -44,7 +61,7 @@ try {
     if (!(Test-Path 'node_modules\electron\dist\electron.exe')) {
         throw 'Dependencies are missing. Install them before building.'
     }
-    while (!$LaunchOnly -and (Get-Process -Name GitDesktop -ErrorAction SilentlyContinue)) {
+    while (!$OutputDirectory -and !$LaunchOnly -and (Get-Process -Name GitDesktop -ErrorAction SilentlyContinue)) {
         if ($NonInteractive) {
             throw 'Close Git Desktop, then rerun the build. The app is using the output files.'
         }
@@ -55,14 +72,15 @@ try {
 
     if (!$LaunchOnly) {
         $env:NODE_ENV = 'production'
-        Invoke-Npm -Arguments @('run', 'compile:prod')
+        Invoke-Npm -Arguments @('exec', '--', 'cross-env', 'NODE_ENV=production', 'TS_NODE_PROJECT=script/tsconfig.json', 'NODE_OPTIONS=--max_old_space_size=8192', 'webpack', '--config', 'app/webpack.production.ts')
         $env:DESKTOP_SKIP_PACKAGE = '1'
         Invoke-Npm -Arguments @('exec', '--', 'ts-node', '-P', 'script/tsconfig.json', 'script/build.ts')
         $env:DESKTOP_LOCAL_BUNDLE = 'out'
         Invoke-Npm -Arguments @('run', 'package:local')
     }
 
-    $taskExecutable = Join-Path $taskRoot 'dist\GitDesktop-win32-x64\GitDesktop.exe'
+    $taskDistRoot = if ($OutputDirectory) { $taskOutputRoot } else { Join-Path $taskRoot 'dist' }
+    $taskExecutable = Join-Path $taskDistRoot 'GitDesktop-win32-x64\GitDesktop.exe'
     if (!(Test-Path -LiteralPath $taskExecutable)) { throw 'Packaging did not produce the executable.' }
     if (!$LaunchOnly) {
         Complete-DesktopBuildVersion -Version $taskVersion -Executable $taskExecutable
