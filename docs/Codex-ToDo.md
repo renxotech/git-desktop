@@ -321,3 +321,18 @@ Earlier task records are retained below. The Current merge resolution section at
 - Status: commit pending then compilation/packaging. Logs: branch-views-prod-build-20261110.log and branch-views-prod-package-20261110.log. Manual app acceptance remains unverified.
 
 - COMPLETE: source committed as 723a51f671 (Add merged branch cleanup and direct branch merging). Production compile/resource preparation exited 0 (114.02s); local packaging exited 0. Output: D:/code/git-desktop/dist/branch-views-20261110/GitDesktop-win32-x64/GitDesktop.exe. Logs above retained; temporary packaging helper removed. No launch/push. No active operations; manual runtime acceptance remains unverified.
+
+## Remove merged worktree and branch - 2026-11-10
+- Request: add combined removal with lazy checks for uncommitted and stashed files. Owner: this chat; desktop-improvements in D:/code/git-desktop. No actual user worktree deletion, commit, build or push requested.
+- Plan: action-time checks and confirmation, recheck at execution; block dirty/untracked/ignored files, stashes, main/current/locked worktrees and changed refs. Never force removal or discard stashes. Validate on disposable Git fixtures.
+
+- COMPLETE implementation/review and focused validation: 19/19 tests pass; TypeScript skipLibCheck and focused lint pass. Receipt: [combined removal](reviews/2026-11-10-worktree-branch-removal.md).
+- Checkpoint: desktop-improvements at 7273f6508e39b4197a1f849b0d295a5961e39a0f plus uncommitted source/tests. No active operations, actual worktree removals, commit, push or build for this follow-up. Installed package remains previous behavior; manual packaged acceptance unverified. Next action if requested: commit/build this source and manually exercise combined removal in a disposable repository.
+
+## Production build - 2026-11-10
+- Request: build current desktop-improvements source at 7273f6508e39b4197a1f849b0d295a5961e39a0f with uncommitted combined-removal changes. Owner: this chat. No commit, push or launch requested.
+- Building to dist/prod-removal-20261110; logs prod-removal-compile.log and prod-removal-package.log. Next: package and verify executable; prior manual acceptance remains pending.
+
+## Commit combined removal - 2026-11-10
+- User requested local commit. Reviewed eight-file scope; tested source hashes match 19-test validation receipt. Existing production-build checkpoint belongs to separate ongoing work and is preserved. No source edits or repeated build requested.
+- Completion: create local commit Add safe combined worktree and branch removal; successful Git result completes this commit request. No push. Manual installed acceptance remains unverified.

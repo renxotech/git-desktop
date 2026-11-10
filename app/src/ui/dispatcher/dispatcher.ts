@@ -1,3 +1,4 @@
+import { IWorktreeBranchRemoval } from '../../lib/git/worktree-branch-removal'
 import { AdditionalShell } from '../../lib/shells/configured-shell'
 import {
   AdditionalEditor,
@@ -1088,6 +1089,13 @@ export class Dispatcher {
    * Delete a worktree. If the worktree being deleted is the currently selected
    * one, the repository is switched to the main worktree first.
    */
+  public removeMergedWorktreeAndBranch(
+    repository: Repository,
+    confirmed: IWorktreeBranchRemoval
+  ): Promise<void> {
+    return this.appStore._removeMergedWorktreeAndBranch(repository, confirmed)
+  }
+
   public async deleteWorktree(
     repository: Repository,
     worktreePath: string,

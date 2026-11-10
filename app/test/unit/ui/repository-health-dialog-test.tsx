@@ -1,3 +1,4 @@
+import { createTempDirectory } from '../../helpers/temp'
 import { Branch, BranchType } from '../../../src/models/branch'
 
 import { Repository } from '../../../src/models/repository'
@@ -438,6 +439,94 @@ describe('repository health dialogs', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Merge', hidden: true }))
     await waitFor(() => assert.equal(mergedBranch, feature), { timeout: 15000 })
+    view.unmount()
+  })
+  it('checks linked worktree files only when combined removal is requested', async t => {
+    const electron = await import('electron')
+    const previousSend = electron.ipcRenderer.send
+    electron.ipcRenderer.send = () => {}
+    t.after(() => {
+      electron.ipcRenderer.send = previousSend
+    })
+    const repository = await setupEmptyRepository(t)
+    await git(
+      ['commit', '--allow-empty', '-m', 'base'],
+      repository.path,
+      'combinedRemovalDialogTest'
+    )
+    const sha = (
+      await git(
+        ['rev-parse', 'HEAD'],
+        repository.path,
+        'combinedRemovalDialogTest'
+      )
+    ).stdout.trim()
+    const linked = Path.join(await createTempDirectory(t), 'linked')
+    await git(
+      ['worktree', 'add', '-b', 'finished', linked],
+      repository.path,
+      'combinedRemovalDialogTest'
+    )
+    await writeFile(Path.join(linked, 'unsaved.txt'), 'preserve me')
+    const current = new Branch(
+      'master',
+      null,
+      { sha },
+      BranchType.Local,
+      'refs/heads/master'
+    )
+    const finished = new Branch(
+      'finished',
+      null,
+      { sha },
+      BranchType.Local,
+      'refs/heads/finished'
+    )
+    const view = render(
+      <UnmergedBranchesDialog
+        repository={repository}
+        dispatcher={{} as Dispatcher}
+        merged={true}
+        allBranches={[current, finished]}
+        currentBranch={current}
+        defaultBranch={current}
+        onDismissed={onDismissed}
+      />
+    )
+    await waitFor(() => assert.ok(screen.getByText('2 merged branches')), {
+      timeout: 15000,
+    })
+    fireEvent.click(
+      screen.getByRole('radio', { name: /finished/, hidden: true })
+    )
+    assert.equal(
+      screen.queryByText(/Uncommitted, untracked or ignored files are present/),
+      null
+    )
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /Remove worktree and branch/,
+        hidden: true,
+      })
+    )
+    await waitFor(
+      () =>
+        assert.ok(
+          screen.getByText(
+            /Uncommitted, untracked or ignored files are present/
+          )
+        ),
+      { timeout: 15000 }
+    )
+    assert.equal(
+      screen
+        .getByRole('button', {
+          name: 'Remove worktree and branch',
+          hidden: true,
+        })
+        .getAttribute('aria-disabled'),
+      'true'
+    )
     view.unmount()
   })
 })

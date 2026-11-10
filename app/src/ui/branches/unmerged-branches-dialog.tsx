@@ -1,3 +1,7 @@
+import {
+  checkWorktreeBranchRemoval,
+  IWorktreeBranchRemoval,
+} from '../../lib/git/worktree-branch-removal'
 import * as React from 'react'
 import { errorMessage } from '../../lib/repository-health'
 import { Repository } from '../../models/repository'
@@ -34,6 +38,7 @@ interface IState {
   readonly error: string | null
   readonly selected: string
   readonly filter: string
+  readonly removal: IWorktreeBranchRemoval | null
   readonly deleting: Branch | null
 }
 export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
@@ -50,6 +55,7 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
       selected: '',
       filter: '',
       deleting: null,
+      removal: null,
     }
   }
   public componentDidMount() {
@@ -159,6 +165,50 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
     }
   }
 
+  private onRemoveWorktree = async () => {
+    const branch = this.state.branches.find(b => b.ref === this.state.selected)
+    if (
+      this.state.busy ||
+      !branch ||
+      this.removalReason(branch) !== 'This branch is checked out in a worktree.'
+    ) {
+      return
+    }
+    this.setState({ busy: true, error: null })
+    const request = ++this.request
+    try {
+      const removal = await checkWorktreeBranchRemoval(
+        this.props.repository.path,
+        branch.ref,
+        this.state.target
+      )
+      if (request === this.request) {
+        this.setState({ removal, busy: false })
+      }
+    } catch (error) {
+      if (request === this.request) {
+        this.setState({ error: errorMessage(error), busy: false })
+      }
+    }
+  }
+  private onCancelRemoval = () => this.setState({ removal: null, error: null })
+  private onConfirmRemoval = async () => {
+    if (!this.state.removal || this.state.busy) {
+      return
+    }
+    this.setState({ busy: true, error: null })
+    try {
+      await this.props.dispatcher.removeMergedWorktreeAndBranch(
+        this.props.repository,
+        this.state.removal
+      )
+      this.setState({ removal: null })
+      await this.refresh()
+    } catch (error) {
+      this.setState({ busy: false, error: errorMessage(error) })
+    }
+  }
+
   public render() {
     const { busy, target, targets, error, includeRemotes, deleting } =
       this.state
@@ -173,6 +223,63 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
       selectedResult &&
       this.props.allBranches.find(b => b.ref === selectedResult.ref)
     const reason = this.removalReason(selectedResult)
+    const removal = this.state.removal
+    if (removal) {
+      const blocked = removal.hasFiles || removal.stashes.length > 0
+      return (
+        <Dialog
+          id="remove-worktree-branch"
+          title="Remove worktree and branch"
+          type="warning"
+          onDismissed={this.onCancelRemoval}
+          disabled={busy}
+        >
+          <DialogContent>
+            <p>
+              Remove local branch{' '}
+              <strong>{removal.branchRef.replace('refs/heads/', '')}</strong>{' '}
+              and its worktree folder?
+            </p>
+            <p className="health-path">{removal.path}</p>
+            <p>The folder will be deleted. The remote branch will be kept.</p>
+            {removal.hasFiles && (
+              <p>
+                Uncommitted, untracked or ignored files are present. Commit or
+                move those files before removal.
+              </p>
+            )}
+            {removal.stashes.length > 0 && (
+              <>
+                <p>
+                  Stashes are shared by all worktrees. Handle these stashes
+                  before removal; their ownership cannot be determined reliably.
+                </p>
+                <ul>
+                  {removal.stashes.map(stash => (
+                    <li key={stash}>{stash}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {!blocked && (
+              <p>
+                No uncommitted, untracked, ignored or stashed files found. These
+                checks will run again before removal.
+              </p>
+            )}
+            {error && <p className="health-error">{error}</p>}
+          </DialogContent>
+          <DialogFooter>
+            <Button disabled={busy} onClick={this.onCancelRemoval}>
+              Back
+            </Button>
+            <Button disabled={busy || blocked} onClick={this.onConfirmRemoval}>
+              Remove worktree and branch
+            </Button>
+          </DialogFooter>
+        </Dialog>
+      )
+    }
     if (deleting) {
       const common = {
         dispatcher: this.props.dispatcher,
@@ -297,6 +404,11 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
                   this.props.currentBranch?.name ?? 'detached HEAD'
                 }`}
           </span>
+          {merged && reason === 'This branch is checked out in a worktree.' && (
+            <Button disabled={busy} onClick={this.onRemoveWorktree}>
+              Remove worktree and branch…
+            </Button>
+          )}
           <Button
             disabled={
               busy ||
