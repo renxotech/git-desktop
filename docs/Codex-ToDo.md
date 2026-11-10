@@ -319,3 +319,5 @@ Earlier task records are retained below. The Current merge resolution section at
 - Request: commit and build. Owner: this chat, desktop-improvements, D:/code/git-desktop. Commit complete branch-view source/tests/review and ledger only; no push or app launch.
 - Source unchanged from 12-test receipt. Build with installed Windows Node 24.21.0 (pinned 24.22.1 unavailable, consistent with prior builds), vendored Yarn; DESKTOP_SKIP_PACKAGE=1 then local packager adapted to dist/branch-views-20261110. Preserve previous builds.
 - Status: commit pending then compilation/packaging. Logs: branch-views-prod-build-20261110.log and branch-views-prod-package-20261110.log. Manual app acceptance remains unverified.
+
+- COMPLETE: source committed as 723a51f671 (Add merged branch cleanup and direct branch merging). Production compile/resource preparation exited 0 (114.02s); local packaging exited 0. Output: D:/code/git-desktop/dist/branch-views-20261110/GitDesktop-win32-x64/GitDesktop.exe. Logs above retained; temporary packaging helper removed. No launch/push. No active operations; manual runtime acceptance remains unverified.

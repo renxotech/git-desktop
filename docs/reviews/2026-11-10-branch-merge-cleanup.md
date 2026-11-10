@@ -35,3 +35,7 @@ Implementation and source review in D:/code/git-desktop, desktop-improvements, H
 - app/test/unit/ui/repository-health-dialog-test.tsx: db47067d007422be864a434d4c04a4fad907f6870012adf74997af85236b19d4
 - app/test/unit/git/unmerged-branches-test.ts: 27167ceda6fc41db2cd5f3a92f889643f0f86d42b3c8d404fa87cb95b360e504
 - app/test/unit/group-branches-test.ts: 5e17c4252c0db3402bf86f7cd25431f73536ebc592a4c70a84ae2363f379d298
+
+## Commit and build receipt
+- Source commit: 723a51f671. Production compilation/resource preparation succeeded (exit 0, 114.02s), followed by local Windows x64 packaging (exit 0). Installed Node 24.21.0 used; pinned 24.22.1 unavailable, matching prior local builds.
+- Executable: D:/code/git-desktop/dist/branch-views-20261110/GitDesktop-win32-x64/GitDesktop.exe. Existing builds preserved. Logs: branch-views-prod-build-20261110.log and branch-views-prod-package-20261110.log. Temporary packaging helper removed. No app launch or push; manual acceptance remains unverified.
