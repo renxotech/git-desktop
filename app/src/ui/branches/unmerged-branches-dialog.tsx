@@ -286,19 +286,7 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
                 </label>
               </>
             )}
-            {removal.stashes.length > 0 && (
-              <>
-                <p>
-                  These shared stashes will be kept. You can apply them from
-                  another worktree after removal.
-                </p>
-                <ul>
-                  {removal.stashes.map(stash => (
-                    <li key={stash}>{stash}</li>
-                  ))}
-                </ul>
-              </>
-            )}
+            <p>All existing stashes will be preserved.</p>
             {!blocked && (
               <p>
                 No uncommitted or untracked files block removal. Checks will run
