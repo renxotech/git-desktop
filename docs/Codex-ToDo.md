@@ -297,3 +297,8 @@ Earlier task records are retained below. The Current merge resolution section at
 - Request: please commit. Owner: this chat; desktop-improvements, D:\code\git-desktop. Scope: unmerged-branches.ts, its focused regression, activity-sort assessment and this ledger update. Repository overview and health-fit design documents excluded.
 - Source diff unchanged from 4-test validated and successfully compiled/packaged version. Fresh review confirms query-only ordering change, stable ties and no extra probes; no actionable findings. No repeated tests/build requested. Runtime acceptance remains unverified.
 - Completion checkpoint: create local commit Sort unmerged branches by latest commit date; successful Git result completes commit request. No push authorized. Existing separate task receipts preserved; no active operations.
+
+## Commit remaining design documents — 2026-11-10
+- User reports two documents still visible after commit; treated as continuation of commit request. Owner: this chat. Scope: plans/gitx-repository-overview.md, reviews/2026-11-06-gitx-health-fit.md and this checkpoint.
+- Reviewed documentation: records prior gitx analysis, existing-health fit, superseding minimal-dialog recommendation and explicitly deferred Folder Group expansion. Documentation only; no implementation authorization inferred. No new actionable review findings.
+- Previous sorting commit completed as ea250eaa2f. Next: commit remaining documents as Document gitx integration and repository health design. Successful Git result completes remaining commit scope; no push. Health implementation awaits direction; Folder Group work remains deferred.
