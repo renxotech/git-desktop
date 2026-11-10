@@ -41,6 +41,9 @@ try {
     }
     . (Join-Path $PSScriptRoot 'build-output.ps1')
     if ($OutputDirectory) {
+        if ($OutputDirectory.Contains("'")) {
+            throw 'OutputDirectory contains a literal single quote. In Command Prompt, use double quotes: -OutputDirectory "dist/my-preview".'
+        }
         $taskOutputRoot = [IO.Path]::GetFullPath((Join-Path $taskRoot $OutputDirectory))
         if (!$taskOutputRoot.StartsWith($taskRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Output must stay inside this checkout.' }
         if ($taskOutputRoot -eq (Join-Path $taskRoot 'dist')) { throw 'Choose a separate output subdirectory.' }
