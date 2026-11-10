@@ -1,6 +1,7 @@
 out/
 dist/
 node_modules/
+/node_modules.junction-backup-20261001
 coverage/
 npm-debug.log
 app/node_modules/
