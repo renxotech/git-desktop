@@ -1,0 +1,38 @@
+[
+  {
+    "Path": "app/src/lib/find-toast-activator-clsid.ts",
+    "Hash": "608A53C4E49621ED78B7011F63E42C66923E0D05DBB853B7579CB4CD671AA48F"
+  },
+  {
+    "Path": "app/src/main-process/notifications.ts",
+    "Hash": "2FD8A0C6BF825CC87DBDC8F06713CBAD4D694AB6BF77892F731ABCC15328BA7D"
+  },
+  {
+    "Path": "vendor/desktop-notifications/lib/native-module.ts",
+    "Hash": "B5DFDFFCD78633B8561A4EAC0C2F1F0E3629C62248AC67BC5AFD6F85616DB2F8"
+  },
+  {
+    "Path": "vendor/desktop-notifications/src/win/DesktopNotificationsManager.cpp",
+    "Hash": "9DD47B1404DAA6B7464536F0BA2F4C1EEDEC89FB183FD6392EDC307BFB0ADB70"
+  },
+  {
+    "Path": "vendor/desktop-notifications/src/win/DesktopNotificationsManager.h",
+    "Hash": "C55D7A69EC1187CB2274C63000A5AFB2DB2A8E261E653498F2750FEDAA4C319D"
+  },
+  {
+    "Path": "vendor/desktop-notifications/src/win/main_win.cc",
+    "Hash": "F71187B9A383326DEF4AA66F77D24259A0F8506081C2F4B93A6CCCEA9EA6D3BB"
+  },
+  {
+    "Path": "app/src/lib/logging/deprecation-trace.ts",
+    "Hash": "A2F8E7D42D281DE4F01B6F934FB311FDB03471F8D069CC53A761944F6ECE22BA"
+  },
+  {
+    "Path": "app/src/main-process/main.ts",
+    "Hash": "3586A1645099ABF8D5F03540A7E6D6EBB40EAB1CB1DAB51206C425CD478406DF"
+  },
+  {
+    "Path": "app/src/ui/index.tsx",
+    "Hash": "B5AA5B8EF56A5410899AAD5903D15E667724B8C8BF20D6D75A3FE7FE9E415F2E"
+  }
+]

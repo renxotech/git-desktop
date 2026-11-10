@@ -6,6 +6,7 @@ import { INotificationOptions } from './notification-options'
 // The native binary will be loaded lazily to avoid any possible crash at start
 // time, which are harder to trace.
 let _nativeModule: any | null | undefined = undefined
+let initialized = false
 
 function getNativeModule(): any | null {
   if (_nativeModule !== undefined) {
@@ -22,21 +23,42 @@ function getNativeModule(): any | null {
 /** Initializes the desktop-notifications system. */
 export const initializeNotifications: (
   opts: INotificationOptions
-) => void = opts =>
-  getNativeModule()?.initializeNotifications(notificationCallback, opts)
+) => boolean = opts => {
+  if (initialized) {
+    return true
+  }
+  const nativeModule = getNativeModule()
+  if (nativeModule === null) {
+    return false
+  }
+  // The macOS implementation has a void return; Windows explicitly reports
+  // whether all initialization stages succeeded.
+  const result = nativeModule.initializeNotifications(notificationCallback, opts)
+  initialized = process.platform === 'win32' ? result === true : result !== false
+  return initialized
+}
 
 /** Terminates the desktop-notifications system. */
-export const terminateNotifications: () => void = () =>
-  getNativeModule()?.terminateNotifications()
+export const terminateNotifications: () => void = () => {
+  if (initialized) {
+    getNativeModule()?.terminateNotifications()
+    initialized = false
+  }
+}
 
 /** Gets the current state of the notifications permission. */
 export const getNotificationsPermission: () => Promise<
   DesktopNotificationPermission
-> = () => getNativeModule()?.getNotificationsPermission()
+> = () =>
+  initialized
+    ? getNativeModule().getNotificationsPermission()
+    : Promise.resolve('default')
 
 /** Requests the user to grant permission to display notifications. */
 export const requestNotificationsPermission: () => Promise<boolean> = () =>
-  getNativeModule()?.requestNotificationsPermission()
+  initialized
+    ? getNativeModule().requestNotificationsPermission()
+    : Promise.resolve(false)
 
 /**
  * Displays a system notification.
@@ -52,6 +74,9 @@ export const showNotification: (
   body: string,
   userInfo?: Record<string, any>
 ) => Promise<string | null> = async (...args) => {
+  if (!initialized) {
+    return null
+  }
   const id = crypto.randomUUID()
   try {
     await getNativeModule()?.showNotification(id, ...args)
@@ -62,5 +87,8 @@ export const showNotification: (
 }
 
 /** Closes the notification with the given ID. */
-export const closeNotification: (id: string) => void = (...args) =>
-  getNativeModule()?.closeNotification(...args)
+export const closeNotification: (id: string) => void = (...args) => {
+  if (initialized) {
+    getNativeModule()?.closeNotification(...args)
+  }
+}

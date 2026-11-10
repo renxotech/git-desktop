@@ -1,0 +1,19 @@
+{
+  "Reviewer": "notification_review",
+  "HookSHA256": "A2F8E7D42D281DE4F01B6F934FB311FDB03471F8D069CC53A761944F6ECE22BA",
+  "Change": "Removed process.traceDeprecation assignment; CLI controls runtime tracing",
+  "DiagnosticContracts": 13,
+  "DiagnosticContractsPass": true,
+  "NewRegressionCases": [
+    "readonly true descriptor preserved and warning recorded",
+    "readonly false descriptor preserved and warning recorded",
+    "non-extensible process without process flag creation",
+    "negative old-assignment fixture throws exact read-only error"
+  ],
+  "RealProcessCheck": "PASS plain Node --trace-deprecation naturally exposes readonly true flag; helper loads, records startup and synthetic DEP0169 stack, preserves normal warning output and descriptor",
+  "UnchangedProductionFiles": 8,
+  "PriorEvidenceReused": "24 wrapper/identity/main contracts plus native failure/teardown; no broad reruns",
+  "Findings": "Read-only process startup crash corrected and regression accepted; no remaining actionable source findings",
+  "Limits": "Actual rebuilt Electron startup and original URL warning attribution remain pending user build/run; no app launch or packaging performed",
+  "UTC": "2026-11-10T20:02:23.5379269Z"
+}

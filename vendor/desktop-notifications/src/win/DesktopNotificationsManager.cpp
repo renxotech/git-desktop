@@ -22,11 +22,24 @@ DesktopNotificationsManager::DesktopNotificationsManager(const std::wstring &toa
       m_callback(Napi::ThreadSafeFunction::New(callback.Env(), callback, "Notification Callback", 0, 1))
 {
     {
-        HRESULT hr = Windows::Foundation::Initialize(RO_INIT_MULTITHREADED);
+        APTTYPE apartment;
+        APTTYPEQUALIFIER qualifier;
+        HRESULT apartmentResult = CoGetApartmentType(&apartment, &qualifier);
+        if (FAILED(apartmentResult) && apartmentResult != CO_E_NOTINITIALIZED)
+        {
+            DN_LOG_ERROR(L"Failed to query COM apartment: " << apartmentResult);
+            return;
+        }
+        const RO_INIT_TYPE initType = SUCCEEDED(apartmentResult) &&
+            (apartment == APTTYPE_STA || apartment == APTTYPE_MAINSTA)
+            ? RO_INIT_SINGLETHREADED : RO_INIT_MULTITHREADED;
+        HRESULT hr = Windows::Foundation::Initialize(initType);
         if (!SUCCEEDED(hr))
         {
-            DN_LOG_ERROR(L"Failed to initialize with RO_INIT_MULTITHREADED: " << hr);
+            DN_LOG_ERROR(L"Failed to initialize Windows Runtime: " << hr);
+            return;
         }
+        m_runtimeInitialized = true;
     }
     {
         HRESULT hr = GetActivationFactory(
@@ -35,9 +48,8 @@ DesktopNotificationsManager::DesktopNotificationsManager(const std::wstring &toa
             &m_toastManager);
         if (!SUCCEEDED(hr))
         {
-            DN_LOG_ERROR(L"Failed to register com Factory, please make sure you "
-                         L"correctly initialized with RO_INIT_MULTITHREADED: "
-                         << hr);
+            DN_LOG_ERROR(L"Failed to get notification factory: " << hr);
+            return;
         }
     }
 
@@ -54,7 +66,7 @@ DesktopNotificationsManager::DesktopNotificationsManager(const std::wstring &toa
     }
 
     {
-        PWSTR appID;
+        PWSTR appID = nullptr;
         HRESULT hr = GetCurrentProcessExplicitAppUserModelID(&appID);
         if (!SUCCEEDED(hr))
         {
@@ -68,20 +80,21 @@ DesktopNotificationsManager::DesktopNotificationsManager(const std::wstring &toa
         }
     }
 
-    RegisterClassObjects(m_toastActivatorClsid);
-}
-
-void DesktopNotificationsManager::SignalObjectCountZero()
-{
-    // Do nothing
+    if (m_appID.empty())
+    {
+        DN_LOG_ERROR(L"Notification App User Model ID is empty");
+        return;
+    }
+    m_initialized = SUCCEEDED(RegisterClassObjects(m_toastActivatorClsid));
 }
 
 HRESULT DesktopNotificationsManager::RegisterClassObjects(const std::wstring &toastActivatorClsid)
 {
     // Create an out-of-proc COM module with caching disabled. The supplied
     // method is invoked when the last instance object of the module is released.
-    auto &module = Module<OutOfProcDisableCaching>::Create(
-        this, &DesktopNotificationsManager::SignalObjectCountZero);
+    // The singleton must not retain a callback to a manager that may fail to
+    // initialize and be discarded. No zero-object notification is needed.
+    auto &module = Module<OutOfProcDisableCaching>::Create();
 
     // Usually COM module classes statically define their CLSID at compile time
     // through the use of various macros, and WRL::Module internals takes care of
@@ -110,7 +123,12 @@ HRESULT DesktopNotificationsManager::RegisterClassObjects(const std::wstring &to
     }
 
     CLSID activatorClsid;
-    CLSIDFromString(toastActivatorClsid.c_str(), &activatorClsid);
+    hr = CLSIDFromString(toastActivatorClsid.c_str(), &activatorClsid);
+    if (FAILED(hr))
+    {
+        DN_LOG_ERROR("Invalid notification activator CLSID; hr: " << hr);
+        return hr;
+    }
 
     // All pointers in this array are unowned. Do not release them.
     IClassFactory *class_factories[] = {class_factory.Get()};
@@ -125,6 +143,7 @@ HRESULT DesktopNotificationsManager::RegisterClassObjects(const std::wstring &to
     else
     {
         module.IncrementObjectCount();
+        m_classObjectsRegistered = true;
     }
 
     return hr;
@@ -135,7 +154,16 @@ DesktopNotificationsManager::~DesktopNotificationsManager()
     m_callback.Release();
     m_desktopNotifications.clear();
 
-    UnregisterClassObjects();
+    if (m_classObjectsRegistered)
+    {
+        UnregisterClassObjects();
+    }
+    // Release all apartment-bound references before balancing RoInitialize.
+    m_toastManager.Reset();
+    if (m_runtimeInitialized)
+    {
+        Windows::Foundation::Uninitialize();
+    }
 }
 
 HRESULT DesktopNotificationsManager::UnregisterClassObjects()
