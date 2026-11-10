@@ -80,4 +80,24 @@ it('updates the sandbox Pull label even when enabledness is unchanged, and resto
     ordinaryUpdates.find(item => item.id === 'pull')?.state.label,
     __DARWIN__ ? 'Pull' : 'Pu&ll'
   )
+  assert.equal(
+    ordinaryUpdates.find(item => item.id === 'repository-health')?.state
+      .enabled,
+    true
+  )
+  for (const override of [
+    { selectedState: null },
+    { windowState: 'hidden' },
+    { showWelcomeFlow: true },
+  ]) {
+    updateMenuState({ ...state, ...override } as IAppState, null)
+    const updates = send.mock.calls.at(-1)!.arguments[1] as Array<{
+      id: string
+      state: IMenuItemState
+    }>
+    assert.equal(
+      updates.find(item => item.id === 'repository-health')?.state.enabled,
+      false
+    )
+  }
 })

@@ -34,7 +34,7 @@ import { git } from '../../../src/lib/git/core'
 const onDismissed = () => {}
 
 describe('repository health dialogs', () => {
-  it('omits submodules from registered repository health results', async t => {
+  it('checks the current parent without scanning its added submodule', async t => {
     const electron = await import('electron')
 
     const previousSend = electron.ipcRenderer.send
@@ -89,6 +89,7 @@ describe('repository health dialogs', () => {
 
     const view = render(
       <RepositoryHealthDialog
+        repository={parent}
         repositories={[parent, submodule]}
         dispatcher={{} as Dispatcher}
         onDismissed={onDismissed}
@@ -109,129 +110,87 @@ describe('repository health dialogs', () => {
     view.unmount()
   })
 
-  it('fetches only selected visible repositories and retains operation errors', async t => {
+  it('checks and operates only on the current repository, even when clean', async t => {
     const electron = await import('electron')
-
     const previousSend = electron.ipcRenderer.send
-
     electron.ipcRenderer.send = () => {}
-
     t.after(() => {
       electron.ipcRenderer.send = previousSend
     })
-
-    const dirty = await setupEmptyRepository(t)
-
-    const clean = await setupEmptyRepository(t)
-
-    await writeFile(Path.join(dirty.path, 'local.txt'), 'dirty')
-
+    const current = await setupEmptyRepository(t)
+    const other = await setupEmptyRepository(t)
+    await writeFile(Path.join(other.path, 'unrelated.txt'), 'preserve')
     for (const args of [
       ['commit', '--allow-empty', '-m', 'base'],
-
-      ['remote', 'add', 'origin', clean.path],
-
+      ['remote', 'add', 'origin', other.path],
       ['update-ref', 'refs/remotes/origin/master', 'HEAD'],
-
       ['branch', '--set-upstream-to=origin/master'],
     ]) {
-      await git(args, clean.path, 'healthDialogTest')
+      await git(args, current.path, 'healthDialogTest')
     }
-
-    const performed: string[][] = []
-
+    const linked = Path.join(await createTempDirectory(t), 'linked')
+    await git(
+      ['worktree', 'add', '-b', 'feature', linked],
+      current.path,
+      'healthDialogTest'
+    )
+    const performed: HealthOperation[] = []
     const dispatcher = {
       async performRepositoryHealthOperation(
         repositories: ReadonlyArray<IRepositoryHealth>,
-
         operation: HealthOperation,
-
         _signal: AbortSignal,
-
         onResult: (result: IHealthOperationResult) => void
       ) {
-        assert.equal(operation, 'fetch')
-
-        performed.push(repositories.map(r => r.path))
-
+        assert.deepEqual(
+          repositories.map(r => r.path),
+          [current.path]
+        )
+        assert.deepEqual(
+          repositories[0].worktrees.map(w => Path.resolve(w.path)).sort(),
+          [current.path, linked].map(p => Path.resolve(p)).sort()
+        )
+        performed.push(operation)
         onResult({
-          path: dirty.path,
-
+          path: current.path,
           messages: [],
-
-          errors: ['Remote fetch failed'],
+          errors: ['Sample operation error'],
         })
       },
     } as unknown as Dispatcher
-
     const view = render(
       <RepositoryHealthDialog
-        repositories={[dirty, clean]}
+        repository={current}
+        repositories={[other, current]}
         dispatcher={dispatcher}
         onDismissed={onDismissed}
       />
     )
-
-    await waitFor(
-      () =>
-        assert.ok(
-          screen.getByRole('button', {
-            name: 'Fetch selected (1)',
-
-            hidden: true,
-          })
-        ),
-
-      { timeout: 15000 }
-    )
-
-    assert.match(view.container.textContent ?? '', /local.txt/)
-
-    fireEvent.click(screen.getByLabelText('Needs attention only'))
-
-    assert.ok(
-      screen.getByRole('button', { name: 'Fetch selected (2)', hidden: true })
-    )
-
-    fireEvent.click(screen.getByLabelText('Needs attention only'))
-
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Fetch selected (1)', hidden: true })
-    )
-
-    await waitFor(() => assert.equal(performed.length, 1))
-
-    assert.deepEqual(performed[0], [dirty.path])
-
-    await waitFor(
-      () =>
-        assert.ok(
-          screen.getByRole('button', {
-            name: 'Fetch selected (1)',
-
-            hidden: true,
-          })
-        ),
-
-      { timeout: 15000 }
-    )
-
-    assert.ok(screen.getByText('Remote fetch failed'))
-
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Clear selection', hidden: true })
-    )
-
+    for (const [label, operation] of [
+      ['Fetch all remotes', 'fetch'],
+      ['Safely update worktrees', 'update'],
+    ] as const) {
+      await waitFor(
+        () =>
+          assert.notEqual(
+            screen
+              .getByRole('button', { name: label, hidden: true })
+              .getAttribute('aria-disabled'),
+            'true'
+          ),
+        { timeout: 15000 }
+      )
+      fireEvent.click(screen.getByRole('button', { name: label, hidden: true }))
+      await waitFor(() => assert.equal(performed.at(-1), operation))
+    }
+    await waitFor(() => assert.ok(screen.getByText('Sample operation error')))
+    assert.deepEqual(performed, ['fetch', 'update'])
     assert.equal(
-      screen
-
-        .getByRole('button', { name: 'Fetch selected (0)', hidden: true })
-
-        .getAttribute('aria-disabled'),
-
-      'true'
+      view.container.querySelectorAll('.health-repository').length,
+      1
     )
-
+    assert.equal(screen.queryByText(/unrelated.txt/), null)
+    assert.equal(screen.queryByLabelText('Repositories'), null)
     view.unmount()
   })
 

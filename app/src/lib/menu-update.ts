@@ -262,6 +262,7 @@ function getRepositoryMenuBuilder(state: IAppState): MenuStateBuilder {
   // repository-scoped. They're always enabled if we're in a repository and
   // always disabled if we're not.
   const repositoryScopedIDs: ReadonlyArray<MenuIDs> = [
+    'repository-health',
     'branch',
     'remove-repository',
     'open-in-shell',
@@ -487,7 +488,6 @@ function getInWelcomeFlowBuilder(inWelcomeFlow: boolean): MenuStateBuilder {
     'add-local-repository',
     'clone-repository',
     'new-folder-group',
-    'repository-health',
     'preferences',
     'about',
   ]

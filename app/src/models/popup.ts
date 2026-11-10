@@ -208,7 +208,7 @@ export type PopupDetail =
       initialSelectedTab?: RepositorySettingsTab
     }
   | { type: PopupType.AddRepository; path?: string }
-  | { type: PopupType.RepositoryHealth }
+  | { type: PopupType.RepositoryHealth; repository: Repository }
   | {
       type: PopupType.UnmergedBranches
       repository: Repository

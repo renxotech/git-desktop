@@ -1,13 +1,9 @@
-import { git } from '../../lib/git/core'
 import * as React from 'react'
 import * as Path from 'path'
 import { Repository } from '../../models/repository'
 import {
-  discoverHealthRepositories,
   errorMessage,
-  getHealthRepositoryIdentity,
   inspectHealthRepository,
-  needsHealthAttention,
   IRepositoryHealth,
   IHealthBranch,
   IHealthOperationResult,
@@ -15,11 +11,10 @@ import {
 } from '../../lib/repository-health'
 import { Dialog, DialogContent, DialogFooter } from '../dialog'
 import { Button } from '../lib/button'
-import { Select } from '../lib/select'
 import { Dispatcher } from '../dispatcher'
-import { showOpenDialog } from '../main-process-proxy'
 
 interface IProps {
+  readonly repository: Repository
   readonly repositories: ReadonlyArray<Repository>
   readonly dispatcher: Dispatcher
   readonly onDismissed: () => void
@@ -37,13 +32,9 @@ function upstreamLabel(branch: IHealthBranch | undefined) {
 }
 
 interface IState {
-  readonly scope: 'added' | 'folder'
-  readonly folder: string
   readonly results: ReadonlyArray<IRepositoryHealth>
   readonly errors: ReadonlyArray<string>
   readonly operations: ReadonlyArray<IHealthOperationResult>
-  readonly selected: ReadonlySet<string>
-  readonly attentionOnly: boolean
   readonly busy: boolean
   readonly progress: string
 }
@@ -55,15 +46,11 @@ export class RepositoryHealthDialog extends React.Component<IProps, IState> {
   public constructor(props: IProps) {
     super(props)
     this.state = {
-      scope: 'added',
-      folder: '',
       results: [],
       errors: [],
       operations: [],
-      selected: new Set(),
-      attentionOnly: true,
       busy: false,
-      progress: 'Choose a scope and check repositories.',
+      progress: 'Checking repository…',
     }
   }
 
@@ -79,48 +66,25 @@ export class RepositoryHealthDialog extends React.Component<IProps, IState> {
 
   private scan = async () => {
     const signal = this.controller.signal
-    const discovery =
-      this.state.scope === 'folder'
-        ? await discoverHealthRepositories(this.state.folder, signal)
-        : { paths: this.props.repositories.map(r => r.path), errors: [] }
-    const seen = new Set<string>()
+    const path = this.props.repository.path
     const results: IRepositoryHealth[] = []
-    const errors = discovery.errors.map(e => `${e.path}: ${e.message}`)
-    for (const path of discovery.paths) {
-      if (signal.aborted || !this.mounted) {
-        break
-      }
-      this.setState({ progress: `Checking ${path}` })
-      try {
-        const superproject = await git(
-          ['rev-parse', '--show-superproject-working-tree'],
-          path,
-          'healthSubmoduleCheck'
-        )
-        if (superproject.stdout.trim().length > 0) {
-          continue
-        }
-        const identity = await getHealthRepositoryIdentity(path)
-        if (seen.has(identity.commonDirectory)) {
-          continue
-        }
-        results.push(await inspectHealthRepository(identity.path))
-        seen.add(identity.commonDirectory)
-      } catch (error) {
-        errors.push(`${path}: ${errorMessage(error)}`)
-      }
-      if (this.mounted) {
-        this.setState({ results: [...results], errors: [...errors] })
-      }
+    const errors: string[] = []
+    if (signal.aborted || !this.mounted) {
+      return
+    }
+    this.setState({ progress: `Checking ${path}` })
+    try {
+      results.push(await inspectHealthRepository(path))
+    } catch (error) {
+      errors.push(`${path}: ${errorMessage(error)}`)
     }
     if (this.mounted) {
       this.setState({
         results,
         errors,
-        selected: new Set(results.map(r => r.commonDirectory)),
         progress: signal.aborted
           ? 'Stopped. Results are incomplete.'
-          : `Checked ${results.length} repositories and ${results.reduce(
+          : `Checked this repository and ${results.reduce(
               (n, r) => n + r.worktrees.length,
               0
             )} worktrees.`,
@@ -129,10 +93,7 @@ export class RepositoryHealthDialog extends React.Component<IProps, IState> {
   }
 
   private check = async () => {
-    if (
-      this.state.busy ||
-      (this.state.scope === 'folder' && !this.state.folder)
-    ) {
+    if (this.state.busy) {
       return
     }
     this.controller = new AbortController()
@@ -141,8 +102,7 @@ export class RepositoryHealthDialog extends React.Component<IProps, IState> {
       results: [],
       errors: [],
       operations: [],
-      selected: new Set(),
-      progress: 'Finding repositories…',
+      progress: 'Checking repository…',
     })
     try {
       await this.scan()
@@ -157,35 +117,8 @@ export class RepositoryHealthDialog extends React.Component<IProps, IState> {
     }
   }
 
-  private chooseFolder = async () => {
-    const folder = await showOpenDialog({ properties: ['openDirectory'] })
-    if (folder !== null && this.mounted) {
-      this.setState({
-        folder,
-        scope: 'folder',
-        results: [],
-        selected: new Set(),
-        operations: [],
-        errors: [],
-      })
-    }
-  }
-
-  private visibleResults() {
-    return this.state.results.filter(
-      r => !this.state.attentionOnly || needsHealthAttention(r)
-    )
-  }
-
-  private selectedResults() {
-    // Hidden rows are never acted on. The button count reflects this exact set.
-    return this.visibleResults().filter(r =>
-      this.state.selected.has(r.commonDirectory)
-    )
-  }
-
   private perform = async (operation: HealthOperation) => {
-    const selected = this.selectedResults()
+    const selected = this.state.results
     if (this.state.busy || selected.length === 0) {
       return
     }
@@ -216,8 +149,7 @@ export class RepositoryHealthDialog extends React.Component<IProps, IState> {
         await this.scan()
       } else if (this.mounted) {
         this.setState({
-          progress:
-            'Stopped. Some repositories may not have been processed. Check again to refresh the report.',
+          progress: 'Stopped. Check again to refresh this repository’s report.',
         })
       }
     } catch (error) {
@@ -247,35 +179,6 @@ export class RepositoryHealthDialog extends React.Component<IProps, IState> {
     }
   }
 
-  private onSelectionChanged = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = new Set(this.state.selected)
-    if (event.currentTarget.checked) {
-      selected.add(event.currentTarget.value)
-    } else {
-      selected.delete(event.currentTarget.value)
-    }
-    this.setState({ selected })
-  }
-
-  private onScopeChanged = (event: React.FormEvent<HTMLSelectElement>) => {
-    this.setState({
-      scope: event.currentTarget.value as 'added' | 'folder',
-      results: [],
-      selected: new Set(),
-      operations: [],
-      errors: [],
-      progress: 'Choose a scope and check repositories.',
-    })
-  }
-
-  private onAttentionChanged = (event: React.ChangeEvent<HTMLInputElement>) =>
-    this.setState({ attentionOnly: event.currentTarget.checked })
-
-  private selectVisible = () =>
-    this.setState({
-      selected: new Set(this.visibleResults().map(r => r.commonDirectory)),
-    })
-  private clearSelection = () => this.setState({ selected: new Set() })
   private fetchSelected = () => this.perform('fetch')
   private updateSelected = () => this.perform('update')
   private stop = () => {
@@ -297,16 +200,7 @@ export class RepositoryHealthDialog extends React.Component<IProps, IState> {
   private renderRepository = (result: IRepositoryHealth) => (
     <article className="health-repository" key={result.commonDirectory}>
       <div className="health-repository-heading">
-        <label>
-          <input
-            type="checkbox"
-            disabled={this.state.busy}
-            checked={this.state.selected.has(result.commonDirectory)}
-            value={result.commonDirectory}
-            onChange={this.onSelectionChanged}
-          />
-          <strong>{Path.basename(result.path)}</strong>
-        </label>
+        <strong>{Path.basename(result.path)}</strong>
         <span>{result.unpublished} unpublished commits</span>
       </div>
       <div className="health-path">{result.path}</div>
@@ -383,9 +277,9 @@ export class RepositoryHealthDialog extends React.Component<IProps, IState> {
   )
 
   public render() {
-    const { busy, scope, folder, attentionOnly } = this.state
-    const visible = this.visibleResults()
-    const selectedCount = this.selectedResults().length
+    const { busy } = this.state
+    const visible = this.state.results
+    const selectedCount = visible.length
     return (
       <Dialog
         id="repository-health"
@@ -394,62 +288,14 @@ export class RepositoryHealthDialog extends React.Component<IProps, IState> {
         dismissDisabled={busy}
       >
         <DialogContent>
-          <div className="health-scope">
-            <Select
-              label="Repositories"
-              disabled={busy}
-              value={scope}
-              onChange={this.onScopeChanged}
-            >
-              <option value="added">Added to Desktop</option>
-              <option value="folder">Folder and subfolders</option>
-            </Select>
-            {scope === 'folder' && (
-              <Button disabled={busy} onClick={this.chooseFolder}>
-                Choose folder…
-              </Button>
-            )}
-            <Button
-              disabled={busy || (scope === 'folder' && !folder)}
-              onClick={this.check}
-            >
-              Check repositories
-            </Button>
-          </div>
-          {scope === 'folder' && (
-            <p className="health-path">
-              {folder || 'Choose the folder to scan.'}
-            </p>
-          )}
+          <p className="health-path">{this.props.repository.path}</p>
+          <Button disabled={busy} onClick={this.check}>
+            Check repository
+          </Button>
           <p className="health-description">
-            Includes registered worktrees, even outside the selected folder.
-            Folder scans skip Git internals, dependency caches, and directory
-            links. Publication checks use cached remote refs; fetch to refresh
-            them.
+            This repository and its registered worktrees only. Publication
+            checks use cached remote refs; fetch to refresh them.
           </p>
-          <div className="health-filter">
-            <label>
-              <input
-                type="checkbox"
-                checked={attentionOnly}
-                disabled={busy}
-                onChange={this.onAttentionChanged}
-              />{' '}
-              Needs attention only
-            </label>
-            <Button
-              disabled={busy || visible.length === 0}
-              onClick={this.selectVisible}
-            >
-              Select visible
-            </Button>
-            <Button
-              disabled={busy || selectedCount === 0}
-              onClick={this.clearSelection}
-            >
-              Clear selection
-            </Button>
-          </div>
           <p role="status">{this.state.progress}</p>
           {this.state.errors.map((error, i) => (
             <p className="health-error" key={i}>
@@ -479,8 +325,8 @@ export class RepositoryHealthDialog extends React.Component<IProps, IState> {
           {!busy && visible.length === 0 && (
             <p>
               {this.state.results.length > 0
-                ? 'No repositories need attention.'
-                : 'No repositories found in this scope.'}
+                ? 'No issues found.'
+                : 'No repository results available.'}
             </p>
           )}
           <div className="health-results">
@@ -496,14 +342,14 @@ export class RepositoryHealthDialog extends React.Component<IProps, IState> {
                 disabled={selectedCount === 0}
                 onClick={this.fetchSelected}
               >
-                Fetch selected ({selectedCount})
+                Fetch all remotes
               </Button>
               <Button
                 disabled={selectedCount === 0}
                 onClick={this.updateSelected}
                 tooltip="Fetch all remotes, then fast-forward clean worktrees with an available upstream. Dirty, detached, diverged, and locked worktrees are skipped."
               >
-                Safely update selected
+                Safely update worktrees
               </Button>
               <Button onClick={this.props.onDismissed}>Close</Button>
             </>
