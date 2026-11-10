@@ -5,10 +5,12 @@ import { listWorktrees } from './worktree'
 export interface IBranchTarget {
   readonly ref: string
   readonly name: string
+  readonly lastCommitDate?: string
   readonly remote: boolean
 }
 
 export interface IUnmergedBranch extends IBranchTarget {
+  readonly commitsOnlyInTarget: number
   readonly commitsOutsideTarget: number
   readonly worktreePaths: ReadonlyArray<string>
 }
@@ -19,13 +21,14 @@ function parseBranchRefs(output: string): IBranchTarget[] {
     .split('\n')
     .filter(Boolean)
     .flatMap(line => {
-      const [ref, symbolicRef] = line.trimEnd().split('\0')
+      const [ref, symbolicRef, lastCommitDate] = line.trimEnd().split('\0')
       if (symbolicRef) {
         return []
       }
       return [
         {
           ref,
+          lastCommitDate,
           name: ref.replace(/^refs\/(heads|remotes)\//, ''),
           remote: ref.startsWith('refs/remotes/'),
         },
@@ -39,7 +42,7 @@ export async function getUnmergedBranchTargets(
   const result = await git(
     [
       'for-each-ref',
-      '--format=%(refname)%00%(symref)',
+      '--format=%(refname)%00%(symref)%00%(committerdate:iso8601)',
       'refs/heads',
       'refs/remotes',
     ],
@@ -52,7 +55,8 @@ export async function getUnmergedBranchTargets(
 /** Uses ancestry, like git branch --no-merged; squash merges may still appear. */
 export async function getUnmergedBranches(
   path: string,
-  target = 'HEAD'
+  target = 'HEAD',
+  merged = false
 ): Promise<ReadonlyArray<IUnmergedBranch>> {
   // Resolve once so all counts refer to the same target even if a ref moves.
   const commit = await git(
@@ -64,11 +68,11 @@ export async function getUnmergedBranches(
   const result = await git(
     [
       'for-each-ref',
-      `--no-merged=${sha}`,
+      `${merged ? '--merged' : '--no-merged'}=${sha}`,
       // The last sort key is primary; refname gives equal dates a stable order.
       '--sort=refname',
       '--sort=-committerdate',
-      '--format=%(refname)%00%(symref)',
+      '--format=%(refname)%00%(symref)%00%(committerdate:iso8601)',
       'refs/heads',
       'refs/remotes',
     ],
@@ -81,13 +85,20 @@ export async function getUnmergedBranches(
     parseBranchRefs(result.stdout).map(branch =>
       limit(async () => {
         const count = await git(
-          ['rev-list', '--count', `${sha}..${branch.ref}`, '--'],
+          [
+            'rev-list',
+            '--left-right',
+            '--count',
+            `${sha}...${branch.ref}`,
+            '--',
+          ],
           path,
           'unmergedBranchCount'
         )
         return {
           ...branch,
-          commitsOutsideTarget: Number(count.stdout),
+          commitsOnlyInTarget: Number(count.stdout.trim().split(/\s+/)[0]),
+          commitsOutsideTarget: Number(count.stdout.trim().split(/\s+/)[1]),
           worktreePaths: worktrees
             .filter(w => w.branch === branch.ref)
             .map(w => w.path),

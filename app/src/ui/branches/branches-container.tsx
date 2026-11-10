@@ -16,7 +16,6 @@ import { assertNever } from '../../lib/fatal-error'
 
 import { TabBar } from '../tab-bar'
 
-import { Row } from '../lib/row'
 import { Octicon } from '../octicons'
 import * as octicons from '../octicons/octicons.generated'
 import { Button } from '../lib/button'
@@ -130,14 +129,22 @@ export class BranchesContainer extends React.Component<
     return (
       <div className={classes}>
         {this.renderTabBar()}
-        <Button
-          className="unmerged-branches-button"
-          onClick={this.onShowUnmergedBranches}
-        >
-          Unmerged branches…
-        </Button>
+        <div className="branch-status-buttons">
+          <Button
+            className="unmerged-branches-button"
+            onClick={this.onShowUnmergedBranches}
+          >
+            Unmerged branches…
+          </Button>
+          <Button
+            className="unmerged-branches-button"
+            onClick={this.onShowMergedBranches}
+          >
+            Merged branches…
+          </Button>
+        </div>
         {this.renderSelectedTab()}
-        {this.renderMergeButtonRow()}
+
         {this.renderPullRequestQuickView()}
       </div>
     )
@@ -166,7 +173,17 @@ export class BranchesContainer extends React.Component<
     )
   }
 
+  private onShowMergedBranches = () => {
+    this.props.dispatcher.closeFoldout(FoldoutType.Branch)
+    this.props.dispatcher.showPopup({
+      type: PopupType.UnmergedBranches,
+      repository: this.props.repository,
+      merged: true,
+    })
+  }
+
   private onShowUnmergedBranches = () => {
+    this.props.dispatcher.closeFoldout(FoldoutType.Branch)
     this.props.dispatcher.showPopup({
       type: PopupType.UnmergedBranches,
       repository: this.props.repository,
@@ -182,29 +199,6 @@ export class BranchesContainer extends React.Component<
       pullRequestBeingViewed: null,
     })
     this.clearPullRequestQuickViewTimer()
-  }
-
-  private renderMergeButtonRow() {
-    const { currentBranch } = this.props
-
-    // This could happen if HEAD is detached, in that
-    // case it's better to not render anything at all.
-    if (currentBranch === null) {
-      return null
-    }
-
-    return (
-      <Row className="merge-button-row">
-        <Button
-          className="merge-button"
-          onClick={this.onMergeClick}
-          tooltip={`Choose a branch to merge into ${currentBranch.name}`}
-        >
-          <Octicon className="icon" symbol={octicons.gitMerge} />
-          Choose a branch to merge into <strong>{currentBranch.name}</strong>
-        </Button>
-      </Row>
-    )
   }
 
   private renderOpenPullRequestsBubble() {
@@ -289,6 +283,7 @@ export class BranchesContainer extends React.Component<
       case BranchesTab.Branches:
         return (
           <BranchList
+            sortByLastCommit={true}
             folderActions={this.props.folderActions}
             repository={this.props.repository}
             defaultBranch={this.props.defaultBranch}
@@ -439,11 +434,6 @@ export class BranchesContainer extends React.Component<
 
   private onTabClicked = (tab: BranchesTab) => {
     this.props.dispatcher.changeBranchesTab(tab)
-  }
-
-  private onMergeClick = () => {
-    this.props.dispatcher.closeFoldout(FoldoutType.Branch)
-    this.props.dispatcher.startMergeBranchOperation(this.props.repository)
   }
 
   private onBranchItemClick = (branch: Branch) => {

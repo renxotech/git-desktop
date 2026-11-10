@@ -1,3 +1,4 @@
+import { getUnmergedBranchTargets } from '../../lib/git/unmerged-branches'
 import * as React from 'react'
 
 import { Branch } from '../../models/branch'
@@ -11,6 +12,7 @@ import { TextBox } from '../lib/text-box'
 
 import {
   groupBranches,
+  sortBranchesByCommitDate,
   IBranchListItem,
   BranchGroupIdentifier,
 } from './group-branches'
@@ -27,6 +29,7 @@ import { formatDate } from '../../lib/format-date'
 const RowHeight = 30
 
 interface IBranchListProps {
+  readonly sortByLastCommit?: boolean
   readonly folderActions?: ReadonlyArray<IMenuItem>
   readonly repository: Repository
 
@@ -138,6 +141,7 @@ interface IBranchListProps {
 }
 
 interface IBranchListState {
+  readonly branchCommitDates: ReadonlyMap<string, number>
   readonly commitAuthorDates: ReadonlyMap<string, Date>
 }
 
@@ -148,6 +152,7 @@ export class BranchList extends React.Component<
   IBranchListProps,
   IBranchListState
 > {
+  private dateRequest = 0
   private branchFilterList: SectionFilterList<IBranchListItem> | null = null
 
   private getGroups = memoizeOne(groupBranches)
@@ -185,8 +190,13 @@ export class BranchList extends React.Component<
     return this.getGroups(
       this.props.defaultBranch,
       this.props.currentBranch,
-      this.props.allBranches,
-      this.props.recentBranches
+      this.props.sortByLastCommit
+        ? sortBranchesByCommitDate(
+            this.props.allBranches,
+            this.state.branchCommitDates
+          )
+        : this.props.allBranches,
+      this.props.sortByLastCommit ? [] : this.props.recentBranches
     )
   }
 
@@ -198,6 +208,7 @@ export class BranchList extends React.Component<
     super(props)
     this.state = {
       commitAuthorDates: new Map<string, Date>(),
+      branchCommitDates: new Map(),
     }
   }
 
@@ -213,7 +224,27 @@ export class BranchList extends React.Component<
     }
   }
 
+  public componentWillUnmount() {
+    this.dateRequest++
+  }
   private populateCommitDates = () => {
+    if (this.props.sortByLastCommit) {
+      const request = ++this.dateRequest
+      getUnmergedBranchTargets(this.props.repository.path)
+        .then(branches => {
+          if (request === this.dateRequest) {
+            this.setState({
+              branchCommitDates: new Map(
+                branches.map(b => [
+                  b.ref,
+                  Date.parse(b.lastCommitDate ?? '') || 0,
+                ])
+              ),
+            })
+          }
+        })
+        .catch(e => log.error('Failed to load branch commit dates', e))
+    }
     const cached = new Map<string, Date>()
     const missing = new Array<string>()
     const uniqShas = new Set(this.props.allBranches.map(b => b.tip.sha))

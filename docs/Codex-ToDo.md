@@ -302,3 +302,20 @@ Earlier task records are retained below. The Current merge resolution section at
 - User reports two documents still visible after commit; treated as continuation of commit request. Owner: this chat. Scope: plans/gitx-repository-overview.md, reviews/2026-11-06-gitx-health-fit.md and this checkpoint.
 - Reviewed documentation: records prior gitx analysis, existing-health fit, superseding minimal-dialog recommendation and explicitly deferred Folder Group expansion. Documentation only; no implementation authorization inferred. No new actionable review findings.
 - Previous sorting commit completed as ea250eaa2f. Next: commit remaining documents as Document gitx integration and repository health design. Successful Git result completes remaining commit scope; no push. Health implementation awaits direction; Folder Group work remains deferred.
+
+## Branch merge and cleanup views — 2026-11-10
+- User approved design and implementation. Owner: this chat; existing desktop-improvements checkout, preserve unrelated changes.
+- Scope: merged view, direct selected-row merge in unmerged view, confirmed local/optional remote deletion, target comparison, protected checked-out/default branches.
+- Status: implementing; validation and source review pending. No commit/push/build requested.
+
+- Added request: default main branch list sorting by last commit, newest first. Default branch remains pinned; remaining branches share one date-sorted group.
+
+- Added request: show divergent linked-checkout branches. Verified D:/extcode/github-desktop is development in this Git common repository; HEAD...development counts 58/212 and common ancestor df044eecee5f187241b1ed11ceb1a1025c7766df. Candidate is already included; added explicit divergence counts and regression coverage. No external repository fetch or unrelated-history merge introduced.
+
+- COMPLETE source implementation, source review and focused validation: 12/12 tests; TypeScript skipLibCheck and focused lint passed. Receipt and exact source manifest: [branch merge/cleanup review](reviews/2026-11-10-branch-merge-cleanup.md).
+- Final checkpoint: desktop-improvements at aaee0ed399ca75694c88abc9619ceca293645b8e plus uncommitted changes. No commit/push/build/launch; no active test operations. Ready implementation work complete. Packaged manual acceptance remains unverified, separate from source completion. Next action if requested: build current source and exercise merge/conflict/removal in a disposable repository.
+
+## Commit and production build branch views - 2026-11-10
+- Request: commit and build. Owner: this chat, desktop-improvements, D:/code/git-desktop. Commit complete branch-view source/tests/review and ledger only; no push or app launch.
+- Source unchanged from 12-test receipt. Build with installed Windows Node 24.21.0 (pinned 24.22.1 unavailable, consistent with prior builds), vendored Yarn; DESKTOP_SKIP_PACKAGE=1 then local packager adapted to dist/branch-views-20261110. Preserve previous builds.
+- Status: commit pending then compilation/packaging. Logs: branch-views-prod-build-20261110.log and branch-views-prod-package-20261110.log. Manual app acceptance remains unverified.

@@ -22,6 +22,7 @@ import {
 import { shell } from '../../lib/app-shell'
 import {
   CompareAction,
+  SelectionType,
   Foldout,
   FoldoutType,
   ICompareFormUpdate,
@@ -1342,6 +1343,27 @@ export class Dispatcher {
     isSquash: boolean = false
   ): Promise<void> {
     return this.appStore._mergeBranch(repository, branch, mergeStatus, isSquash)
+  }
+
+  /** Return to branch selection after a successful merge without obscuring conflicts. */
+  public async mergeFromBranchList(
+    repository: Repository,
+    branch: Branch,
+    status: Parameters<Dispatcher['mergeBranch']>[2]
+  ) {
+    this.initializeMergeOperation(repository, false, branch)
+    this.closePopup(PopupType.UnmergedBranches)
+    await this.mergeBranch(repository, branch, status)
+    const state = this.appStore.getState()
+    if (
+      this.repositoryStateManager.get(repository).multiCommitOperationState ===
+        null &&
+      state.currentPopup === null &&
+      state.selectedState?.type === SelectionType.Repository &&
+      state.selectedState.repository.id === repository.id
+    ) {
+      await this.showPopup({ type: PopupType.UnmergedBranches, repository })
+    }
   }
 
   /**

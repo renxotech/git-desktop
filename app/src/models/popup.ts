@@ -193,7 +193,11 @@ export type PopupDetail =
     }
   | { type: PopupType.AddRepository; path?: string }
   | { type: PopupType.RepositoryHealth }
-  | { type: PopupType.UnmergedBranches; repository: Repository }
+  | {
+      type: PopupType.UnmergedBranches
+      repository: Repository
+      merged?: boolean
+    }
   | { type: PopupType.CreateRepository; path?: string }
   | {
       type: PopupType.CloneRepository

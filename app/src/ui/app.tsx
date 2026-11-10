@@ -1969,13 +1969,27 @@ export class App extends React.Component<IAppProps, IAppState> {
             credentialHelperUrl={popup.credentialHelperUrl}
           />
         )
-      case PopupType.UnmergedBranches:
+      case PopupType.UnmergedBranches: {
+        const selected = this.state.selectedState
+        if (
+          selected?.type !== SelectionType.Repository ||
+          selected.repository.id !== popup.repository.id
+        ) {
+          return null
+        }
+        const { allBranches, defaultBranch, tip } = selected.state.branchesState
         return (
           <UnmergedBranchesDialog
             repository={popup.repository}
+            merged={popup.merged}
+            dispatcher={this.props.dispatcher}
+            allBranches={allBranches}
+            defaultBranch={defaultBranch}
+            currentBranch={tip.kind === TipState.Valid ? tip.branch : null}
             onDismissed={onPopupDismissedFn}
           />
         )
+      }
       case PopupType.RepositoryHealth:
         return (
           <RepositoryHealthDialog
