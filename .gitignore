@@ -25,6 +25,7 @@ dist-build/
 .worktrees/
 
 # Local build diagnostics and branch audit snapshot
+/docs/Codex-ToDo.md
 /dependency-install.log
 /local-build.log
 /native-diagnostic.log
