@@ -38,6 +38,7 @@ interface IState {
   readonly error: string | null
   readonly selected: string
   readonly filter: string
+  readonly includeIgnored: boolean
   readonly removal: IWorktreeBranchRemoval | null
   readonly deleting: Branch | null
 }
@@ -49,13 +50,14 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
       target: 'HEAD',
       targets: [],
       branches: [],
-      includeRemotes: true,
+      includeRemotes: false,
       busy: true,
       error: null,
       selected: '',
       filter: '',
       deleting: null,
       removal: null,
+      includeIgnored: false,
     }
   }
   public componentDidMount() {
@@ -183,7 +185,7 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
         this.state.target
       )
       if (request === this.request) {
-        this.setState({ removal, busy: false })
+        this.setState({ removal, busy: false, includeIgnored: false })
       }
     } catch (error) {
       if (request === this.request) {
@@ -191,6 +193,8 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
       }
     }
   }
+  private onIgnoredChanged = (e: React.ChangeEvent<HTMLInputElement>) =>
+    this.setState({ includeIgnored: e.currentTarget.checked })
   private onCancelRemoval = () => this.setState({ removal: null, error: null })
   private onConfirmRemoval = async () => {
     if (!this.state.removal || this.state.busy) {
@@ -200,7 +204,8 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
     try {
       await this.props.dispatcher.removeMergedWorktreeAndBranch(
         this.props.repository,
-        this.state.removal
+        this.state.removal,
+        this.state.includeIgnored
       )
       this.setState({ removal: null })
       await this.refresh()
@@ -225,7 +230,9 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
     const reason = this.removalReason(selectedResult)
     const removal = this.state.removal
     if (removal) {
-      const blocked = removal.hasFiles || removal.stashes.length > 0
+      const blocked =
+        removal.hasFiles ||
+        (removal.ignoredPaths.length > 0 && !this.state.includeIgnored)
       return (
         <Dialog
           id="remove-worktree-branch"
@@ -244,15 +251,46 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
             <p>The folder will be deleted. The remote branch will be kept.</p>
             {removal.hasFiles && (
               <p>
-                Uncommitted, untracked or ignored files are present. Commit or
-                move those files before removal.
+                Uncommitted or untracked files are present. Commit or move those
+                files before removal.
               </p>
+            )}
+            {removal.hasFiles && (
+              <ul>
+                {[...removal.changedPaths, ...removal.untrackedPaths].map(
+                  path => (
+                    <li key={path}>{path}</li>
+                  )
+                )}
+              </ul>
+            )}
+            {removal.ignoredPaths.length > 0 && (
+              <>
+                <p>
+                  Ignored files may include dependencies, build output or local
+                  configuration. Review these paths before deleting them:
+                </p>
+                <ul>
+                  {removal.ignoredPaths.map(path => (
+                    <li key={path}>{path}</li>
+                  ))}
+                </ul>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={this.state.includeIgnored}
+                    onChange={this.onIgnoredChanged}
+                    disabled={busy}
+                  />{' '}
+                  Delete these ignored files with the worktree
+                </label>
+              </>
             )}
             {removal.stashes.length > 0 && (
               <>
                 <p>
-                  Stashes are shared by all worktrees. Handle these stashes
-                  before removal; their ownership cannot be determined reliably.
+                  These shared stashes will be kept. You can apply them from
+                  another worktree after removal.
                 </p>
                 <ul>
                   {removal.stashes.map(stash => (
@@ -263,8 +301,8 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
             )}
             {!blocked && (
               <p>
-                No uncommitted, untracked, ignored or stashed files found. These
-                checks will run again before removal.
+                No uncommitted or untracked files block removal. Checks will run
+                again before removal.
               </p>
             )}
             {error && <p className="health-error">{error}</p>}

@@ -6630,7 +6630,8 @@ export class AppStore extends TypedBaseStore<IAppState> {
   /** This shouldn't be called directly. See 'Dispatcher'. */
   public async _removeMergedWorktreeAndBranch(
     repository: Repository,
-    confirmed: IWorktreeBranchRemoval
+    confirmed: IWorktreeBranchRemoval,
+    includeIgnored = false
   ) {
     const { defaultBranch, tip } =
       this.repositoryStateCache.get(repository).branchesState
@@ -6641,7 +6642,11 @@ export class AppStore extends TypedBaseStore<IAppState> {
       throw new Error('The current or default branch cannot be removed.')
     }
     try {
-      await removeCheckedWorktreeAndBranch(repository.path, confirmed)
+      await removeCheckedWorktreeAndBranch(
+        repository.path,
+        confirmed,
+        includeIgnored
+      )
       setWorktreeAlias(confirmed.path, null)
       setWorktreePinned(confirmed.path, false)
     } finally {

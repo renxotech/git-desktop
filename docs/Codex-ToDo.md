@@ -217,7 +217,7 @@ Earlier task records are retained below. The Current merge resolution section at
 - Validation: sample DOM interactions pass (sections, selection, remote freshness, changed paths, preview, simulated update and refreshed status), with no script errors. No actual Git/network writes, application source changes or packaged visual acceptance. Initial test selector corrected before passing run.
 - Scope complete: UI suggestion and mockup. Implementation awaits direction; Folder Group expansion remains deferred. Next action only if requested: refine the design or plan the selected-repository adaptation of existing health services. No active background operations.
 
-## Configurable editor menu � 2026-11-06
+## Configurable editor menu � 2026-11-06
 - Request: configure the default and additional editors; use friendly names in Open in menus.
 - Owner: this chat; desktop-improvements at fb2943f4e35bb6328bcc14e6f8a24ab6b6043399, D:\code\git-desktop. Preserve existing ledger/pointer and repository-overview proposal changes.
 - Chunk: retain default selection, name custom editors, persist optional detected/custom editors, replace hardcoded VS Code folder action, validate routing/settings and static checks. No commit, build, push or remote access requested.
@@ -336,3 +336,27 @@ Earlier task records are retained below. The Current merge resolution section at
 ## Commit combined removal - 2026-11-10
 - User requested local commit. Reviewed eight-file scope; tested source hashes match 19-test validation receipt. Existing production-build checkpoint belongs to separate ongoing work and is preserved. No source edits or repeated build requested.
 - Completion: create local commit Add safe combined worktree and branch removal; successful Git result completes this commit request. No push. Manual installed acceptance remains unverified.
+- Completed: production compilation and Windows packaging exited 0. Executable: dist/prod-removal-20261110/GitDesktop-win32-x64/GitDesktop.exe. Source included uncommitted combined-removal changes; no launch, commit or push. Manual packaged acceptance remains pending. Logs: prod-removal-compile.log and prod-removal-package.log.
+- Source drift: HEAD changed during the build from 7273f650 to 50113482 and the earlier source changes became clean; exact compiled snapshot was not frozen, so its source identity is uncertain. Rebuild from a stable snapshot before relying on exact commit provenance.
+
+## Smarter cleanup and local-only default - 2026-11-10
+- User requests ignored build artifacts/node_modules not block cleanup. Preserve previous local-only default request. Implement reviewed ignored-path opt-in cleanup, block real tracked/untracked changes, preserve shared stashes as informational. Checks remain lazy and repeated before removal. No actual project cleanup, commit or build requested.
+- Supersedes earlier blanket ignored/stash blocking; ignored files require explicit confirmation because ignore rules can also cover configuration or secrets.
+
+- COMPLETE implementation and review; 21/21 focused tests pass, TypeScript skipLibCheck and focused lint pass. Receipt: [smarter cleanup](reviews/2026-11-10-smarter-worktree-cleanup.md). Includes prior pending local-only-default request.
+- Resume: desktop-improvements HEAD 5011348256fd99104d3615b68e7d066595e9e154 plus uncommitted source/tests and documentation. No active operations, actual user cleanup, commit, build or launch. Next action if requested: commit/build this source and verify packaged confirmation; source validation complete, packaged acceptance pending.
+
+## Stable production rebuild - 2026-11-10
+- Request: build again. Checkout desktop-improvements at 5011348256fd99104d3615b68e7d066595e9e154 with uncommitted smarter-cleanup changes; owner this chat. Output dist/prod-stable-20261110. Compile log prod-stable-compile.log; packaging log prod-stable-package.log. No launch/push/commit requested. Status: compiling; verify source state after build.
+
+## Repository artifact cleanup design — 2026-11-10
+- Request: ponder repository-wide build/dependency cleanup across worktrees with adjustable 24-hour retention, stack detection and project-owned configuration. Owner: this chat; assessment only.
+- COMPLETE assessment: [design and review](reviews/2026-11-10-repository-artifact-cleanup-design.md). Recommendation: dedicated preview/cleanup action, versioned declarative rules, per-worktree/multi-stack discovery, atomic artifact units and separately selectable dependencies/caches. Unknown setup opens configuration; no arbitrary scripts in v1.
+- Proposed findings A1–A6 P1 and A8 P2 are accepted design requirements awaiting implementation direction; A7 arbitrary script integration deliberately deferred. Priorities, evidence, dispositions and next actions are in the report; future implementer unassigned. No implementation authorization inferred.
+- Checkpoint: D:/code/git-desktop, desktop-improvements at 5011348256fd99104d3615b68e7d066595e9e154 plus pre-existing smarter-cleanup edits. Only this report and ledger appended by this task. No tests/build/artifact deletion/commit/push, no active operations. Assessment complete; next if requested: implement core config/preview/executor/dialog chunk against disposable repositories, then preset setup chunk.
+- Separate pending task reminder: smarter worktree removal is locally validated and uncommitted in the inspected snapshot; a concurrent ledger update records its rebuild in progress at dist/prod-stable-20261110. Packaged acceptance remains pending. That build belongs to its existing owner; this design task does not monitor or take over it.
+- Completed: production compile and package exited 0; output dist/prod-stable-20261110/GitDesktop-win32-x64/GitDesktop.exe. Four changed production files retained their initial SHA256 values across build; initial full-diff hash failed due to inaccessible submodule, so full source stability was not verified. No launch or push; packaged manual acceptance remains pending.
+
+## Commit smarter cleanup - 2026-11-10
+- User requested local commit. Scope: six source/test files, smarter-cleanup review and shared ledger. Includes unchecked remote-branches default. Validated source hashes match 21-test receipt. Separate repository-artifact-cleanup design report is outside this commit and preserved untracked; no implementation taken over.
+- Completion: create local commit Allow reviewed ignored artifact cleanup and preserve stashes; successful Git result completes this commit request. No push or new build requested. Prior concurrent build receipt preserved; manual packaged acceptance remains unverified.

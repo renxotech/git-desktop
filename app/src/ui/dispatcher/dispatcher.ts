@@ -1091,9 +1091,14 @@ export class Dispatcher {
    */
   public removeMergedWorktreeAndBranch(
     repository: Repository,
-    confirmed: IWorktreeBranchRemoval
+    confirmed: IWorktreeBranchRemoval,
+    includeIgnored = false
   ): Promise<void> {
-    return this.appStore._removeMergedWorktreeAndBranch(repository, confirmed)
+    return this.appStore._removeMergedWorktreeAndBranch(
+      repository,
+      confirmed,
+      includeIgnored
+    )
   }
 
   public async deleteWorktree(

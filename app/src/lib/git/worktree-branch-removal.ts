@@ -9,6 +9,9 @@ export interface IWorktreeBranchRemoval {
   readonly targetSha: string
   readonly targetRef: string
   readonly stashes: ReadonlyArray<string>
+  readonly ignoredPaths: ReadonlyArray<string>
+  readonly untrackedPaths: ReadonlyArray<string>
+  readonly changedPaths: ReadonlyArray<string>
   readonly hasFiles: boolean
 }
 
@@ -66,6 +69,7 @@ export async function checkWorktreeBranchRemoval(
       [
         'status',
         '--porcelain',
+        '-z',
         '--untracked-files=normal',
         '--ignored=matching',
       ],
@@ -78,13 +82,34 @@ export async function checkWorktreeBranchRemoval(
       'checkWorktreeStashes'
     ),
   ])
+  const ignoredPaths: string[] = []
+  const untrackedPaths: string[] = []
+  const changedPaths: string[] = []
+  const entries = status.stdout.split('\0').filter(Boolean)
+  for (let i = 0; i < entries.length; i++) {
+    const code = entries[i].slice(0, 2)
+    const path = entries[i].slice(3)
+    if (code === '!!') {
+      ignoredPaths.push(path)
+    } else if (code === '??') {
+      untrackedPaths.push(path)
+    } else {
+      changedPaths.push(path)
+      if (code.includes('R') || code.includes('C')) {
+        i++
+      }
+    }
+  }
   return {
     path: worktree.path,
     branchRef,
     branchSha,
     targetSha,
     targetRef,
-    hasFiles: status.stdout.length > 0,
+    ignoredPaths,
+    untrackedPaths,
+    changedPaths,
+    hasFiles: changedPaths.length > 0 || untrackedPaths.length > 0,
     stashes: stash.stdout.trim().split('\n').filter(Boolean),
   }
 }
@@ -92,7 +117,8 @@ export async function checkWorktreeBranchRemoval(
 /** Revalidate the confirmed snapshot before touching the directory or branch. */
 export async function removeCheckedWorktreeAndBranch(
   repositoryPath: string,
-  confirmed: IWorktreeBranchRemoval
+  confirmed: IWorktreeBranchRemoval,
+  includeIgnored = false
 ): Promise<void> {
   const fresh = await checkWorktreeBranchRemoval(
     repositoryPath,
@@ -108,10 +134,61 @@ export async function removeCheckedWorktreeAndBranch(
       'The branch, target or worktree changed. Refresh and review removal again.'
     )
   }
-  if (fresh.hasFiles || fresh.stashes.length) {
+  if (fresh.hasFiles) {
     throw new Error(
-      'Uncommitted, untracked, ignored or stashed files must be handled before removal.'
+      'Uncommitted or untracked files must be handled before removal.'
     )
+  }
+  if (fresh.ignoredPaths.length) {
+    if (!includeIgnored) {
+      throw new Error('Review and confirm removal of ignored files first.')
+    }
+    if (
+      JSON.stringify([...fresh.ignoredPaths].sort()) !==
+      JSON.stringify([...confirmed.ignoredPaths].sort())
+    ) {
+      throw new Error(
+        'The ignored file list changed. Go back and review removal again.'
+      )
+    }
+    const top = (
+      await git(
+        ['rev-parse', '--show-toplevel'],
+        fresh.path,
+        'verifyCleanupRoot'
+      )
+    ).stdout.trim()
+    if (
+      Path.resolve(top) !== Path.resolve(fresh.path) ||
+      fresh.ignoredPaths.some(
+        p => Path.isAbsolute(p) || p.split(/[\\/]/).includes('..')
+      )
+    ) {
+      throw new Error(
+        'Cannot verify the cleanup paths inside the selected worktree.'
+      )
+    }
+    // Clean only explicitly reviewed ignored paths; never force the whole worktree.
+    await git(
+      ['--literal-pathspecs', 'clean', '-fdX', '--', ...fresh.ignoredPaths],
+      fresh.path,
+      'cleanReviewedIgnoredFiles'
+    )
+    const rechecked = await checkWorktreeBranchRemoval(
+      repositoryPath,
+      confirmed.branchRef,
+      confirmed.targetRef
+    )
+    if (
+      rechecked.hasFiles ||
+      rechecked.ignoredPaths.length ||
+      rechecked.branchSha !== confirmed.branchSha ||
+      rechecked.targetSha !== confirmed.targetSha
+    ) {
+      throw new Error(
+        'The worktree changed or some ignored files could not be cleaned. Review it again.'
+      )
+    }
   }
   // Never force: Git independently rejects a dirty, locked or in-use worktree.
   await removeWorktree(repositoryPath, fresh.path, false)

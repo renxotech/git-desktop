@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { writeFile } from 'fs/promises'
+import { writeFile, mkdir } from 'fs/promises'
 import * as Path from 'path'
 import { setupEmptyRepository } from '../../helpers/repositories'
 import { createTempDirectory } from '../../helpers/temp'
@@ -60,7 +60,8 @@ describe('merged worktree and branch removal', () => {
     await git(['commit', '-m', 'ignore'], linked, 'worktreeRemovalTest')
     await git(['merge', 'finished'], repo.path, 'worktreeRemovalTest')
     await writeFile(Path.join(linked, 'ignored.txt'), 'keep ignored content')
-    assert.equal((await check()).hasFiles, true)
+    assert.equal((await check()).hasFiles, false)
+    assert.deepEqual((await check()).ignoredPaths, ['ignored.txt'])
   })
   it('detects repository-wide stashes and never drops them', async t => {
     const { repo, run, linked, check } = await fixture(t)
@@ -72,11 +73,9 @@ describe('merged worktree and branch removal', () => {
       'worktreeRemovalTest'
     )
     assert.equal((await check()).stashes.length, 1)
-    await assert.rejects(
-      removeCheckedWorktreeAndBranch(repo.path, confirmed),
-      /files must be handled/
-    )
+    await removeCheckedWorktreeAndBranch(repo.path, confirmed)
     assert.match(await run('stash', 'list'), /saved work/)
+    assert.equal(await run('branch', '--list', 'finished'), '')
   })
   it('rejects current/main and locked worktrees', async t => {
     const { repo, run, linked, check } = await fixture(t)
@@ -102,5 +101,49 @@ describe('merged worktree and branch removal', () => {
     )
     await assert.rejects(check())
     assert.match(await run('branch', '--list', 'finished'), /finished/)
+  })
+  it('requires opt-in for ignored build output and dependencies, then removes them', async t => {
+    const { repo, run, linked, check } = await fixture(t)
+    await writeFile(
+      Path.join(linked, '.gitignore'),
+      'node_modules/\ndist/\n.env\n'
+    )
+    await git(['add', '.gitignore'], linked, 'cleanupTest')
+    await git(['commit', '-m', 'ignore generated files'], linked, 'cleanupTest')
+    await run('merge', 'finished')
+    await mkdir(Path.join(linked, 'node_modules'))
+    await writeFile(
+      Path.join(linked, 'node_modules', 'dependency.js'),
+      'generated'
+    )
+    await mkdir(Path.join(linked, 'dist'))
+    await writeFile(Path.join(linked, 'dist', 'bundle.js'), 'generated')
+    await writeFile(Path.join(linked, '.env'), 'configuration')
+    const confirmed = await check()
+    assert.equal(confirmed.hasFiles, false)
+    assert.deepEqual(
+      new Set(confirmed.ignoredPaths),
+      new Set(['.env', 'dist/', 'node_modules/'])
+    )
+    await assert.rejects(
+      removeCheckedWorktreeAndBranch(repo.path, confirmed),
+      /confirm removal of ignored/
+    )
+    await removeCheckedWorktreeAndBranch(repo.path, confirmed, true)
+    assert.equal(await run('branch', '--list', 'finished'), '')
+  })
+  it('rejects an ignored path list changed after confirmation', async t => {
+    const { repo, run, linked, check } = await fixture(t)
+    await writeFile(Path.join(linked, '.gitignore'), '*.tmp\n')
+    await git(['add', '.gitignore'], linked, 'cleanupTest')
+    await git(['commit', '-m', 'ignore'], linked, 'cleanupTest')
+    await run('merge', 'finished')
+    await writeFile(Path.join(linked, 'first.tmp'), 'output')
+    const confirmed = await check()
+    await writeFile(Path.join(linked, 'second.tmp'), 'new output')
+    await assert.rejects(
+      removeCheckedWorktreeAndBranch(repo.path, confirmed, true),
+      /ignored file list changed/
+    )
   })
 })

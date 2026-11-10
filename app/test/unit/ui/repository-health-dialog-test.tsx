@@ -500,7 +500,7 @@ describe('repository health dialogs', () => {
       screen.getByRole('radio', { name: /finished/, hidden: true })
     )
     assert.equal(
-      screen.queryByText(/Uncommitted, untracked or ignored files are present/),
+      screen.queryByText(/Uncommitted or untracked files are present/),
       null
     )
     fireEvent.click(
@@ -512,9 +512,7 @@ describe('repository health dialogs', () => {
     await waitFor(
       () =>
         assert.ok(
-          screen.getByText(
-            /Uncommitted, untracked or ignored files are present/
-          )
+          screen.getByText(/Uncommitted or untracked files are present/)
         ),
       { timeout: 15000 }
     )
