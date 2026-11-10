@@ -22,10 +22,10 @@ Tags are not pushed. Build failures do not create tags. `-Tests` runs the
 optional unit suite after packaging/tagging, so a test failure can leave an
 existing build tag; the tag records packaging, not test acceptance.
 
-Uncommitted changes require `build.cmd -AllowDirty` (WSL: `--allow-dirty`).
+Uncommitted changes to build inputs require `build.cmd -AllowDirty` (WSL: `--allow-dirty`).
 These previews show `v2026.11.10_01-dirty` and never create a release tag.
 Unresolved conflicts are always rejected. The builder rejects changes to HEAD,
-tracked diffs or untracked files detected during packaging. Ignored files and
+tracked diffs or untracked build inputs detected during packaging. Ignored files and
 submodule contents are outside this source-state check; dependencies and static
 assets must be prepared before building. Avoid editing source during a build.
 Default output folders use the generated label, for example
@@ -64,3 +64,15 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File script/build-version-tes
 
 The validation uses a disposable local repository and does not modify this
 checkout's tags or index.
+
+Documentation-only edits do not block a tagged build or mark its source dirty.
+This exclusion is limited to Markdown files under `docs/`, plus the exact prose
+paths `AGENTS.md`, `README.md`, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`,
+`SECURITY.md`, `Codex-ToDo.md`, `TODO.md`, `.github/CONTRIBUTING.md`, and
+`.github/copilot-instructions.md`. They are excluded consistently from the
+initial dirty gate and the final source-state fingerprint. Markdown elsewhere,
+non-Markdown files under `docs/`, source, assets, dependencies, configuration
+and build tooling still count as build inputs. Staged, unstaged and untracked
+changes count; moves check both the old and new paths. Conflicts in any path
+still block builds. This rule applies only to local build identity; upstream
+sync continues to require an entirely clean checkout, including documentation.
