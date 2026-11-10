@@ -65,6 +65,9 @@ export async function getUnmergedBranches(
     [
       'for-each-ref',
       `--no-merged=${sha}`,
+      // The last sort key is primary; refname gives equal dates a stable order.
+      '--sort=refname',
+      '--sort=-committerdate',
       '--format=%(refname)%00%(symref)',
       'refs/heads',
       'refs/remotes',

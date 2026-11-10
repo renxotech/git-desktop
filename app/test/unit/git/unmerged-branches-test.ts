@@ -14,6 +14,42 @@ async function run(path: string, ...args: string[]) {
 }
 
 describe('unmerged branches', () => {
+  it('orders local and remote tips by committer date descending with stable ties', async t => {
+    const repo = await setupEmptyRepository(t)
+    await run(repo.path, 'commit', '--allow-empty', '-m', 'base')
+    await run(repo.path, 'checkout', '-b', 'a-older')
+    await git(
+      ['commit', '--allow-empty', '-m', 'older'],
+      repo.path,
+      'unmergedTest',
+      {
+        env: {
+          GIT_AUTHOR_DATE: '2025-06-01T00:00:00Z',
+          GIT_COMMITTER_DATE: '2025-01-01T00:00:00Z',
+        },
+      }
+    )
+    await run(repo.path, 'checkout', '-b', 'z-newer', 'master')
+    await git(
+      ['commit', '--allow-empty', '-m', 'newer'],
+      repo.path,
+      'unmergedTest',
+      {
+        env: {
+          GIT_AUTHOR_DATE: '2024-01-01T00:00:00Z',
+          GIT_COMMITTER_DATE: '2025-02-01T00:00:00Z',
+        },
+      }
+    )
+    await run(repo.path, 'branch', 'b-same-date')
+    await run(repo.path, 'update-ref', 'refs/remotes/origin/newer', 'HEAD')
+    await run(repo.path, 'checkout', 'master')
+    assert.deepEqual(
+      (await getUnmergedBranches(repo.path)).map(b => b.name),
+      ['b-same-date', 'z-newer', 'origin/newer', 'a-older']
+    )
+  })
+
   it('compares all local and remote branches with the chosen target', async t => {
     const repository = await setupEmptyRepository(t)
     const path = repository.path
