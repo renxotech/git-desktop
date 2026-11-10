@@ -2,6 +2,7 @@ import * as Path from 'path'
 
 import { IMenuItem } from '../../lib/menu-item'
 import { writeClipboardText } from '../main-process-proxy'
+import { isRepositoryAffectedByAssistedCommit } from '../../lib/git/repository-operation'
 
 interface IWorktreeContextMenuConfig {
   readonly folderActions?: ReadonlyArray<IMenuItem>
@@ -24,6 +25,8 @@ export function generateWorktreeContextMenuItems(
   const { path, isMainWorktree, isLocked, onRenameWorktree, onRemoveWorktree } =
     config
   const name = Path.basename(path)
+  const canMutate =
+    !isMainWorktree && !isLocked && !isRepositoryAffectedByAssistedCommit(path)
   const items = new Array<IMenuItem>()
 
   if (config.onTogglePin !== undefined) {
@@ -56,7 +59,7 @@ export function generateWorktreeContextMenuItems(
     items.push({
       label: 'Rename…',
       action: () => onRenameWorktree(path),
-      enabled: !isMainWorktree && !isLocked,
+      enabled: canMutate,
     })
   }
 
@@ -82,7 +85,7 @@ export function generateWorktreeContextMenuItems(
     items.push({
       label: 'Delete…',
       action: () => onRemoveWorktree(path),
-      enabled: !isMainWorktree && !isLocked,
+      enabled: canMutate,
     })
   }
 

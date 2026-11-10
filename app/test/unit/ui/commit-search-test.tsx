@@ -19,6 +19,7 @@ function makeProps() {
   const props: React.ComponentProps<typeof CompareSidebar> = {
     repository,
     isLocalRepository: true,
+    isAssistedCommitRepositoryLocked: false,
     compareState: cache.get(repository).compareState,
     emoji: new Map(),
     commitLookup: new Map(),

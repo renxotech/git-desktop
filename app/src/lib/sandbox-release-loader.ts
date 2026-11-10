@@ -1,5 +1,5 @@
 import { Account } from '../models/account'
-import { API, getAccountForEndpoint } from './api'
+import { API } from './api'
 import { parseRemote } from './remote-parsing'
 import { errorMessage } from './repository-health'
 
@@ -12,7 +12,7 @@ export function sandboxReleaseLoader(accounts: ReadonlyArray<Account>) {
       )
     }
     const endpoint = 'https://api.github.com'
-    const account = getAccountForEndpoint(accounts, endpoint)
+    const account = accounts.find(account => account.endpoint === endpoint)
     const api = account ? API.fromAccount(account) : new API(endpoint, '')
     try {
       return await api.fetchSandboxReleases(remote.owner, remote.name)

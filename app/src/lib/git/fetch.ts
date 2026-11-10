@@ -10,13 +10,14 @@ import { readSandboxRules } from '../sandbox-rule'
 async function getFetchArgs(
   remote: string,
   isBackgroundTask: boolean,
-  progressCallback?: (progress: IFetchProgress) => void
+  progressCallback: ((progress: IFetchProgress) => void) | undefined,
+  recurseSubmodules: boolean
 ) {
   return [
     'fetch',
     ...(progressCallback ? ['--progress'] : []),
     '--prune',
-    '--recurse-submodules=on-demand',
+    `--recurse-submodules=${recurseSubmodules ? 'on-demand' : 'no'}`,
     // User-initiated fetches must discover every branch, including in clones
     // whose configured fetch refspec only covers a single branch. An empty
     // refmap prevents configured mappings from redirecting these updates.
@@ -43,12 +44,14 @@ async function getFetchArgs(
  *                           'git fetch'.
  * @param isBackgroundTask  - Whether the fetch is being performed as a
  *                            background task as opposed to being user initiated
+ * @param recurseSubmodules - Whether to fetch populated submodules on demand.
  */
 export async function fetch(
   repository: Repository,
   remote: IRemote,
   progressCallback?: (progress: IFetchProgress) => void,
-  isBackgroundTask = false
+  isBackgroundTask = false,
+  recurseSubmodules = true
 ): Promise<void> {
   let opts: IGitStringExecutionOptions = {
     successExitCodes: new Set([0]),
@@ -94,7 +97,8 @@ export async function fetch(
   const args = await getFetchArgs(
     remote.name,
     isBackgroundTask,
-    progressCallback
+    progressCallback,
+    recurseSubmodules
   )
 
   await git(args, repository.path, 'fetch', opts)
@@ -117,9 +121,11 @@ export async function fetchRefspec(
   )
 }
 
+/** Fast-forward tracking branches, optionally excluding unadmitted submodules. */
 export async function fastForwardBranches(
   repository: Repository,
-  branches: ReadonlyArray<ITrackingBranch>
+  branches: ReadonlyArray<ITrackingBranch>,
+  recurseSubmodules = true
 ): Promise<void> {
   const rules = await readSandboxRules(repository.path)
   branches = branches.filter(b => !rules.some(r => r.branch === b.ref))
@@ -139,6 +145,7 @@ export async function fastForwardBranches(
       '--show-forced-updates',
       // Prevent `git fetch` from touching the `FETCH_HEAD`
       '--no-write-fetch-head',
+      ...(recurseSubmodules ? [] : ['--recurse-submodules=no']),
       // Take branch refs from stdin to circumvent shell max line length
       // limitations (mainly on Windows)
       '--stdin',
