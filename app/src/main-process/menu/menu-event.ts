@@ -1,4 +1,5 @@
 export type MenuEvent =
+  | 'clean-build-artifacts'
   | 'push'
   | 'force-push'
   | 'pull'

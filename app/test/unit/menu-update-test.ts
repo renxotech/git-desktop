@@ -29,6 +29,7 @@ it('updates the sandbox Pull label even when enabledness is unchanged, and resto
       defaultBranch: branch,
     },
     changesState: {
+      assistedCommit: { kind: 'idle' },
       stashEntry: null,
       conflictState: null,
       workingDirectory: { files: [] },
@@ -70,6 +71,11 @@ it('updates the sandbox Pull label even when enabledness is unchanged, and resto
     id: string
     state: IMenuItemState
   }>
+  assert.equal(
+    ordinaryUpdates.find(item => item.id === 'clean-build-artifacts')?.state
+      .enabled,
+    true
+  )
   assert.equal(
     ordinaryUpdates.find(item => item.id === 'pull')?.state.label,
     __DARWIN__ ? 'Pull' : 'Pu&ll'

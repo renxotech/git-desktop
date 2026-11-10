@@ -1,6 +1,6 @@
 # Build artifact cleanup
 
-Right-click a repository and choose **Clean build artifacts…**. Select the worktrees to inspect, set the retention period, and choose whether to include dependencies or caches. Build outputs are included by default. Preview lists the full paths, estimated sizes and skip reasons. **Delete eligible folders** removes the eligible whole folders in that preview. Stop builds/dev servers before cleaning; close Unity before removing its Library cache.
+Select a repository and use **Repository → Clean build artifacts…**, or right-click it and choose **Clean build artifacts…**. Select the worktrees to inspect, set the retention period, and choose whether to include dependencies or caches. Build outputs are included by default. Preview lists the full paths, estimated sizes and skip reasons. **Delete eligible folders** removes the eligible whole folders in that preview. Stop builds/dev servers before cleaning; close Unity before removing its Library cache.
 
 The default retention is 24 hours. Age uses the newest filesystem change evidence throughout each folder, not branch commit dates or last use. A recent member preserves the entire folder. Zero hours includes all eligible ages. Deletion is permanent; dependencies and caches must be restored by the project's normal tools. Shared machine-wide caches are outside scope.
 

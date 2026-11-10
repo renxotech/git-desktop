@@ -159,6 +159,18 @@ describe('main-process menu', () => {
   })
 
   describe('buildDefaultMenuTemplate', () => {
+    it('exposes artifact cleanup in the Repository menu', () => {
+      const repository = buildDefaultMenuTemplate(baseParams).find(
+        item => item.id === 'repository'
+      )
+      assert.ok(Array.isArray(repository?.submenu))
+      const cleanup = repository.submenu.find(
+        item => item.id === 'clean-build-artifacts'
+      )
+      assert.equal(cleanup?.label, 'Clean build artifacts…')
+      assert.equal(typeof cleanup?.click, 'function')
+    })
+
     it('gates Copilot handoff to supported platforms and preview channels', t => {
       const preview = process.env.GITHUB_DESKTOP_PREVIEW_FEATURES
       const hasCopilotMenuItem = () => {

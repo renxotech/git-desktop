@@ -154,6 +154,7 @@ const allMenuIds: ReadonlyArray<MenuIDs> = [
   'clone-repository',
   'new-folder-group',
   'repository-health',
+  'clean-build-artifacts',
   'about',
   'create-pull-request',
   'preview-pull-request',
@@ -265,6 +266,7 @@ function getRepositoryMenuBuilder(state: IAppState): MenuStateBuilder {
     'remove-repository',
     'open-in-shell',
     'open-working-directory',
+    'clean-build-artifacts',
     'show-repository-settings',
     'go-to-commit-message',
     'show-changes',
@@ -447,6 +449,7 @@ function getRepositoryMenuBuilder(state: IAppState): MenuStateBuilder {
       'show-branches-list',
       'show-worktrees-list',
       'create-worktree',
+      'clean-build-artifacts',
       'show-repository-settings',
       'preview-pull-request',
     ]

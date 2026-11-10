@@ -524,6 +524,8 @@ export class App extends React.Component<IAppProps, IAppState> {
         return this.removeRepository(this.getRepository())
       case 'new-folder-group':
         return this.onAddFolderGroup()
+      case 'clean-build-artifacts':
+        return this.onCleanBuildArtifacts()
       case 'repository-health':
         return this.showRepositoryHealth()
       case 'create-repository':
@@ -942,7 +944,14 @@ export class App extends React.Component<IAppProps, IAppState> {
   }
 
   private showRepositoryHealth = () => {
-    return this.props.dispatcher.showPopup({ type: PopupType.RepositoryHealth })
+    const selected = this.state.selectedState
+    if (selected?.type !== SelectionType.Repository) {
+      return
+    }
+    return this.props.dispatcher.showPopup({
+      type: PopupType.RepositoryHealth,
+      repository: selected.repository,
+    })
   }
 
   private showCreateRepository = () => {
@@ -2018,6 +2027,7 @@ export class App extends React.Component<IAppProps, IAppState> {
       case PopupType.RepositoryHealth:
         return (
           <RepositoryHealthDialog
+            repository={popup.repository}
             repositories={this.state.repositories.filter(
               (r): r is Repository => r instanceof Repository
             )}
@@ -4271,6 +4281,17 @@ export class App extends React.Component<IAppProps, IAppState> {
 
   private onBannerDismissed = () => {
     this.props.dispatcher.clearBanner()
+  }
+
+  private onCleanBuildArtifacts = () => {
+    const selection = this.state.selectedState
+    if (selection?.type !== SelectionType.Repository) {
+      return
+    }
+    this.props.dispatcher.showPopup({
+      type: PopupType.ArtifactCleanup,
+      repository: selection.repository,
+    })
   }
 
   private onRepairWorktrees = () => {
