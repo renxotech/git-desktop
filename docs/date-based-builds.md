@@ -15,7 +15,7 @@ uses `2026.11.10-build.1`, and Windows executable versions use
 `2026.11.10.1`. Source package files are not rewritten or committed.
 
 After packaging succeeds, the builder writes `build-info.json` beside
-`dist/GitDesktop-win32-x64/GitDesktop.exe`, including the label, source commit,
+`dist/<version>/GitDesktop-win32-x64/GitDesktop.exe`, including the label, source commit,
 dirty flag and executable SHA256, and creates a local annotated tag on the
 source commit. Existing tags are never moved; concurrent tag collisions fail.
 Tags are not pushed. Build failures do not create tags. `-Tests` runs the
@@ -28,7 +28,33 @@ Unresolved conflicts are always rejected. The builder rejects changes to HEAD,
 tracked diffs or untracked files detected during packaging. Ignored files and
 submodule contents are outside this source-state check; dependencies and static
 assets must be prepared before building. Avoid editing source during a build.
-`-LaunchOnly` reopens the existing executable without allocating a version.
+Default output folders use the generated label, for example
+`dist/v2026.11.11_01/GitDesktop-win32-x64/GitDesktop.exe` (or a `-dirty` label).
+An older running build can stay open while a new version builds. A running app
+using the selected output must be closed before that output can be replaced.
+`-OutputDirectory dist/my-preview` retains an explicit output override.
+
+After packaging and version finalization succeed, default outputs receive a
+`.desktop-build-output.json` ownership receipt. The builder then attempts to
+remove strictly older version folders with matching ownership and build receipts
+from this checkout's `dist`. Current/equal/newer versions, legacy folders,
+explicit outputs and unmarked folders are preserved. Linked folders or contents
+are preserved. Locked files or other cleanup failures warn and leave the new
+build successful. Explicitly reusing a formerly automatic folder removes its
+cleanup ownership receipt. Existing custom output folders are not migrated or
+deleted automatically.
+Rebuilding an owned output revokes its completion marker before compilation;
+the marker returns only after successful version finalization. A failed rebuild
+is therefore excluded from automatic launch selection and cleanup.
+If the default version path already exists without a completed ownership receipt
+(including an interrupted build), the builder stops rather than replacing it.
+Preserve that folder and choose an explicit output override to continue.
+
+`-LaunchOnly` and `launch-github-desktop.cmd` select the highest completed default
+version (latest build time breaks equal-version ties), with the legacy
+`dist/GitDesktop-win32-x64/GitDesktop.exe` as a fallback. Use
+`-LaunchOnly -OutputDirectory dist/my-preview` to select a custom output.
+Launch-only runs do not allocate versions or clean older outputs.
 
 Validate version/tag behavior without compiling the app:
 
