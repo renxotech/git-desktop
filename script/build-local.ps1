@@ -2,23 +2,24 @@ param(
     [switch]$Tests,
     [switch]$NonInteractive,
     [switch]$NoLaunch,
-    [switch]$LaunchOnly
+    [switch]$LaunchOnly,
+    [switch]$AllowDirty
 )
 
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent $PSScriptRoot
 $taskOldLocation = Get-Location
-$taskEnvNames = @('NODE_ENV', 'DESKTOP_SKIP_PACKAGE', 'DESKTOP_LOCAL_BUNDLE')
+$taskEnvNames = @('NODE_ENV', 'DESKTOP_SKIP_PACKAGE', 'DESKTOP_LOCAL_BUNDLE', 'DESKTOP_BUILD_VERSION', 'DESKTOP_PACKAGE_VERSION', 'DESKTOP_FILE_VERSION')
 $taskOldEnv = @{}
 foreach ($taskName in $taskEnvNames) {
     $taskOldEnv[$taskName] = [Environment]::GetEnvironmentVariable($taskName, 'Process')
 }
 
-function Invoke-Yarn {
+function Invoke-Npm {
     param([string[]]$Arguments)
-    & node (Join-Path $taskRoot 'vendor\yarn-1.21.1.js') @Arguments
+    & npm.cmd @Arguments
     if ($LASTEXITCODE -ne 0) {
-        throw "Build command failed (exit $LASTEXITCODE): yarn $($Arguments -join ' ')"
+        throw "Build command failed (exit $LASTEXITCODE): npm $($Arguments -join ' ')"
     }
 }
 
@@ -27,9 +28,17 @@ try {
         throw 'This build requires Windows PowerShell and Windows Node. From WSL, use bash script/build-local.sh.'
     }
     Set-Location -LiteralPath $taskRoot
+    . (Join-Path $PSScriptRoot 'build-version.ps1')
+    if (!$LaunchOnly) {
+        $taskVersion = New-DesktopBuildVersion -AllowDirty:$AllowDirty
+        $env:DESKTOP_BUILD_VERSION = $taskVersion.Label
+        $env:DESKTOP_PACKAGE_VERSION = $taskVersion.PackageVersion
+        $env:DESKTOP_FILE_VERSION = $taskVersion.FileVersion
+        Write-Host "Building Git Desktop $($taskVersion.Label)"
+    }
     foreach ($taskAsset in @('gemoji\images\emoji', 'gemoji\db\emoji.json', 'app\static\common\choosealicense.com\_licenses', 'app\static\common\gitignore\Global')) {
         if (!(Test-Path -LiteralPath $taskAsset)) {
-            throw "Missing submodule asset: $taskAsset. From this checkout, run git submodule update --init before building. Yarn does not install Git submodules."
+            throw "Missing submodule asset: $taskAsset. From this checkout, run git submodule update --init before building. npm does not install Git submodules."
         }
     }
     if (!(Test-Path 'node_modules\electron\dist\electron.exe')) {
@@ -46,15 +55,18 @@ try {
 
     if (!$LaunchOnly) {
         $env:NODE_ENV = 'production'
-        Invoke-Yarn -Arguments @('compile:prod')
+        Invoke-Npm -Arguments @('run', 'compile:prod')
         $env:DESKTOP_SKIP_PACKAGE = '1'
-        Invoke-Yarn -Arguments @('ts-node', '-P', 'script/tsconfig.json', 'script/build.ts')
+        Invoke-Npm -Arguments @('exec', '--', 'ts-node', '-P', 'script/tsconfig.json', 'script/build.ts')
         $env:DESKTOP_LOCAL_BUNDLE = 'out'
-        Invoke-Yarn -Arguments @('package:local')
+        Invoke-Npm -Arguments @('run', 'package:local')
     }
 
     $taskExecutable = Join-Path $taskRoot 'dist\GitDesktop-win32-x64\GitDesktop.exe'
     if (!(Test-Path -LiteralPath $taskExecutable)) { throw 'Packaging did not produce the executable.' }
+    if (!$LaunchOnly) {
+        Complete-DesktopBuildVersion -Version $taskVersion -Executable $taskExecutable
+    }
     Write-Host "Executable ready: $taskExecutable" -ForegroundColor Green
     if (!$NoLaunch) {
         $taskRunAsNode = [Environment]::GetEnvironmentVariable('ELECTRON_RUN_AS_NODE', 'Process')
@@ -89,7 +101,7 @@ try {
     }
     if ($Tests) {
         Write-Host 'The executable is ready. Running tests now; a test failure will leave the build available.'
-        Invoke-Yarn -Arguments @('test:unit')
+        Invoke-Npm -Arguments @('run', 'test:unit')
     }
 } catch {
     Write-Host $_.Exception.Message -ForegroundColor Red

@@ -21,9 +21,7 @@ const target = join(dist, 'GitDesktop-win32-x64')
 if (dirname(target) !== dist || !dist.startsWith(`${root}\\`)) {
   throw new Error('The local package must stay inside this checkout')
 }
-const pkg = JSON.parse(
-  await readFile(join(root, 'app', 'package.json'), 'utf8')
-)
+const pkg = JSON.parse(await readFile(join(bundle, 'package.json'), 'utf8'))
 if (process.platform !== 'win32' || process.arch !== 'x64') {
   throw new Error('This local packaging command currently supports Windows x64')
 }
@@ -57,8 +55,8 @@ try {
   ))
   await resedit(executable, {
     productName: pkg.productName,
-    productVersion: pkg.version,
-    fileVersion: pkg.version,
+    productVersion: process.env.DESKTOP_FILE_VERSION ?? pkg.version,
+    fileVersion: process.env.DESKTOP_FILE_VERSION ?? pkg.version,
     iconPath: join(root, 'app', 'static', 'logos', 'prod', 'icon-logo.ico'),
     win32Metadata: {
       CompanyName: pkg.companyName,

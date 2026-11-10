@@ -333,6 +333,7 @@ function copyDependencies() {
   // The product name changes depending on whether it's a prod build or dev
   // build, so that we can have them running side by side.
   pkg.productName = getProductName()
+  pkg.version = process.env.DESKTOP_PACKAGE_VERSION ?? pkg.version
   pkg.dependencies = filterExternals(pkg.dependencies)
   pkg.devDependencies =
     isDevelopmentBuild && pkg.devDependencies
