@@ -1,3 +1,4 @@
+import { ArtifactCleanupDialog } from './repositories-list/artifact-cleanup-dialog'
 import { IMenuItem } from '../lib/menu-item'
 import {
   AdditionalEditor,
@@ -3189,6 +3190,13 @@ export class App extends React.Component<IAppProps, IAppState> {
           />
         )
       }
+      case PopupType.ArtifactCleanup:
+        return (
+          <ArtifactCleanupDialog
+            repository={popup.repository}
+            onDismissed={onPopupDismissedFn}
+          />
+        )
       case PopupType.RepairWorktrees:
         return (
           <RepairWorktreesDialog

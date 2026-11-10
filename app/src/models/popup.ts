@@ -85,6 +85,7 @@ export enum PopupType {
   MoveToApplicationsFolder = 'MoveToApplicationsFolder',
   ChangeRepositoryAlias = 'ChangeRepositoryAlias',
   ChangeWorktreeAlias = 'ChangeWorktreeAlias',
+  ArtifactCleanup = 'ArtifactCleanup',
   RepairWorktrees = 'RepairWorktrees',
   SandboxRule = 'SandboxRule',
   SandboxRuleResults = 'SandboxRuleResults',
@@ -367,6 +368,7 @@ export type PopupDetail =
       files: ReadonlyArray<string>
     }
   | { type: PopupType.MoveToApplicationsFolder }
+  | { type: PopupType.ArtifactCleanup; repository: Repository }
   | { type: PopupType.RepairWorktrees; repository: Repository }
   | { type: PopupType.ChangeRepositoryAlias; repository: Repository }
   | {

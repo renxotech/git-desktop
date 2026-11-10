@@ -31,6 +31,7 @@ interface IRepositoryListItemContextMenuConfig {
   onChangeRepositoryAlias: (repository: Repository) => void
   onRemoveRepositoryAlias: (repository: Repository) => void
   onCreateWorktree?: (repository: Repository) => void
+  onCleanArtifacts?: (repository: Repository) => void
   onShowWorktrees?: (repository: Repository) => void
   onChangeRepositoryAccount: (repository: Repository, login: string) => void
   onShowRepositorySettings: (repository: Repository) => void
@@ -51,6 +52,19 @@ export const generateRepositoryListContextMenu = (
     : DefaultShellLabel
 
   const items: ReadonlyArray<IMenuItem> = [
+    ...(repository instanceof Repository && config.onCleanArtifacts
+      ? [
+          {
+            label: 'Clean build artifacts…',
+            enabled: !missing,
+            action: () => {
+              if (repository instanceof Repository) {
+                config.onCleanArtifacts?.(repository)
+              }
+            },
+          },
+        ]
+      : []),
     ...buildAliasMenuItems(config),
     ...buildWorktreeMenuItems(config),
     ...buildAccountMenuItems(config),

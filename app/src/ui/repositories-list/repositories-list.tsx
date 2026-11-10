@@ -398,6 +398,11 @@ export class RepositoriesList extends React.Component<
       onShowWorktrees: enableWorktreeSupport()
         ? this.onShowWorktrees
         : undefined,
+      onCleanArtifacts: repository =>
+        this.props.dispatcher.showPopup({
+          type: PopupType.ArtifactCleanup,
+          repository,
+        }),
       repository: item.repository,
       shellLabel: this.props.shellLabel,
     })
