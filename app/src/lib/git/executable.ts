@@ -217,7 +217,16 @@ export async function validateGitExecutable(
     )
     await probe(['config', '--null', '--list'], dir, runtimeEnv)
   } finally {
-    await rm(dir, { recursive: true, force: true })
+    // Windows can briefly retain handles after a probe exits. Cleanup must not
+    // invalidate a usable Git installation or hide the original probe failure.
+    await rm(dir, {
+      recursive: true,
+      force: true,
+      maxRetries: 3,
+      retryDelay: 100,
+    }).catch(error => {
+      log.warn(`Unable to remove Git validation directory '${dir}'`, error)
+    })
   }
   const lfsAvailable = await probe(
     ['lfs', 'version'],
