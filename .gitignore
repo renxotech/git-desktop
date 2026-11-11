@@ -10,6 +10,7 @@ vendor/desktop-notifications/build/
 vendor/desktop-trampoline/build/
 .DS_Store
 .awcache
+/.webpack-cache/
 .idea/
 .vs/
 .vscode/*.log

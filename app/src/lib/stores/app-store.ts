@@ -7657,8 +7657,11 @@ export class AppStore extends TypedBaseStore<IAppState> {
   public async _removeMergedWorktreeAndBranch(
     repository: Repository,
     confirmed: IWorktreeBranchRemoval,
-    includeIgnored = false
+    includeIgnored = false,
+    includeSubmodules = false
   ) {
+    this.assistedCommits.state.assertAvailable(repository)
+    assertRepositoryGitAvailable(confirmed.path)
     const { defaultBranch, tip } =
       this.repositoryStateCache.get(repository).branchesState
     if (
@@ -7668,13 +7671,15 @@ export class AppStore extends TypedBaseStore<IAppState> {
       throw new Error('The current or default branch cannot be removed.')
     }
     try {
-      await removeCheckedWorktreeAndBranch(
+      const backup = await removeCheckedWorktreeAndBranch(
         repository.path,
         confirmed,
-        includeIgnored
+        includeIgnored,
+        includeSubmodules
       )
       setWorktreeAlias(confirmed.path, null)
       setWorktreePinned(confirmed.path, false)
+      return backup
     } finally {
       await this._refreshWorktrees(repository)
       await this._refreshRepository(repository)

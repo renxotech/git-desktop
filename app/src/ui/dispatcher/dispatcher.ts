@@ -1184,12 +1184,14 @@ export class Dispatcher {
   public removeMergedWorktreeAndBranch(
     repository: Repository,
     confirmed: IWorktreeBranchRemoval,
-    includeIgnored = false
-  ): Promise<void> {
+    includeIgnored = false,
+    includeSubmodules = false
+  ): Promise<string | null> {
     return this.appStore._removeMergedWorktreeAndBranch(
       repository,
       confirmed,
-      includeIgnored
+      includeIgnored,
+      includeSubmodules
     )
   }
 

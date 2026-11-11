@@ -4,13 +4,14 @@ param(
     [switch]$NoLaunch,
     [switch]$LaunchOnly,
     [switch]$AllowDirty,
+    [switch]$AnalyzeBundle,
     [string]$OutputDirectory
 )
 
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent $PSScriptRoot
 $taskOldLocation = Get-Location
-$taskEnvNames = @('NODE_ENV', 'DESKTOP_SKIP_PACKAGE', 'DESKTOP_LOCAL_BUNDLE', 'DESKTOP_BUILD_VERSION', 'DESKTOP_PACKAGE_VERSION', 'DESKTOP_FILE_VERSION', 'DESKTOP_DIST_ROOT')
+$taskEnvNames = @('NODE_ENV', 'DESKTOP_SKIP_PACKAGE', 'DESKTOP_LOCAL_BUNDLE', 'DESKTOP_BUILD_VERSION', 'DESKTOP_PACKAGE_VERSION', 'DESKTOP_FILE_VERSION', 'DESKTOP_DIST_ROOT', 'DESKTOP_BUNDLE_ANALYZE')
 $taskOldEnv = @{}
 foreach ($taskName in $taskEnvNames) {
     $taskOldEnv[$taskName] = [Environment]::GetEnvironmentVariable($taskName, 'Process')
@@ -21,6 +22,20 @@ function Invoke-Npm {
     & npm.cmd @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "Build command failed (exit $LASTEXITCODE): npm $($Arguments -join ' ')"
+    }
+}
+
+function Invoke-DesktopBuildStage {
+    param([string]$Name, [scriptblock]$Action)
+    $taskStageTimer = [Diagnostics.Stopwatch]::StartNew()
+    $taskStageCompleted = $false
+    try {
+        & $Action
+        $taskStageCompleted = $true
+    } finally {
+        $taskStageTimer.Stop()
+        $taskStageStatus = if ($taskStageCompleted) { 'completed' } else { 'failed' }
+        Write-Host ('Build timing: {0} {1} in {2:F2}s' -f $Name, $taskStageStatus, $taskStageTimer.Elapsed.TotalSeconds)
     }
 }
 
@@ -95,20 +110,31 @@ try {
             Clear-DesktopBuildOutputOwnership -Root $taskRoot -Output $taskOutputRoot
         }
         $env:NODE_ENV = 'production'
-        Invoke-Npm -Arguments @('exec', '--', 'cross-env', 'NODE_ENV=production', 'TS_NODE_PROJECT=script/tsconfig.json', 'NODE_OPTIONS=--max_old_space_size=8192', 'webpack', '--config', 'app/webpack.production.ts')
+        if ($AnalyzeBundle) { $env:DESKTOP_BUNDLE_ANALYZE = 'true' }
+        Invoke-DesktopBuildStage -Name 'Compile' -Action {
+            Invoke-Npm -Arguments @('exec', '--', 'cross-env', 'NODE_ENV=production', 'TS_NODE_PROJECT=script/tsconfig.json', 'NODE_OPTIONS=--max_old_space_size=8192', 'webpack', '--config', 'app/webpack.production.ts')
+        }
         $env:DESKTOP_SKIP_PACKAGE = '1'
-        Invoke-Npm -Arguments @('exec', '--', 'ts-node', '-P', 'script/tsconfig.json', 'script/build.ts')
+        Invoke-DesktopBuildStage -Name 'Resource preparation' -Action {
+            Invoke-Npm -Arguments @('exec', '--', 'ts-node', '-P', 'script/tsconfig.json', 'script/build.ts')
+        }
         $env:DESKTOP_LOCAL_BUNDLE = 'out'
-        Invoke-Npm -Arguments @('run', 'package:local')
+        Invoke-DesktopBuildStage -Name 'Package' -Action {
+            Invoke-Npm -Arguments @('run', 'package:local')
+        }
     }
 
     $taskDistRoot = $taskOutputRoot
     $taskExecutable = Join-Path $taskDistRoot 'GitDesktop-win32-x64\GitDesktop.exe'
     if (!(Test-Path -LiteralPath $taskExecutable)) { throw 'Packaging did not produce the executable.' }
     if (!$LaunchOnly) {
-        Complete-DesktopBuildVersion -Version $taskVersion -Executable $taskExecutable
+        Invoke-DesktopBuildStage -Name 'Version finalization' -Action {
+            Complete-DesktopBuildVersion -Version $taskVersion -Executable $taskExecutable
+        }
         if (!$OutputDirectory) {
-            Complete-DesktopBuildOutput -Root $taskRoot -Output $taskOutputRoot -Label $taskVersion.Label
+            Invoke-DesktopBuildStage -Name 'Output housekeeping' -Action {
+                Complete-DesktopBuildOutput -Root $taskRoot -Output $taskOutputRoot -Label $taskVersion.Label
+            }
         }
     }
     Write-Host "Executable ready: $taskExecutable" -ForegroundColor Green
