@@ -7,6 +7,7 @@
   },
   "description": "Git Desktop build dependencies",
   "scripts": {
+    "repair:notifications": "node script/notification-dependency.cjs --repair",
     "cli": "ts-node app/src/cli/main.ts",
     "check:eslint": "tsc -P eslint-rules/",
     "test:eslint": "node script/test.mjs eslint-rules",

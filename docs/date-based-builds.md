@@ -5,6 +5,25 @@ Run `build.cmd -NoLaunch` on Windows, or
 entry points create versions such as `v2026.11.10_01`. Low-level npm
 compile/build commands remain available without automatic tagging.
 
+Before compiling, `build.cmd` checks that the installed notification dependency
+matches this checkout's vendor sources and its last successful native/TypeScript
+build. Existing installs without a build receipt also require preparation. If
+this check fails, close active builds and run `npm run repair:notifications` in
+the dependency-owning checkout, then retry the build. The explicit repair copies
+only this vendor package's build inputs and runs its existing install lifecycle;
+it does not reinstall the dependency graph or edit lockfiles. The default build
+check is read-only. Linked dependency trees and obsolete installed source files
+are refused rather than overwritten; the latter require the normal fresh
+dependency installation. Worktrees sharing dependencies must coordinate with
+their owning checkout before repair.
+
+The addon uses N-API 4, so the scoped repair can use host Node headers rather
+than Electron-specific headers. It records the actual native target architecture
+and hashes the emitted JavaScript, declarations and native binary after a
+successful build. A failed or interrupted repair leaves the dependency
+unverified. Toolchain/header downloads may be needed on a new machine; normal
+node-gyp header-cache options remain available.
+
 Production webpack builds reuse five separate filesystem caches under this
 checkout's `.webpack-cache/`, outside shared `node_modules` and packaged outputs.
 Webpack tracks configuration dependencies, manifests, lockfiles and TypeScript

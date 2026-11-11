@@ -95,6 +95,10 @@ try {
     if (!(Test-Path 'node_modules\electron\dist\electron.exe')) {
         throw 'Dependencies are missing. Install them before building.'
     }
+    if (!$LaunchOnly) {
+        & node (Join-Path $PSScriptRoot 'notification-dependency.cjs')
+        if ($LASTEXITCODE -ne 0) { throw 'Notification dependency preparation is required before compiling.' }
+    }
     $taskSelectedExecutable = Join-Path $taskOutputRoot 'GitDesktop-win32-x64\GitDesktop.exe'
     while (!$LaunchOnly -and (Get-Process -Name GitDesktop -ErrorAction SilentlyContinue | Where-Object { ($_.Path -and $_.Path.StartsWith($taskOutputRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) -or (!$_.Path -and (Test-Path -LiteralPath $taskSelectedExecutable)) })) {
         if ($NonInteractive) {

@@ -1,0 +1,31 @@
+{
+  "head": "a3c1d203e2f2e181a38c7a5556bee9868fb55407",
+  "source": [
+    {
+      "path": "script/notification-dependency.cjs",
+      "sha256": "34564f65a36e5a07b1a2b0f7d275376f1ed714b1fb565d58d058895c12699bcb"
+    },
+    {
+      "path": "vendor/desktop-notifications/script/build-receipt.cjs",
+      "sha256": "c4fbf25941e25293d504c7b70c7a98c942fdf7ad399d0904ac47bfcae23b0d6f"
+    },
+    {
+      "path": "vendor/desktop-notifications/package.json",
+      "sha256": "46977e2db7a06df11054d0fb23e623aea7a9034ad508065097869148d03491e2"
+    },
+    {
+      "path": "script/build-local.ps1",
+      "sha256": "f1bd4a68a7d7bf5f195fa6cada4fdc41f8eb6922ba9f15d25b26936bd9c5bd69"
+    },
+    {
+      "path": "package.json",
+      "sha256": "9f938ac04cd251d1b9f2bd551c7e3aaa74209fe2a80f5fc969ba634709e7c441"
+    },
+    {
+      "path": "docs/date-based-builds.md",
+      "sha256": "c1d81c77bbd92484eb4c22e8c8d5b39a132b327d4d8412505d84bd15b154d871"
+    }
+  ],
+  "native": "bb6fa00419c04be9c554d5ce759f3182dca46f8a25437fe8dde4435fde7da8a8",
+  "static": "Node syntax, PowerShell parser, scoped Prettier and whitespace pass. Package lifecycle node-gyp+tsc and preflight pass. Root TypeScript has four pre-existing TS2428 WeakMap dependency declaration errors; notifications.ts errors eliminated."
+}
