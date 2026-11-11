@@ -1,0 +1,25 @@
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+const Module = require('node:module')
+const ts = require('typescript')
+const sourceFile=path.resolve('app/src/lib/logging/deprecation-trace.ts')
+const traceFile=path.resolve(`docs/reviews/evidence/notification-init-20261111/readonly-node-${process.pid}.jsonl`)
+const before=Object.getOwnPropertyDescriptor(process,'traceDeprecation')
+assert.equal(before.value,true)
+assert.equal(before.writable,false)
+process.env.DESKTOP_TRACE_DEPRECATIONS='true'
+process.env.DESKTOP_DEPRECATION_TRACE_FILE=traceFile
+const compiled=ts.transpileModule(fs.readFileSync(sourceFile,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText
+const loaded=new Module(sourceFile,module)
+loaded._compile(compiled,sourceFile)
+assert.deepEqual(Object.getOwnPropertyDescriptor(process,'traceDeprecation'),before)
+process.emitWarning('Synthetic readonly trace regression probe',{code:'DEP0169',type:'DeprecationWarning'})
+process.once('beforeExit',()=>{
+  const events=fs.readFileSync(traceFile,'utf8').trim().split('\n').map(line=>JSON.parse(line))
+  assert.ok(events.some(event=>event.event==='trace-started'))
+  const captured=events.find(event=>event.event==='warning'&&event.code==='DEP0169')
+  assert.match(captured.stack,/Synthetic readonly trace regression probe/)
+  assert.deepEqual(Object.getOwnPropertyDescriptor(process,'traceDeprecation'),before)
+  console.log('PASS real Node --trace-deprecation read-only flag and file-backed warning capture')
+})

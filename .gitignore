@@ -1,15 +1,16 @@
 out/
 dist/
 node_modules/
+/node_modules.junction-backup-20261001
 coverage/
 npm-debug.log
-yarn-error.log
 app/node_modules/
 vendor/windows-argv-parser/build/
 vendor/desktop-notifications/build/
 vendor/desktop-trampoline/build/
 .DS_Store
 .awcache
+/.webpack-cache/
 .idea/
 .vs/
 .vscode/*.log
@@ -26,8 +27,11 @@ dist-build/
 .worktrees/
 
 # Local build diagnostics and branch audit snapshot
+/docs/Codex-ToDo.md
 /dependency-install.log
 /local-build.log
 /native-diagnostic.log
 /unmerged-branches-vs-local-test-2026-10-01.txt
 *.log
+/'dist
+/docs/reviews

@@ -12,6 +12,8 @@ import { AppMenu, MenuItem } from '../models/app-menu'
 import { hasConflictedFiles } from './status'
 import { findContributionTargetDefaultBranch } from './branch'
 import { enableCopilotAppHandoff, enableWorktreeSupport } from './feature-flag'
+import { isAssistedCommitRepositoryLocked } from '../models/assisted-commit-run'
+import { isRepositoryAffectedByAssistedCommit } from './git/repository-operation'
 
 export interface IMenuItemState {
   readonly enabled?: boolean
@@ -152,6 +154,7 @@ const allMenuIds: ReadonlyArray<MenuIDs> = [
   'clone-repository',
   'new-folder-group',
   'repository-health',
+  'clean-build-artifacts',
   'about',
   'create-pull-request',
   'preview-pull-request',
@@ -259,10 +262,12 @@ function getRepositoryMenuBuilder(state: IAppState): MenuStateBuilder {
   // repository-scoped. They're always enabled if we're in a repository and
   // always disabled if we're not.
   const repositoryScopedIDs: ReadonlyArray<MenuIDs> = [
+    'repository-health',
     'branch',
     'remove-repository',
     'open-in-shell',
     'open-working-directory',
+    'clean-build-artifacts',
     'show-repository-settings',
     'go-to-commit-message',
     'show-changes',
@@ -421,6 +426,39 @@ function getRepositoryMenuBuilder(state: IAppState): MenuStateBuilder {
     menuStateBuilder.disable('toggle-stashed-changes')
   }
 
+  if (
+    selectedState?.type === SelectionType.Repository &&
+    (isAssistedCommitRepositoryLocked(
+      selectedState.state.changesState.assistedCommit
+    ) ||
+      isRepositoryAffectedByAssistedCommit(selectedState.repository.path))
+  ) {
+    const disabledIds: ReadonlyArray<MenuIDs> = [
+      'push',
+      'pull',
+      'fetch',
+      'create-branch',
+      'rename-branch',
+      'delete-branch',
+      'merge-branch',
+      'squash-and-merge-branch',
+      'rebase-branch',
+      'update-branch-with-contribution-target-branch',
+      'discard-all-changes',
+      'stash-all-changes',
+      'remove-repository',
+      'show-branches-list',
+      'show-worktrees-list',
+      'create-worktree',
+      'clean-build-artifacts',
+      'show-repository-settings',
+      'preview-pull-request',
+    ]
+    for (const id of disabledIds) {
+      menuStateBuilder.disable(id)
+    }
+  }
+
   return menuStateBuilder
 }
 
@@ -450,7 +488,6 @@ function getInWelcomeFlowBuilder(inWelcomeFlow: boolean): MenuStateBuilder {
     'add-local-repository',
     'clone-repository',
     'new-folder-group',
-    'repository-health',
     'preferences',
     'about',
   ]

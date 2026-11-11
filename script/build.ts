@@ -31,9 +31,9 @@ interface IDesktopPackagerModule {
 }
 
 interface IOSXNotarizeOptions {
-  readonly appleId: string
-  readonly appleIdPassword: string
-  readonly teamId: string
+  readonly appleApiKey: string
+  readonly appleApiKeyId: string
+  readonly appleApiIssuer: string
 }
 
 import {
@@ -67,6 +67,7 @@ import { updateLicenseDump } from './licenses/update-license-dump'
 import { verifyInjectedSassVariables } from './validate-sass/validate-all'
 import { join } from 'path'
 import { copyCopilotDependency } from './copilot'
+import { getNpmCommand } from './npm'
 
 const isPublishableBuild = isPublishable()
 const isDevelopmentBuild = getChannel() === 'development'
@@ -188,7 +189,7 @@ async function packageApp() {
   ) {
     // we can't publish a mac build without these
     throw new Error(
-      'Unable to retreive appleId and/or appleIdPassword to notarize macOS build'
+      'Unable to retrieve appleApiKey, appleApiKeyId, and/or appleApiIssuer to notarize macOS build'
     )
   }
 
@@ -332,6 +333,7 @@ function copyDependencies() {
   // The product name changes depending on whether it's a prod build or dev
   // build, so that we can have them running side by side.
   pkg.productName = getProductName()
+  pkg.version = process.env.DESKTOP_PACKAGE_VERSION ?? pkg.version
   pkg.dependencies = filterExternals(pkg.dependencies)
   pkg.devDependencies =
     isDevelopmentBuild && pkg.devDependencies
@@ -344,8 +346,20 @@ function copyDependencies() {
     force: true,
   })
 
-  console.log('  Installing dependencies via yarn…')
-  cp.execSync('yarn install', { cwd: outRoot, env: process.env })
+  console.log('  Installing dependencies via npm…')
+  const npm = getNpmCommand([
+    'install',
+    '--package-lock=false',
+    '--install-links',
+    '--legacy-peer-deps',
+    '--cpu',
+    getDistArchitecture(),
+  ])
+  cp.execFileSync(npm.executable, npm.args, {
+    cwd: outRoot,
+    env: process.env,
+    stdio: 'inherit',
+  })
 
   console.log('  Copying desktop-askpass-trampoline…')
   const trampolineSource = path.resolve(
@@ -399,7 +413,14 @@ function copyDependencies() {
   })
 
   console.log('  Copying desktop credential helper…')
-  const mingw = getDistArchitecture() === 'x64' ? 'mingw64' : 'clangarm64'
+  // Match the Git distribution actually copied above. Older dugite bundles use
+  // mingw64, while newer bundles use ucrt64.
+  const mingw =
+    getDistArchitecture() === 'x64'
+      ? existsSync(path.resolve(gitDir, 'mingw64', 'bin', 'git.exe'))
+        ? 'mingw64'
+        : 'ucrt64'
+      : 'clangarm64'
   const gitCoreDir =
     process.platform === 'win32'
       ? path.resolve(outRoot, 'git', mingw, 'libexec', 'git-core')
@@ -519,12 +540,12 @@ ${licenseText}`
 
 function getNotarizationOptions(): IOSXNotarizeOptions | undefined {
   const {
-    APPLE_ID: appleId,
-    APPLE_ID_PASSWORD: appleIdPassword,
-    APPLE_TEAM_ID: teamId,
+    APPLE_API_KEY_PATH: appleApiKey,
+    APPLE_API_KEY_ID: appleApiKeyId,
+    APPLE_API_ISSUER: appleApiIssuer,
   } = process.env
 
-  return appleId && appleIdPassword && teamId
-    ? { appleId, appleIdPassword, teamId }
+  return appleApiKey && appleApiKeyId && appleApiIssuer
+    ? { appleApiKey, appleApiKeyId, appleApiIssuer }
     : undefined
 }

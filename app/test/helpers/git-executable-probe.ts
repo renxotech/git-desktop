@@ -49,6 +49,45 @@ async function main() {
     )
     return
   }
+  // A repository may change while executable validation resolves. Refusal must
+  // reach the native spawn boundary without starting an operation process.
+  let stale = false
+  let started = false
+  const refusal = new Error('Repository changed during executable resolution')
+  const pending = exec(
+    ['--version'],
+    tmpdir(),
+    { processCallback: () => (started = true) },
+    () => {
+      assert.equal(stale, true)
+      throw refusal
+    }
+  )
+  stale = true
+  await assert.rejects(pending, error => error === refusal)
+  assert.equal(started, false)
+
+  let fenceChecked = false
+  let yielded = false
+  const guarded = await exec(
+    ['--version'],
+    tmpdir(),
+    {
+      processCallback: () => {
+        assert.equal(fenceChecked, true)
+        assert.equal(
+          yielded,
+          false,
+          'Native spawn must not yield after its fence'
+        )
+      },
+    },
+    () => {
+      fenceChecked = true
+      queueMicrotask(() => (yielded = true))
+    }
+  )
+  assert.equal(guarded.exitCode, 0)
   const active = await getGitExecutable()
   assert.equal(active.selection.kind, mode)
   // Saving another choice cannot change a running operation/session.

@@ -9,6 +9,11 @@ export function launchWSL(executable: string, path: string): ChildProcess {
     // Inside the owning distribution, use the native Linux path.
     path = wslPath[2]?.replace(/\\/g, '/') || '/'
   }
+  // WSL can treat quotes around a simple distribution name as part of its
+  // name when launched through START. Only omit quotes for shell-safe names.
+  const distributionArgument = /^[a-z0-9._-]+$/i.test(distribution)
+    ? '%GITHUB_DESKTOP_WSL_DISTRIBUTION%'
+    : '"%GITHUB_DESKTOP_WSL_DISTRIBUTION%"'
   // START's working directory alone does not reliably select WSL's cwd.
   // Pass paths through the environment to keep CMD metacharacters literal.
   // Disable delayed expansion for paths containing !, and escape trailing
@@ -20,7 +25,7 @@ export function launchWSL(executable: string, path: string): ChildProcess {
       '/v:off',
       '/s',
       '/c',
-      'start "WSL" "%GITHUB_DESKTOP_WSL_EXE%" --distribution "%GITHUB_DESKTOP_WSL_DISTRIBUTION%" --cd "%GITHUB_DESKTOP_WSL_OPEN_PATH%"',
+      `start "WSL" "%GITHUB_DESKTOP_WSL_EXE%" --distribution ${distributionArgument} --cd "%GITHUB_DESKTOP_WSL_OPEN_PATH%"`,
     ],
     {
       windowsVerbatimArguments: true,

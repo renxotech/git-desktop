@@ -52,6 +52,14 @@
     }
   }
 
+  .integration-tab-label {
+    display: inline-block;
+    max-width: 125px;
+    white-space: normal;
+    text-align: left;
+    vertical-align: middle;
+  }
+
   .tab-bar {
     .icon {
       width: 16px;
@@ -72,6 +80,10 @@
   }
 
   .accounts-tab {
+    .accounts-section:not(:last-child) {
+      margin-bottom: var(--spacing);
+    }
+
     .account-info {
       .user-info-container {
         display: flex;
@@ -91,7 +103,6 @@
         flex-grow: 1;
         align-self: flex-start;
 
-        .account-title,
         .name {
           font-weight: var(--font-weight-semibold);
           // Tighten it up a little so that the real name and
@@ -99,6 +110,15 @@
           margin-top: -2px;
           margin-bottom: -2px;
         }
+      }
+    }
+
+    .enterprise-host {
+      margin-bottom: var(--spacing);
+
+      h3 {
+        color: var(--text-secondary-color);
+        margin-bottom: var(--spacing-half);
       }
     }
 

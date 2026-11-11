@@ -1,4 +1,16 @@
-import { getAvailableEditors } from '../lib/editors'
+import { ArtifactCleanupDialog } from './repositories-list/artifact-cleanup-dialog'
+import { IMenuItem } from '../lib/menu-item'
+import {
+  AdditionalEditor,
+  EditorTarget,
+  configuredEditorActions,
+  suggestedEditorTarget,
+  customEditorName,
+} from '../lib/editors/configured-editor'
+import {
+  AdditionalShell,
+  customShellName,
+} from '../lib/shells/configured-shell'
 import * as React from 'react'
 import { addFolderRepositories } from './repositories-list/add-folder-repositories'
 import * as Path from 'path'
@@ -13,7 +25,6 @@ import {
   CommitOptions,
 } from '../lib/app-state'
 import { Dispatcher } from './dispatcher'
-import { Shell } from '../lib/shells'
 import { getFolderActions } from './lib/folder-actions'
 import { writeClipboardText } from './main-process-proxy'
 import { AppStore, GitHubUserStore, IssuesStore } from '../lib/stores'
@@ -89,6 +100,8 @@ import type { IBYOKProvider } from '../lib/copilot/byok'
 import { getConflictResolutionModelDisplay } from '../lib/copilot/conflict-resolution-model'
 import { OpenWithExternalEditor } from './open-with-external-editor/open-with-external-editor'
 import { RepositorySettings } from './repository-settings'
+import { RepositoryAccountDialog } from './repository-account/repository-account-dialog'
+import { ConfirmAccountSignOut } from './repository-account/confirm-account-sign-out'
 import { AppError } from './app-error'
 import { MissingRepository } from './missing-repository'
 import { AddExistingRepository, CreateRepository } from './add-repository'
@@ -213,6 +226,7 @@ import { ConfirmCommitFilteredChanges } from './changes/confirm-commit-filtered-
 import { AboutTestDialog } from './about/about-test-dialog'
 import { TestCLIActionDialog } from './cli-action/test-cli-action-dialog'
 import { TestCopilotSnapshotCardDialog } from './preferences/test-copilot-snapshot-card-dialog'
+import { TestTokenExpirationDialog } from './preferences/test-token-expiration-dialog'
 import {
   enableCopilotSdkCommitMessageGeneration,
   enableCopilotAppHandoff,
@@ -245,8 +259,10 @@ import { SandboxRuleResults } from './worktrees/sandbox-rule-results'
 import { RenameWorktreeDialog } from './worktrees/rename-worktree-dialog'
 import { DeleteWorktreeDialog } from './worktrees/delete-worktree-dialog'
 import { DeleteWorktreeFailedDialog } from './worktrees/delete-worktree-failed-dialog'
-import { WorktreeEntry } from '../models/worktree'
+import { IDeleteWorktreeOptions, WorktreeEntry } from '../models/worktree'
 import { shouldShowWorktreeDropdown } from '../lib/worktree-dropdown'
+import { isAssistedCommitRepositoryLocked } from '../models/assisted-commit-run'
+import { isRepositoryAffectedByAssistedCommit } from '../lib/git/repository-operation'
 
 const MinuteInMilliseconds = 1000 * 60
 const HourInMilliseconds = MinuteInMilliseconds * 60
@@ -321,8 +337,6 @@ export class App extends React.Component<IAppProps, IAppState> {
   private getOnPopupDismissedFn = memoizeOne((popupId: number) => {
     return () => this.onPopupDismissed(popupId)
   })
-
-  private availableFolderEditors: ReadonlyArray<string> = []
 
   public constructor(props: IAppProps) {
     super(props)
@@ -510,6 +524,8 @@ export class App extends React.Component<IAppProps, IAppState> {
         return this.removeRepository(this.getRepository())
       case 'new-folder-group':
         return this.onAddFolderGroup()
+      case 'clean-build-artifacts':
+        return this.onCleanBuildArtifacts()
       case 'repository-health':
         return this.showRepositoryHealth()
       case 'create-repository':
@@ -928,7 +944,14 @@ export class App extends React.Component<IAppProps, IAppState> {
   }
 
   private showRepositoryHealth = () => {
-    return this.props.dispatcher.showPopup({ type: PopupType.RepositoryHealth })
+    const selected = this.state.selectedState
+    if (selected?.type !== SelectionType.Repository) {
+      return
+    }
+    return this.props.dispatcher.showPopup({
+      type: PopupType.RepositoryHealth,
+      repository: selected.repository,
+    })
   }
 
   private showCreateRepository = () => {
@@ -1156,12 +1179,6 @@ export class App extends React.Component<IAppProps, IAppState> {
   }
 
   public componentDidMount() {
-    getAvailableEditors()
-      .then(editors => {
-        this.availableFolderEditors = editors.map(editor => editor.editor)
-        this.forceUpdate()
-      })
-      .catch(error => log.error('Could not detect folder editors', error))
     document.ondragover = e => {
       if (e.dataTransfer != null) {
         if (this.isShowingModal) {
@@ -1482,12 +1499,11 @@ export class App extends React.Component<IAppProps, IAppState> {
   }
 
   /**
-   * Gets a label string for the currently selected external editor, or
-   * `undefined` if the user has selected a custom editor.
+   * Gets the friendly name of the configured default editor.
    */
   private get externalEditorLabel() {
     return this.state.useCustomEditor
-      ? undefined
+      ? customEditorName(this.state.customEditor)
       : this.state.selectedExternalEditor ?? undefined
   }
 
@@ -1874,6 +1890,9 @@ export class App extends React.Component<IAppProps, IAppState> {
             selectedTabSize={this.state.selectedTabSize}
             useCustomEditor={this.state.useCustomEditor}
             customEditor={this.state.customEditor}
+            additionalEditors={this.state.additionalEditors}
+            additionalShells={this.state.additionalShells}
+            defaultEditorTarget={this.state.defaultEditorTarget}
             useCustomShell={this.state.useCustomShell}
             customShell={this.state.customShell}
             copilotAppPath={this.state.copilotAppPath}
@@ -1933,6 +1952,27 @@ export class App extends React.Component<IAppProps, IAppState> {
             onDismissed={onPopupDismissedFn}
           />
         )
+      case PopupType.RepositoryAccount:
+        return (
+          <RepositoryAccountDialog
+            key={`repository-account-${popup.repository.id}`}
+            repository={popup.repository}
+            accounts={popup.accounts ?? this.state.accounts}
+            dispatcher={this.props.dispatcher}
+            onComplete={popup.onComplete}
+            onDismissed={onPopupDismissedFn}
+          />
+        )
+      case PopupType.ConfirmAccountSignOut:
+        return (
+          <ConfirmAccountSignOut
+            key="confirm-account-sign-out"
+            account={popup.account}
+            repositoryCount={popup.repositoryCount}
+            onComplete={popup.onComplete}
+            onDismissed={onPopupDismissedFn}
+          />
+        )
       case PopupType.RepositorySettings: {
         const repository = popup.repository
         const state = this.props.repositoryStateManager.get(repository)
@@ -1949,6 +1989,7 @@ export class App extends React.Component<IAppProps, IAppState> {
             dispatcher={this.props.dispatcher}
             repository={repository}
             repositoryAccount={repositoryAccount}
+            accounts={this.state.accounts}
             onDismissed={onPopupDismissedFn}
           />
         )
@@ -1960,20 +2001,33 @@ export class App extends React.Component<IAppProps, IAppState> {
             signInState={this.state.signInState}
             dispatcher={this.props.dispatcher}
             onDismissed={onPopupDismissedFn}
-            isCredentialHelperSignIn={popup.isCredentialHelperSignIn}
-            credentialHelperUrl={popup.credentialHelperUrl}
           />
         )
-      case PopupType.UnmergedBranches:
+      case PopupType.UnmergedBranches: {
+        const selected = this.state.selectedState
+        if (
+          selected?.type !== SelectionType.Repository ||
+          selected.repository.id !== popup.repository.id
+        ) {
+          return null
+        }
+        const { allBranches, defaultBranch, tip } = selected.state.branchesState
         return (
           <UnmergedBranchesDialog
             repository={popup.repository}
+            merged={popup.merged}
+            dispatcher={this.props.dispatcher}
+            allBranches={allBranches}
+            defaultBranch={defaultBranch}
+            currentBranch={tip.kind === TipState.Valid ? tip.branch : null}
             onDismissed={onPopupDismissedFn}
           />
         )
+      }
       case PopupType.RepositoryHealth:
         return (
           <RepositoryHealthDialog
+            repository={popup.repository}
             repositories={this.state.repositories.filter(
               (r): r is Repository => r instanceof Repository
             )}
@@ -2010,6 +2064,7 @@ export class App extends React.Component<IAppProps, IAppState> {
             dispatcher={this.props.dispatcher}
             selectedTab={this.state.selectedCloneRepositoryTab}
             onTabSelected={this.onCloneRepositoriesTabSelected}
+            selectedAccount={this.state.selectedCloneAccount}
             apiRepositories={this.state.apiRepositories}
             onRefreshRepositories={this.onRefreshRepositories}
             isTopMost={isTopMost}
@@ -2721,6 +2776,7 @@ export class App extends React.Component<IAppProps, IAppState> {
         return (
           <CICheckRunRerunDialog
             key="rerun-check-runs"
+            localRepository={popup.localRepository}
             checkRuns={popup.checkRuns}
             dispatcher={this.props.dispatcher}
             repository={popup.repository}
@@ -2850,6 +2906,7 @@ export class App extends React.Component<IAppProps, IAppState> {
             pullRequestState={pullRequestState}
             prRecentBaseBranches={prRecentBaseBranches}
             repository={repository}
+            getFileEditorActions={this.getFileEditorActions}
             externalEditorLabel={externalEditorLabel}
             showSideBySideDiff={showSideBySideDiff}
             currentBranchHasPullRequest={currentBranchHasPullRequest}
@@ -2862,6 +2919,7 @@ export class App extends React.Component<IAppProps, IAppState> {
         return (
           <AppError
             error={popup.error}
+            showCauses={popup.showCauses}
             onDismissed={onPopupDismissedFn}
             onShowPopup={this.showPopup}
             onRetryAction={this.onRetryAction}
@@ -2961,6 +3019,15 @@ export class App extends React.Component<IAppProps, IAppState> {
             onDismissed={onPopupDismissedFn}
           />
         )
+      case PopupType.TestTokenExpiration:
+        return (
+          <TestTokenExpirationDialog
+            key="test-token-expiration"
+            accounts={this.state.accounts}
+            dispatcher={this.props.dispatcher}
+            onDismissed={onPopupDismissedFn}
+          />
+        )
       case PopupType.PushProtectionError:
         return (
           <PushProtectionErrorDialog
@@ -3020,6 +3087,22 @@ export class App extends React.Component<IAppProps, IAppState> {
             onDismissed={onPopupDismissedFn}
           >
             Review and edit the generated message carefully before use.
+          </CopilotDisclaimer>
+        )
+      }
+      case PopupType.AssistedCommitDisclaimer: {
+        return (
+          <CopilotDisclaimer
+            key="assisted-commit-disclaimer"
+            onAccepted={popup.onAccepted}
+            onDismissed={onPopupDismissedFn}
+          >
+            Copilot will plan your selected changes, and GitHub Desktop will
+            create one or more local commits with their generated messages.
+            Copilot will not edit your files. You can cancel before local
+            acceptance to undo commits created by this run. If Push after
+            committing is enabled, all local commits are kept once pushing
+            starts, even if the push fails.
           </CopilotDisclaimer>
         )
       }
@@ -3117,6 +3200,13 @@ export class App extends React.Component<IAppProps, IAppState> {
           />
         )
       }
+      case PopupType.ArtifactCleanup:
+        return (
+          <ArtifactCleanupDialog
+            repository={popup.repository}
+            onDismissed={onPopupDismissedFn}
+          />
+        )
       case PopupType.RepairWorktrees:
         return (
           <RepairWorktreesDialog
@@ -3160,6 +3250,7 @@ export class App extends React.Component<IAppProps, IAppState> {
             key="delete-worktree"
             repository={popup.repository}
             worktreePath={popup.worktreePath}
+            options={popup.options}
             askForConfirmationOnWorktreeRemoval={
               this.state.askForConfirmationOnWorktreeRemoval
             }
@@ -3179,6 +3270,7 @@ export class App extends React.Component<IAppProps, IAppState> {
             worktreePath={popup.worktreePath}
             error={popup.error}
             originalWorktree={popup.originalWorktree}
+            options={popup.options}
             onDeleteWorktree={this.onDeleteWorkTree}
             onSwitchToWorktree={this.onSwitchToWorktree}
             onDismissed={onPopupDismissedFn}
@@ -3200,9 +3292,13 @@ export class App extends React.Component<IAppProps, IAppState> {
   private onDeleteWorkTree = (
     repository: Repository,
     worktreePath: string,
-    force?: boolean
+    options?: IDeleteWorktreeOptions
   ) => {
-    return this.props.dispatcher.deleteWorktree(repository, worktreePath, force)
+    return this.props.dispatcher.deleteWorktree(
+      repository,
+      worktreePath,
+      options
+    )
   }
 
   private onConfirmWorktreeRemovalChanged = (value: boolean) => {
@@ -3552,9 +3648,41 @@ export class App extends React.Component<IAppProps, IAppState> {
         onOpenInExternalEditor={this.openInExternalEditor}
         externalEditorLabel={this.externalEditorLabel}
         shellLabel={useCustomShell ? undefined : selectedShell}
+        accounts={this.state.accounts}
+        onChangeRepositoryAccount={this.changeRepositoryAccount}
+        onShowRepositorySettings={this.showRepositorySettingsFor}
         dispatcher={this.props.dispatcher}
       />
     )
+  }
+
+  private changeRepositoryAccount = async (
+    repository: Repository,
+    login: string
+  ) => {
+    try {
+      await this.props.dispatcher.updateRepositoryAccount(repository, login)
+    } catch (e) {
+      this.props.dispatcher.postError(e)
+    }
+  }
+
+  /**
+   * Show the settings for a repository that may not be selected, without
+   * changing the selection.
+   */
+  private showRepositorySettingsFor = async (repository: Repository) => {
+    const selected = this.state.selectedState?.repository
+    // The dialog reads the remote from the repository's state, which is only
+    // loaded once the repository has been refreshed.
+    if (!(selected instanceof Repository) || selected.id !== repository.id) {
+      await this.props.dispatcher.refreshRepository(repository)
+    }
+
+    this.props.dispatcher.showPopup({
+      type: PopupType.RepositorySettings,
+      repository,
+    })
   }
 
   private viewOnGitHub = (
@@ -3579,22 +3707,48 @@ export class App extends React.Component<IAppProps, IAppState> {
     this.props.dispatcher.openShell(repository.path)
   }
 
-  private openFolderShell = (path: string, shell?: Shell) => {
+  private openFolderShell = (path: string, shell?: AdditionalShell) => {
     if (shell === undefined) {
       this.props.dispatcher.openShell(path)
+    } else if (shell.customShell !== undefined) {
+      this.props.dispatcher.openInCustomShell(path, shell.customShell)
     } else {
-      this.props.dispatcher.openInSpecificShell(path, shell)
+      this.props.dispatcher.openInSpecificShell(path, shell.shell)
     }
   }
+
+  private get defaultEditorTarget(): EditorTarget {
+    return (
+      this.state.defaultEditorTarget ??
+      suggestedEditorTarget(
+        this.state.useCustomEditor
+          ? undefined
+          : this.state.selectedExternalEditor ?? undefined
+      )
+    )
+  }
+
+  private getFileEditorActions = (fullPath: string): ReadonlyArray<IMenuItem> =>
+    configuredEditorActions(
+      this.externalEditorLabel,
+      this.state.additionalEditors,
+      'file',
+      this.defaultEditorTarget
+    ).map(entry => ({
+      label: `Open in ${entry.name}`,
+      action: () => this.openFolderEditor(fullPath, entry.editor),
+    }))
 
   private getFolderActions = (path: string, missing = false) =>
     getFolderActions({
       path,
       missing,
-      availableEditors: this.availableFolderEditors,
+      additionalEditors: this.state.additionalEditors,
+      additionalShells: this.state.additionalShells,
+      defaultEditorTarget: this.defaultEditorTarget,
       editorLabel: this.externalEditorLabel,
       shellLabel: this.state.useCustomShell
-        ? 'Custom Shell'
+        ? customShellName(this.state.customShell)
         : this.state.selectedShell,
       openShell: this.openFolderShell,
       openEditor: this.openFolderEditor,
@@ -3606,11 +3760,16 @@ export class App extends React.Component<IAppProps, IAppState> {
     this.props.dispatcher.openInExternalEditor(fullPath)
   }
 
-  private openFolderEditor = (path: string, editor?: string) => {
+  private openFolderEditor = (path: string, editor?: AdditionalEditor) => {
     if (editor === undefined) {
       this.props.dispatcher.openInExternalEditor(path)
     } else {
-      this.props.dispatcher.openInSelectedExternalEditor(path, editor, null)
+      this.props.dispatcher.openInSelectedExternalEditor(
+        path,
+        editor.editor ?? null,
+        editor.customEditor ?? null,
+        editor.target ?? suggestedEditorTarget(editor.editor)
+      )
     }
   }
 
@@ -3777,6 +3936,9 @@ export class App extends React.Component<IAppProps, IAppState> {
       onOpenInExternalEditor: this.openInExternalEditor,
       askForConfirmationOnRemoveRepository:
         this.state.askForConfirmationOnRepositoryRemoval,
+      accounts: this.state.accounts,
+      onChangeRepositoryAccount: this.changeRepositoryAccount,
+      onShowRepositorySettings: this.showRepositorySettingsFor,
       externalEditorLabel: this.externalEditorLabel,
       onChangeRepositoryAlias: onChangeRepositoryAlias,
       onRemoveRepositoryAlias: onRemoveRepositoryAlias,
@@ -3861,6 +4023,10 @@ export class App extends React.Component<IAppProps, IAppState> {
         remoteName={remoteName}
         lastFetched={state.lastFetched}
         networkActionInProgress={state.isPushPullFetchInProgress}
+        disabled={
+          isAssistedCommitRepositoryLocked(state.changesState.assistedCommit) ||
+          isRepositoryAffectedByAssistedCommit(selection.repository.path)
+        }
         progress={progress}
         tipState={tip.kind}
         pullWithRebase={pullWithRebase}
@@ -4047,6 +4213,11 @@ export class App extends React.Component<IAppProps, IAppState> {
         onDropDownStateChanged={this.onWorktreeDropdownStateChanged}
         enableFocusTrap={enableFocusTrap}
         worktreeDropdownWidth={this.state.worktreeDropdownWidth}
+        disabled={
+          isAssistedCommitRepositoryLocked(
+            selection.state.changesState.assistedCommit
+          ) || isRepositoryAffectedByAssistedCommit(repository.path)
+        }
       />
     )
   }
@@ -4110,6 +4281,17 @@ export class App extends React.Component<IAppProps, IAppState> {
 
   private onBannerDismissed = () => {
     this.props.dispatcher.clearBanner()
+  }
+
+  private onCleanBuildArtifacts = () => {
+    const selection = this.state.selectedState
+    if (selection?.type !== SelectionType.Repository) {
+      return
+    }
+    this.props.dispatcher.showPopup({
+      type: PopupType.ArtifactCleanup,
+      repository: selection.repository,
+    })
   }
 
   private onRepairWorktrees = () => {
@@ -4249,6 +4431,7 @@ export class App extends React.Component<IAppProps, IAppState> {
           isExternalEditorAvailable={
             state.useCustomEditor || state.selectedExternalEditor !== null
           }
+          getFileEditorActions={this.getFileEditorActions}
           resolvedExternalEditor={state.resolvedExternalEditor}
           onOpenInExternalEditor={this.onOpenInExternalEditor}
           appMenu={state.appMenuState[0]}

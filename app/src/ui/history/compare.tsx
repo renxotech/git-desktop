@@ -59,6 +59,8 @@ interface ICompareSidebarProps {
   readonly tagsToPush: ReadonlyArray<string> | null
   readonly aheadBehindStore: AheadBehindStore
   readonly isMultiCommitOperationInProgress?: boolean
+  /** Whether assisted execution or retained recovery locks this repository. */
+  readonly isAssistedCommitRepositoryLocked: boolean
   readonly shasToHighlight: ReadonlyArray<string>
   readonly accounts: ReadonlyArray<Account>
   readonly preferAbsoluteDates: boolean
@@ -350,6 +352,9 @@ export class CompareSidebar extends React.Component<
         }
         isMultiCommitOperationInProgress={
           this.props.isMultiCommitOperationInProgress
+        }
+        isAssistedCommitRepositoryLocked={
+          this.props.isAssistedCommitRepositoryLocked
         }
         keyboardReorderData={this.state.keyboardReorderData}
         accounts={this.props.accounts}

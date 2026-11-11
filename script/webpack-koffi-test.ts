@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { mkdir, readFile, writeFile } from 'fs/promises'
+import { mkdir, readFile, symlink, writeFile } from 'fs/promises'
 import { join, resolve } from 'path'
+import { Script } from 'vm'
 import webpack from 'webpack'
 import merge from 'webpack-merge'
 import { createTempDirectory } from '../app/test/helpers/temp'
@@ -20,6 +21,12 @@ describe('Koffi webpack output', () => {
     it(`bundles only ${target} when other native packages are installed`, async t => {
       const root = await createTempDirectory(t)
       const nodeModules = join(root, 'node_modules')
+      await mkdir(nodeModules, { recursive: true })
+      await symlink(
+        resolve(__dirname, '../app/node_modules/koffi'),
+        join(nodeModules, 'koffi'),
+        'junction'
+      )
       for (const { name: installedTarget } of targets) {
         const directory = join(
           nodeModules,
@@ -98,6 +105,8 @@ describe('Koffi webpack output', () => {
         stats.toString({ all: false, warnings: true, modules: true })
       )
       assert.equal(await readFile(join(root, 'out/koffi.node'), 'utf8'), target)
+      // Renderer chunks must parse as classic scripts, including lazy SDK code.
+      new Script(await readFile(join(root, 'out/bundle.js'), 'utf8'))
     })
   }
 

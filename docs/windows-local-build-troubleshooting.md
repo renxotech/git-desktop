@@ -46,3 +46,35 @@ The production build and local packaging completed with exit code zero.
 Output: `dist\GitDesktop-win32-x64\GitDesktop.exe`.
 The app was not launched, and unit tests were not run as part of this
 dependency recovery.
+
+## Open in WSL distribution error (2026-10-13)
+
+On this PC, Ubuntu is the default distribution and uses WSL2. Both the source
+and production package already selected Ubuntu for Windows repository paths.
+The failure across repositories was reproduced through the launcher's CMD
+`start` command: `--distribution "Ubuntu"` produced
+`Wsl/Service/WSL_E_DISTRO_NOT_FOUND`, while `--distribution Ubuntu` with the
+same quoted `--cd` argument successfully printed `/mnt/d/code/git-desktop`.
+The reproduction used `start /b /wait` and `--exec /bin/pwd` to collect output
+without opening an interactive terminal.
+
+The launcher now omits distribution-name quotes only for names consisting of
+letters, digits, dots, underscores, and hyphens. Other names remain quoted to
+preserve shell safety. Directory quoting and UNC owning-distribution selection
+are unchanged. Eight focused launcher tests passed, including path punctuation
+and the quoted fallback for a distribution name containing shell metacharacters.
+The fallback is unit-tested only; no custom distribution was installed for it.
+
+Direct Ubuntu execution and the corrected CMD command were verified on this
+PC. An interactive click in the rebuilt application still requires verification.
+
+Production webpack compilation passed. The first packaging attempt was blocked
+by the running production application's file locks. Focused ESLint passed with
+the unavailable `@typescript-eslint/no-empty-object-type` rule disabled for that
+invocation; the normal invocation fails because the installed plugin lacks that
+configured rule. No lint configuration was changed.
+
+After the user closed Git Desktop, packaging succeeded outside the sandbox
+(the sandbox attempt could not resolve GitHub for Electron). Production output:
+`D:\code\git-desktop\dist\GitDesktop-win32-x64\GitDesktop.exe`.
+The packaged renderer was inspected for the corrected argument selection.

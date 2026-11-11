@@ -27,7 +27,7 @@ import { ISecretScanResult } from '../ui/secret-scanning/push-protection-error-d
 import { BypassReasonType } from '../ui/secret-scanning/bypass-push-protection-dialog'
 import { TerminalOutput, TerminalOutputListener } from '../lib/git'
 import type { IBYOKModel, IBYOKProvider } from '../lib/copilot/byok'
-import { WorktreeEntry } from './worktree'
+import { IDeleteWorktreeOptions, WorktreeEntry } from './worktree'
 
 export enum PopupType {
   RenameBranch = 'RenameBranch',
@@ -36,6 +36,8 @@ export enum PopupType {
   ConfirmDiscardChanges = 'ConfirmDiscardChanges',
   Preferences = 'Preferences',
   RepositorySettings = 'RepositorySettings',
+  RepositoryAccount = 'RepositoryAccount',
+  ConfirmAccountSignOut = 'ConfirmAccountSignOut',
   AddRepository = 'AddRepository',
   RepositoryHealth = 'RepositoryHealth',
   UnmergedBranches = 'UnmergedBranches',
@@ -83,6 +85,7 @@ export enum PopupType {
   MoveToApplicationsFolder = 'MoveToApplicationsFolder',
   ChangeRepositoryAlias = 'ChangeRepositoryAlias',
   ChangeWorktreeAlias = 'ChangeWorktreeAlias',
+  ArtifactCleanup = 'ArtifactCleanup',
   RepairWorktrees = 'RepairWorktrees',
   SandboxRule = 'SandboxRule',
   SandboxRuleResults = 'SandboxRuleResults',
@@ -112,10 +115,12 @@ export enum PopupType {
   TestAbout = 'TestAbout',
   TestCLIAction = 'TestCLIAction',
   TestCopilotSnapshotCard = 'TestCopilotSnapshotCard',
+  TestTokenExpiration = 'TestTokenExpiration',
   PushProtectionError = 'PushProtectionError',
   BypassPushProtection = 'BypassPushProtection',
   GenerateCommitMessageOverrideWarning = 'GenerateCommitMessageOverrideWarning',
   GenerateCommitMessageDisclaimer = 'GenerateCommitMessageDisclaimer',
+  AssistedCommitDisclaimer = 'AssistedCommitDisclaimer',
   CopilotConflictResolutionDisclaimer = 'CopilotConflictResolutionDisclaimer',
   HookFailed = 'HookFailed',
   CommitProgress = 'CommitProgress',
@@ -139,6 +144,18 @@ interface IBasePopup {
 }
 
 export type PopupDetail =
+  | {
+      type: PopupType.RepositoryAccount
+      repository: RepositoryWithGitHubRepository
+      accounts?: ReadonlyArray<Account>
+      onComplete: (account: Account | undefined) => void
+    }
+  | {
+      type: PopupType.ConfirmAccountSignOut
+      account: Account
+      repositoryCount: number
+      onComplete: (clearAssignments: boolean | undefined) => void
+    }
   | { type: PopupType.RenameBranch; repository: Repository; branch: Branch }
   | {
       type: PopupType.DeleteBranch
@@ -191,8 +208,12 @@ export type PopupDetail =
       initialSelectedTab?: RepositorySettingsTab
     }
   | { type: PopupType.AddRepository; path?: string }
-  | { type: PopupType.RepositoryHealth }
-  | { type: PopupType.UnmergedBranches; repository: Repository }
+  | { type: PopupType.RepositoryHealth; repository: Repository }
+  | {
+      type: PopupType.UnmergedBranches
+      repository: Repository
+      merged?: boolean
+    }
   | { type: PopupType.CreateRepository; path?: string }
   | {
       type: PopupType.CloneRepository
@@ -204,11 +225,7 @@ export type PopupDetail =
       initialName?: string
       targetCommit?: CommitOneLine
     }
-  | {
-      type: PopupType.SignIn
-      isCredentialHelperSignIn?: boolean
-      credentialHelperUrl?: string
-    }
+  | { type: PopupType.SignIn }
   | { type: PopupType.About }
   | { type: PopupType.InstallGit; path: string }
   | { type: PopupType.PublishRepository; repository: Repository }
@@ -351,6 +368,7 @@ export type PopupDetail =
       files: ReadonlyArray<string>
     }
   | { type: PopupType.MoveToApplicationsFolder }
+  | { type: PopupType.ArtifactCleanup; repository: Repository }
   | { type: PopupType.RepairWorktrees; repository: Repository }
   | { type: PopupType.ChangeRepositoryAlias; repository: Repository }
   | {
@@ -437,6 +455,7 @@ export type PopupDetail =
     }
   | {
       type: PopupType.CICheckRunRerun
+      localRepository: Repository
       checkRuns: ReadonlyArray<IRefCheck>
       repository: GitHubRepository
       prRef: string
@@ -475,6 +494,8 @@ export type PopupDetail =
   | {
       type: PopupType.Error
       error: Error
+      /** Include retained causes when explicitly inspecting assisted-run details. */
+      showCauses?: boolean
     }
   | {
       type: PopupType.InstallingUpdate
@@ -514,6 +535,9 @@ export type PopupDetail =
       type: PopupType.TestCopilotSnapshotCard
     }
   | {
+      type: PopupType.TestTokenExpiration
+    }
+  | {
       type: PopupType.PushProtectionError
       secrets: ReadonlyArray<ISecretScanResult>
     }
@@ -537,6 +561,11 @@ export type PopupDetail =
       // from this popup we will trigger the commit message generation too.
       repository: Repository
       filesSelected: ReadonlyArray<WorkingDirectoryFileChange>
+    }
+  | {
+      type: PopupType.AssistedCommitDisclaimer
+      repository: Repository
+      onAccepted: () => void
     }
   | {
       type: PopupType.CopilotConflictResolutionDisclaimer
@@ -573,6 +602,7 @@ export type PopupDetail =
       type: PopupType.DeleteWorktree
       repository: Repository
       worktreePath: string
+      options: IDeleteWorktreeOptions
     }
   | {
       type: PopupType.DeleteWorktreeFailed
@@ -580,5 +610,6 @@ export type PopupDetail =
       worktreePath: string
       error: Error
       originalWorktree: WorktreeEntry | null
+      options: IDeleteWorktreeOptions
     }
 export type Popup = IBasePopup & PopupDetail

@@ -1,8 +1,17 @@
 import { IAPIRepository } from '../../api'
 import { GitStore } from '../git-store'
 import { urlMatchesRemote } from '../../repository-matching'
-import * as URL from 'url'
+import { URL } from 'url'
 import { GitHubRepository } from '../../../models/github-repository'
+
+function getURLProtocol(url: string): string | null {
+  try {
+    return new URL(url).protocol
+  } catch {
+    // SCP-style SSH remotes and invalid/non-URL paths must remain untouched.
+    return null
+  }
+}
 
 export async function updateRemoteUrl(
   gitStore: GitStore,
@@ -21,17 +30,12 @@ export async function updateRemoteUrl(
 
   // Verify that protocol hasn't changed. If it has we don't want
   // to alter the protocol in case they are relying on a specific one.
-  // If protocol is null that implies the url is a ssh url
-  // of the format git@github.com:octocat/Hello-World.git, which
-  // can't be parsed by URL.parse. In this case we assume the user
-  // manually configured their remote to use this format and we don't
-  // want to change what they've done just to be safe
-  const parsedRemoteUrl = URL.parse(remoteUrl)
-  const parsedUpdatedRemoteUrl = URL.parse(updatedRemoteUrl)
+  // SCP-style SSH remotes (git@host:owner/repo.git) are not absolute URLs.
+  // Preserve that manually selected format, as well as unparseable remotes.
+  const remoteProtocol = getURLProtocol(remoteUrl)
+  const updatedProtocol = getURLProtocol(updatedRemoteUrl)
   const protocolsMatch =
-    parsedRemoteUrl.protocol !== null &&
-    parsedUpdatedRemoteUrl.protocol !== null &&
-    parsedRemoteUrl.protocol === parsedUpdatedRemoteUrl.protocol
+    remoteProtocol !== null && remoteProtocol === updatedProtocol
 
   // Check if the default remote url has been manually changed from the
   // clone url retrieved from the GitHub API previously

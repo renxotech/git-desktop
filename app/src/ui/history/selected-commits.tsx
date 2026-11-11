@@ -1,3 +1,4 @@
+import { requestFileHistory } from './file-history-navigation'
 import * as React from 'react'
 import { writeClipboardText } from '../main-process-proxy'
 import * as Path from 'path'
@@ -54,6 +55,7 @@ interface ISelectedCommitsProps {
   readonly commitSummaryWidth: IConstrainedValue
   readonly selectedDiffType: ImageDiffType
   /** The name of the currently selected external editor */
+  readonly getFileEditorActions?: (fullPath: string) => ReadonlyArray<IMenuItem>
   readonly externalEditorLabel?: string
 
   /**
@@ -494,15 +496,21 @@ export class SelectedCommits extends React.Component<
 
     const items: IMenuItem[] = [
       {
+        label: 'View File History',
+        action: () => requestFileHistory(repository, file.path),
+      },
+      {
         label: RevealInFileManagerLabel,
         action: () => revealInFileManager(repository, file.path),
         enabled: fileExistsOnDisk,
       },
-      {
-        label: openInExternalEditor,
-        action: () => this.props.onOpenInExternalEditor(file.path),
-        enabled: fileExistsOnDisk,
-      },
+      ...(this.props.getFileEditorActions?.(fullPath) ?? [
+        {
+          label: openInExternalEditor,
+          action: () => this.props.onOpenInExternalEditor(file.path),
+          enabled: fileExistsOnDisk,
+        },
+      ]),
       {
         label: OpenWithDefaultProgramLabel,
         action: () => this.onOpenItem(file.path),

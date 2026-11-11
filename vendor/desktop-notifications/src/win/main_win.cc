@@ -24,7 +24,7 @@ namespace
 
     if (desktopNotificationsManager)
     {
-      return env.Undefined();
+      return Napi::Boolean::New(env, true);
     }
 
     if (info.Length() < 2)
@@ -56,9 +56,13 @@ namespace
 
     auto toastActivatorClsid = Utils::utf8ToWideChar(options.Get("toastActivatorClsid").As<Napi::String>());
 
-    desktopNotificationsManager = std::make_shared<DesktopNotificationsManager>(toastActivatorClsid, callback);
-
-    return info.Env().Undefined();
+    auto manager = std::make_shared<DesktopNotificationsManager>(toastActivatorClsid, callback);
+    if (!manager->isInitialized())
+    {
+      return Napi::Boolean::New(env, false);
+    }
+    desktopNotificationsManager = std::move(manager);
+    return Napi::Boolean::New(env, true);
   }
 
   Napi::Value terminateNotifications(const Napi::CallbackInfo &info)
@@ -167,7 +171,6 @@ namespace
 
     if (!desktopNotificationsManager)
     {
-      DN_LOG_ERROR("Cannot show notification: notifications not initialized.");
       deferred.Resolve(Napi::String::New(env, "default"));
     }
     else

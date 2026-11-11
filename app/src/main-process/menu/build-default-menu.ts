@@ -325,6 +325,11 @@ export function buildDefaultMenuTemplate({
     id: 'repository',
     submenu: [
       {
+        label: 'Clean build artifacts…',
+        id: 'clean-build-artifacts',
+        click: emit('clean-build-artifacts'),
+      },
+      {
         label: 'Repository Health…',
         id: 'repository-health',
         click: emit('repository-health'),

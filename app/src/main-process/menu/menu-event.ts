@@ -1,4 +1,5 @@
 export type MenuEvent =
+  | 'clean-build-artifacts'
   | 'push'
   | 'force-push'
   | 'pull'
@@ -86,6 +87,7 @@ const TestMenuEvents = [
   'test-showcase-update-banner',
   'test-thank-you-banner',
   'test-thank-you-popup',
+  'test-token-expiration',
   'test-unable-to-locate-git',
   'test-unable-to-open-shell',
   'test-undone-banner',

@@ -17,9 +17,29 @@ import { InputError } from '../lib/input-description/input-error'
 import { showOpenDialog } from '../main-process-proxy'
 import { copilotAppMarketingUrl } from '../../lib/copilot-app'
 
+import { AdditionalShell } from '../../lib/shells/configured-shell'
+import { AdditionalShells } from './additional-shells'
+import { EditorTargetSelect } from './editor-target'
+import { AdditionalEditors } from './additional-editors'
+import {
+  AdditionalEditor,
+  EditorTarget,
+  suggestedEditorTarget,
+} from '../../lib/editors/configured-editor'
+
 const CustomIntegrationValue = 'other'
 
 interface IIntegrationsPreferencesProps {
+  readonly additionalShells: ReadonlyArray<AdditionalShell>
+  readonly onAdditionalShellsChanged: (
+    shells: ReadonlyArray<AdditionalShell>
+  ) => void
+  readonly defaultEditorTarget: EditorTarget | null
+  readonly onDefaultEditorTargetChanged: (target: EditorTarget) => void
+  readonly additionalEditors: ReadonlyArray<AdditionalEditor>
+  readonly onAdditionalEditorsChanged: (
+    editors: ReadonlyArray<AdditionalEditor>
+  ) => void
   readonly availableEditors: ReadonlyArray<string>
   readonly selectedExternalEditor: string | null
   readonly availableShells: ReadonlyArray<Shell>
@@ -221,8 +241,7 @@ export class Integrations extends React.Component<
 
     return (
       <Select
-        label={enableCustomIntegration() ? undefined : label}
-        aria-label="External editor"
+        label={label}
         value={
           useCustomEditor
             ? CustomIntegrationValue
@@ -269,20 +288,36 @@ export class Integrations extends React.Component<
   private renderCustomExternalEditor() {
     return (
       <Row>
-        <CustomIntegrationForm
-          id="custom-editor"
-          ref={this.customEditorFormRef}
-          path={this.state.customEditor.path ?? ''}
-          arguments={this.state.customEditor.arguments}
-          onPathChanged={this.onCustomEditorPathChanged}
-          onArgumentsChanged={this.onCustomEditorArgumentsChanged}
-        />
+        <div>
+          <TextBox
+            label="Friendly name"
+            value={this.state.customEditor.name ?? ''}
+            placeholder="Custom editor"
+            onValueChanged={this.onCustomEditorNameChanged}
+          />
+          <CustomIntegrationForm
+            id="custom-editor"
+            reportInvalidValues={true}
+            ref={this.customEditorFormRef}
+            path={this.state.customEditor.path ?? ''}
+            arguments={this.state.customEditor.arguments}
+            onPathChanged={this.onCustomEditorPathChanged}
+            onArgumentsChanged={this.onCustomEditorArgumentsChanged}
+          />
+        </div>
       </Row>
     )
   }
 
+  private onCustomEditorNameChanged = (name: string) => {
+    const customEditor = { ...this.state.customEditor, name }
+    this.setState({ customEditor })
+    this.props.onCustomEditorChanged(customEditor)
+  }
+
   private onCustomEditorPathChanged = (path: string, bundleID?: string) => {
     const customEditor: ICustomIntegration = {
+      ...this.state.customEditor,
       path,
       bundleID,
       arguments: this.state.customEditor.arguments ?? [],
@@ -294,6 +329,7 @@ export class Integrations extends React.Component<
 
   private onCustomEditorArgumentsChanged = (args: string) => {
     const customEditor: ICustomIntegration = {
+      ...this.state.customEditor,
       path: this.state.customEditor.path,
       bundleID: this.state.customEditor.bundleID,
       arguments: args,
@@ -309,8 +345,7 @@ export class Integrations extends React.Component<
 
     return (
       <Select
-        label={enableCustomIntegration() ? undefined : 'Shell'}
-        aria-label="Shell"
+        label="Shell"
         value={useCustomShell ? CustomIntegrationValue : selectedShell}
         onChange={this.onSelectedShellChanged}
       >
@@ -331,20 +366,36 @@ export class Integrations extends React.Component<
   private renderCustomShell() {
     return (
       <Row>
-        <CustomIntegrationForm
-          id="custom-shell"
-          ref={this.customShellFormRef}
-          path={this.state.customShell.path}
-          arguments={this.state.customShell.arguments}
-          onPathChanged={this.onCustomShellPathChanged}
-          onArgumentsChanged={this.onCustomShellArgumentsChanged}
-        />
+        <div>
+          <TextBox
+            label="Friendly name"
+            value={this.state.customShell.name ?? ''}
+            placeholder="Custom shell"
+            onValueChanged={this.onCustomShellNameChanged}
+          />
+          <CustomIntegrationForm
+            id="custom-shell"
+            reportInvalidValues={true}
+            ref={this.customShellFormRef}
+            path={this.state.customShell.path}
+            arguments={this.state.customShell.arguments}
+            onPathChanged={this.onCustomShellPathChanged}
+            onArgumentsChanged={this.onCustomShellArgumentsChanged}
+          />
+        </div>
       </Row>
     )
   }
 
+  private onCustomShellNameChanged = (name: string) => {
+    const customShell = { ...this.state.customShell, name }
+    this.setState({ customShell })
+    this.props.onCustomShellChanged(customShell)
+  }
+
   private onCustomShellPathChanged = (path: string, bundleID?: string) => {
     const customShell: ICustomIntegration = {
+      ...this.state.customShell,
       path,
       bundleID,
       arguments: this.state.customShell.arguments ?? [],
@@ -356,6 +407,7 @@ export class Integrations extends React.Component<
 
   private onCustomShellArgumentsChanged = (args: string) => {
     const customShell: ICustomIntegration = {
+      ...this.state.customShell,
       path: this.state.customShell.path ?? '',
       bundleID: this.state.customShell.bundleID,
       arguments: args,
@@ -444,6 +496,11 @@ export class Integrations extends React.Component<
         <DialogContent>
           <h2>Applications</h2>
           <Row>{this.renderExternalEditor()}</Row>
+          <AdditionalEditors
+            availableEditors={this.props.availableEditors}
+            editors={this.props.additionalEditors}
+            onChange={this.props.onAdditionalEditorsChanged}
+          />
           <Row>{this.renderSelectedShell()}</Row>
           {this.renderCopilotApp()}
         </DialogContent>
@@ -454,19 +511,42 @@ export class Integrations extends React.Component<
       <DialogContent>
         <fieldset>
           <legend>
-            <h2>{__DARWIN__ ? 'External Editor' : 'External editor'}</h2>
+            <h2>Default editor</h2>
           </legend>
           <Row>{this.renderExternalEditor()}</Row>
           {this.state.useCustomEditor && this.renderCustomExternalEditor()}
+          <Row>
+            <EditorTargetSelect
+              value={
+                this.props.defaultEditorTarget ??
+                suggestedEditorTarget(
+                  this.state.useCustomEditor
+                    ? undefined
+                    : this.state.selectedExternalEditor ?? undefined
+                )
+              }
+              onChange={this.props.onDefaultEditorTargetChanged}
+            />
+          </Row>
           {this.renderNoExternalEditorHint()}
         </fieldset>
+        <AdditionalEditors
+          availableEditors={this.props.availableEditors}
+          editors={this.props.additionalEditors}
+          onChange={this.props.onAdditionalEditorsChanged}
+        />
         <fieldset>
           <legend>
-            <h2>Shell</h2>
+            <h2>Default shell</h2>
           </legend>
           <Row>{this.renderSelectedShell()}</Row>
           {this.state.useCustomShell && this.renderCustomShell()}
         </fieldset>
+        <AdditionalShells
+          availableShells={this.props.availableShells}
+          shells={this.props.additionalShells}
+          onChange={this.props.onAdditionalShellsChanged}
+        />
         {this.renderCopilotApp()}
       </DialogContent>
     )

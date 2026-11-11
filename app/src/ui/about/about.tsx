@@ -18,7 +18,11 @@ import { encodePathAsUrl } from '../../lib/path'
 import { isOSNoLongerSupportedByElectron } from '../../lib/get-os'
 import { AriaLiveContainer } from '../accessibility/aria-live-container'
 import { formatDate } from '../../lib/format-date'
-import { ProjectURL, ProjectIssuesURL } from '../../lib/branding'
+import {
+  ProjectURL,
+  ProjectIssuesURL,
+  UpstreamVersion,
+} from '../../lib/branding'
 
 const logoPath = __DEV__
   ? 'static/git-desktop-dev.svg'
@@ -267,7 +271,7 @@ export class About extends React.Component<IAboutProps> {
           <p className="upstream-credit">
             Based on{' '}
             <LinkButton uri="https://github.com/desktop/desktop">
-              GitHub Desktop
+              GitHub Desktop v{UpstreamVersion}
             </LinkButton>
           </p>
           <p className="no-padding">

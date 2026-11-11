@@ -14,6 +14,8 @@ import {
 interface ICustomIntegrationFormProps {
   /** ID used to prefix the IDs of some child elements */
   readonly id: string
+  /** Allow a parent save validator to see the current draft, even if invalid. */
+  readonly reportInvalidValues?: boolean
   readonly path: string
   readonly arguments: string
   readonly onPathChanged: (path: string, bundleID?: string) => void
@@ -44,6 +46,7 @@ export class CustomIntegrationForm extends React.Component<
   ICustomIntegrationFormState
 > {
   private pathInputRef = React.createRef<TextBox>()
+  private pathValidationVersion = 0
 
   public constructor(props: ICustomIntegrationFormProps) {
     super(props)
@@ -57,6 +60,10 @@ export class CustomIntegrationForm extends React.Component<
       showNonValidArgsError: false,
       showNoRepoPathArgError: false,
     }
+  }
+
+  public componentWillUnmount() {
+    this.pathValidationVersion++
   }
 
   /** Focuses the path text box. */
@@ -163,9 +170,16 @@ export class CustomIntegrationForm extends React.Component<
   }
 
   private async updatePath(path: string) {
+    const version = ++this.pathValidationVersion
     this.setState({ path, isValidPath: false })
+    if (this.props.reportInvalidValues) {
+      this.props.onPathChanged(path)
+    }
 
     const result = await validateCustomIntegrationPath(path)
+    if (version !== this.pathValidationVersion) {
+      return
+    }
 
     this.setState({
       isValidPath: result.isValid,
@@ -182,6 +196,9 @@ export class CustomIntegrationForm extends React.Component<
   }
 
   private updateArguments(args: string) {
+    if (this.props.reportInvalidValues) {
+      this.props.onArgumentsChanged(args)
+    }
     try {
       const argv = parseCustomIntegrationArguments(args)
 
@@ -202,7 +219,9 @@ export class CustomIntegrationForm extends React.Component<
         showNoRepoPathArgError: false,
       })
 
-      this.props.onArgumentsChanged(args)
+      if (!this.props.reportInvalidValues) {
+        this.props.onArgumentsChanged(args)
+      }
     } catch (e) {
       log.error('Failed to parse custom integration arguments:', e)
 

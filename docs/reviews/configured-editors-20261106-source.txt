@@ -1,0 +1,15 @@
+Base: fb2943f4e35bb6328bcc14e6f8a24ab6b6043399
+SHA256  source
+a3700ca8d261efad1dce96c58d81c161d69463d96a579ebff2c6a608f5636179  app/src/lib/editors/configured-editor.ts
+edf759432214eda14219cc71bae713f7e72a30d9da89ee52165bc093e0e7aa28  app/src/lib/custom-integration.ts
+ccd2288b16c0d81c0da299e826e920e60ae8a86d24adf215ddb9b8886e922fd3  app/src/lib/app-state.ts
+394d267edd8378bbc3fed6adc22cb1d53bff62a47fe7140270ddba78579e29d6  app/src/lib/stores/app-store.ts
+903f4d0cd976d368e6eb233371e7fc29246e25cd382e1f031e2a9984f7871977  app/src/ui/dispatcher/dispatcher.ts
+4de96e445f25aca29e211cc984adaad5de68c45d452d50de19f9ca1ef37ae16d  app/src/ui/preferences/preferences.tsx
+5e960d13cb926d8c9ee09e0fad99f64da788c210a550565ab308f5faca68a9fe  app/src/ui/preferences/integrations.tsx
+a4b56ee708cc8d3cea07017317f8e9fb561fc41e4f68b843a231208c98ef0603  app/src/ui/preferences/additional-editors.tsx
+bae7ddb0bc66046d94bea1382b0d79031dfb83b79dd982fcb9b9b62547ff9bb9  app/src/ui/preferences/custom-integration-form.tsx
+fc3dcda530333e9d2e5180bbea178ec77307e126ebe6a2248ebc6402fe38b02f  app/src/ui/app.tsx
+1cae97518d4097e96ff60959c82a8ab8ce6c77dba474d94ecc1c21225dec9e2e  app/src/ui/lib/folder-actions.ts
+ca84188357b9e2605fbc5a9148c9026bdfc0b086da84043446d8052ecf3d698a  app/test/unit/ui/folder-actions-test.tsx
+c043b6fd0e4152ad92a119cdf6cc9d249bbf21c986efe1b4890fe22076f04925  app/test/unit/ui/additional-editors-test.tsx

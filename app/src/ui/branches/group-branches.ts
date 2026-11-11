@@ -72,3 +72,15 @@ export function groupBranches(
 
   return groups
 }
+
+/** Sort by the tip committer date, with a stable ref-name tie break. */
+export function sortBranchesByCommitDate(
+  branches: ReadonlyArray<Branch>,
+  dates: ReadonlyMap<string, number>
+): ReadonlyArray<Branch> {
+  return [...branches].sort(
+    (a, b) =>
+      (dates.get(b.ref) ?? 0) - (dates.get(a.ref) ?? 0) ||
+      a.ref.localeCompare(b.ref)
+  )
+}

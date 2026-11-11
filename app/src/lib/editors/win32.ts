@@ -373,6 +373,7 @@ const editors: WindowsExternalEditor[] = [
     name: 'Notepad++',
     registryKeys: [
       // 64-bit version of Notepad++
+      CurrentUserUninstallKey('Notepad++'),
       LocalMachineUninstallKey('Notepad++'),
       // 32-bit version of Notepad++
       Wow64LocalMachineUninstallKey('Notepad++'),
@@ -631,5 +632,29 @@ export async function getAvailableEditors(): Promise<
     }
   }
 
+  const notepad = Path.join(
+    process.env.SystemRoot || 'C:\\Windows',
+    'System32',
+    'notepad.exe'
+  )
+  if (await pathExists(notepad)) {
+    results.push({ editor: 'Windows Notepad', path: notepad })
+  }
+  if (!results.some(editor => editor.editor === 'Notepad++')) {
+    for (const root of [
+      process.env.ProgramFiles,
+      process.env['ProgramFiles(x86)'],
+      process.env.LOCALAPPDATA,
+    ]) {
+      if (!root) {
+        continue
+      }
+      const path = Path.join(root, 'Notepad++', 'notepad++.exe')
+      if (await pathExists(path)) {
+        results.push({ editor: 'Notepad++', path })
+        break
+      }
+    }
+  }
   return results
 }

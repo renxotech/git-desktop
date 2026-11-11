@@ -9,10 +9,14 @@ for arg in "$@"; do
     --non-interactive) args+=('-NonInteractive') ;;
     --no-launch) args+=('-NoLaunch') ;;
     --launch-only) args+=('-LaunchOnly') ;;
+    --allow-dirty) args+=('-AllowDirty') ;;
+    --analyze-bundle) args+=('-AnalyzeBundle') ;;
     -h|--help)
-      printf '%s\n' 'Usage: bash script/build-local.sh [--tests] [--non-interactive] [--no-launch] [--launch-only]' \
+      printf '%s\n' 'Usage: bash script/build-local.sh [--tests] [--non-interactive] [--no-launch] [--launch-only] [--allow-dirty] [--analyze-bundle]' \
         'Builds the Windows executable using Windows PowerShell, Node, and Electron.' \
         'Launches the app after packaging unless --no-launch is supplied.' \
+        'Clean builds receive local vYYYY.MM.DD_NN tags; --allow-dirty creates an untagged preview.' \
+        'Use --analyze-bundle to generate the optional renderer bundle report.' \
         'Tests run after the executable is ready when --tests is supplied.'
       exit 0
       ;;

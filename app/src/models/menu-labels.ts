@@ -1,5 +1,3 @@
-import { Shell } from '../lib/shells'
-
 export type MenuLabelsEvent = {
   /**
    * Specify the user's selected shell to display in the menu.
@@ -7,7 +5,7 @@ export type MenuLabelsEvent = {
    * Specify `null` to indicate that it is not known currently, which will
    * default to a placeholder based on the current platform.
    */
-  readonly selectedShell: Shell | null
+  readonly selectedShell: string | null
 
   /**
    * Specify the user's selected editor to display in the menu.

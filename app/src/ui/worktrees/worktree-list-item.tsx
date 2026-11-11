@@ -25,9 +25,15 @@ export class WorktreeListItem extends React.Component<IWorktreeListItemProps> {
     const description =
       (worktree.type === 'main' && worktree.isPinned ? 'Main · ' : '') +
       getWorktreeDescription(worktree)
-    const icon = isCurrentWorktree ? octicons.check : octicons.fileDirectory
+    const isMissing = worktree.isPrunable
+    const icon = isCurrentWorktree
+      ? octicons.check
+      : isMissing
+      ? octicons.alert
+      : octicons.fileDirectory
     const className = classNames('worktrees-list-item', {
       'current-worktree': isCurrentWorktree,
+      'missing-worktree': isMissing,
     })
 
     return (
@@ -42,6 +48,7 @@ export class WorktreeListItem extends React.Component<IWorktreeListItemProps> {
         >
           <HighlightText text={name} highlight={matches.title} />
         </TooltippedContent>
+        {isMissing && <div className="missing-indicator">(missing)</div>}
         <TooltippedContent
           className="description"
           tooltip={worktree.branch ?? worktree.head}

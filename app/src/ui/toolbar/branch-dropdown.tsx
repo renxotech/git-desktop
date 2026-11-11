@@ -1,4 +1,6 @@
 import * as React from 'react'
+import { isAssistedCommitRepositoryLocked } from '../../models/assisted-commit-run'
+import { isRepositoryAffectedByAssistedCommit } from '../../lib/git/repository-operation'
 import { Dispatcher } from '../dispatcher'
 import * as octicons from '../octicons/octicons.generated'
 import { OcticonSymbol, syncClockwise } from '../octicons'
@@ -9,6 +11,7 @@ import {
 import { Resizable } from '../resizable'
 import { TipState } from '../../models/tip'
 import { ToolbarDropdown, DropdownState } from './dropdown'
+import { ToolbarButtonStyle } from './button'
 import {
   FoldoutType,
   IConstrainedValue,
@@ -99,6 +102,14 @@ export class BranchDropdown extends React.Component<IBranchDropdownProps> {
 
   private renderBranchFoldout = (): JSX.Element | null => {
     const repositoryState = this.props.repositoryState
+    if (
+      isAssistedCommitRepositoryLocked(
+        repositoryState.changesState.assistedCommit
+      ) ||
+      isRepositoryAffectedByAssistedCommit(this.props.repository.path)
+    ) {
+      return null
+    }
     const branchesState = repositoryState.branchesState
 
     const tip = repositoryState.branchesState.tip
@@ -128,7 +139,13 @@ export class BranchDropdown extends React.Component<IBranchDropdownProps> {
 
   private onDropDownStateChanged = (state: DropdownState) => {
     // Don't allow opening the drop down when checkout is in progress
-    if (state === 'open' && this.props.repositoryState.checkoutProgress) {
+    if (
+      state === 'open' &&
+      (this.props.repositoryState.checkoutProgress ||
+        isAssistedCommitRepositoryLocked(
+          this.props.repositoryState.changesState.assistedCommit
+        ))
+    ) {
       return
     }
 
@@ -146,9 +163,11 @@ export class BranchDropdown extends React.Component<IBranchDropdownProps> {
     let icon: OcticonSymbol = octicons.gitBranch
     let iconClassName: string | undefined = undefined
     let title: string
-    let description = __DARWIN__ ? 'Current Branch' : 'Current branch'
+    let description = 'No tracking branch'
     let canOpen = true
-    let disabled = false
+    let disabled =
+      isAssistedCommitRepositoryLocked(changesState.assistedCommit) ||
+      isRepositoryAffectedByAssistedCommit(this.props.repository.path)
     let tooltip: string
 
     if (this.props.currentPullRequest) {
@@ -171,21 +190,16 @@ export class BranchDropdown extends React.Component<IBranchDropdownProps> {
       description = 'Detached HEAD'
     } else if (tip.kind === TipState.Valid) {
       title = tooltip = tip.branch.name
-      const { upstream, upstreamWithoutRemote } = tip.branch
+      const { upstream } = tip.branch
+      description = upstream ?? 'No tracking branch'
       const rule = repositoryState.worktrees.find(
         w => w.branch === tip.branch.ref
       )?.sandboxRule
-      if (
-        upstream !== null &&
-        upstreamWithoutRemote !== null &&
-        upstreamWithoutRemote !== tip.branch.name
-      ) {
-        title = `${tip.branch.name} → ${upstream}`
+      if (upstream !== null) {
         tooltip = `Current branch is ${tip.branch.name}, tracking ${upstream}`
       }
       if (rule) {
-        title = tip.branch.name
-        description =
+        const protectionDescription =
           rule.selector === 'branch'
             ? `Follows ${rule.remote}/${rule.sourceBranch}`
             : `${
@@ -195,7 +209,7 @@ export class BranchDropdown extends React.Component<IBranchDropdownProps> {
                   ? 'Stable'
                   : 'Tag'
               } · ${rule.lastTag?.replace(/^release-/, '') ?? 'awaiting Fetch'}`
-        tooltip = `${tip.branch.name}: ${description}. Commits are protected.`
+        tooltip = `${tooltip}. ${protectionDescription}. Commits are protected.`
       }
     } else {
       return assertNever(tip, `Unknown tip state: ${tipKind}`)
@@ -241,6 +255,7 @@ export class BranchDropdown extends React.Component<IBranchDropdownProps> {
             iconClassName={iconClassName}
             title={title}
             description={description}
+            style={ToolbarButtonStyle.Subtitle}
             onContextMenu={this.onBranchToolbarButtonContextMenu}
             tooltip={isOpen ? undefined : tooltip}
             onDropdownStateChanged={this.onDropDownStateChanged}
@@ -252,7 +267,7 @@ export class BranchDropdown extends React.Component<IBranchDropdownProps> {
             buttonClassName={buttonClassName}
             onMouseEnter={this.onMouseEnter}
             onlyShowTooltipWhenOverflowed={true}
-            isOverflowed={isDescriptionOverflowed}
+            isOverflowed={isBranchTextOverflowed}
             enableFocusTrap={enableFocusTrap}
           >
             {this.renderPullRequestInfo()}
@@ -287,6 +302,7 @@ export class BranchDropdown extends React.Component<IBranchDropdownProps> {
             iconClassName={iconClassName}
             title={title}
             description={description}
+            style={ToolbarButtonStyle.Subtitle}
             foldoutStyleOverrides={foldoutStyleOverrides}
             onContextMenu={this.onBranchToolbarButtonContextMenu}
             tooltip={isOpen ? undefined : tooltip}
@@ -299,7 +315,7 @@ export class BranchDropdown extends React.Component<IBranchDropdownProps> {
             buttonClassName={buttonClassName}
             onMouseEnter={this.onMouseEnter}
             onlyShowTooltipWhenOverflowed={true}
-            isOverflowed={isDescriptionOverflowed}
+            isOverflowed={isBranchTextOverflowed}
             enableFocusTrap={enableFocusTrap}
           >
             {this.renderPullRequestInfo()}
@@ -549,6 +565,7 @@ export class BranchDropdown extends React.Component<IBranchDropdownProps> {
         prNumber={pr.pullRequestNumber}
         dispatcher={this.props.dispatcher}
         repository={pr.base.gitHubRepository}
+        localRepository={this.props.repository}
         branchName={currentBranchName}
         anchor={this.badgeRef}
         closePopover={this.closePopover}
@@ -572,6 +589,7 @@ export class BranchDropdown extends React.Component<IBranchDropdownProps> {
         number={pr.pullRequestNumber}
         dispatcher={this.props.dispatcher}
         repository={pr.base.gitHubRepository}
+        localRepository={this.props.repository}
         onBadgeRef={this.onBadgeRef}
         onBadgeClick={this.onBadgeClick}
         showCIStatusPopover={this.props.showCIStatusPopover}
@@ -580,7 +598,7 @@ export class BranchDropdown extends React.Component<IBranchDropdownProps> {
   }
 }
 
-const isDescriptionOverflowed = (target: TooltipTarget) => {
-  const elem = target.querySelector('.title') ?? target
-  return elem.scrollWidth > elem.clientWidth
+const isBranchTextOverflowed = (target: TooltipTarget) => {
+  const elements = target.querySelectorAll('.title, .description')
+  return Array.from(elements).some(elem => elem.scrollWidth > elem.clientWidth)
 }

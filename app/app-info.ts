@@ -28,7 +28,7 @@ export function getReplacements() {
         ? `${productName}-test`
         : productName
     ),
-    __APP_VERSION__: s(version),
+    __APP_VERSION__: s(process.env.DESKTOP_BUILD_VERSION ?? version),
     __DEV__: isDevBuild,
     __DEV_SECRETS__: isDevBuild || !process.env.DESKTOP_OAUTH_CLIENT_SECRET,
     __RELEASE_CHANNEL__: s(channel),

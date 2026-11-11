@@ -34,3 +34,80 @@
     }
   }
 }
+
+.file-history-explorer {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  > .resizable-component {
+    display: flex;
+    flex-direction: column;
+    border-right: var(--base-border);
+  }
+  .file-history-header,
+  .file-history-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing);
+    padding: 0 var(--spacing);
+    flex-shrink: 0;
+    height: var(--tab-bar-height);
+    border-bottom: var(--base-border);
+    background: var(--box-alt-background-color);
+
+    button,
+    label {
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    label {
+      display: flex;
+      align-items: center;
+    }
+  }
+  .file-history-title {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .list {
+    flex: 1;
+    min-height: 0;
+  }
+  input {
+    margin: 4px;
+  }
+  .list-row {
+    padding: 4px 8px;
+  }
+  strong,
+  span,
+  p {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  strong {
+    display: block;
+  }
+  p {
+    margin: 4px 0;
+  }
+  details {
+    max-height: 180px;
+    overflow: auto;
+  }
+  pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .file-history-diff {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+    overflow: hidden;
+  }
+}

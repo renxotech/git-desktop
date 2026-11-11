@@ -266,25 +266,32 @@ export async function getGitEnvironment(
 export function exec(
   args: string[],
   path: string,
-  options?: IGitStringExecutionOptions
+  options?: IGitStringExecutionOptions,
+  beforeSpawn?: () => void
 ): Promise<IGitStringResult>
 export function exec(
   args: string[],
   path: string,
-  options: IGitBufferExecutionOptions
+  options: IGitBufferExecutionOptions,
+  beforeSpawn?: () => void
 ): Promise<IGitBufferResult>
 export function exec(
   args: string[],
   path: string,
-  options?: IGitExecutionOptions
+  options?: IGitExecutionOptions,
+  beforeSpawn?: () => void
 ): Promise<IGitResult>
 export async function exec(
   args: string[],
   path: string,
-  options?: IGitExecutionOptions
+  options?: IGitExecutionOptions,
+  beforeSpawn?: () => void
 ): Promise<IGitResult> {
   const { gitLocation, env } = await getGitEnvironment(options?.env)
   return new Promise((resolve, reject) => {
+    // Selection validation can yield. Certify repository state only once that
+    // asynchronous work is complete, with no yield before the native spawn.
+    beforeSpawn?.()
     const child = execFile(
       gitLocation,
       args,

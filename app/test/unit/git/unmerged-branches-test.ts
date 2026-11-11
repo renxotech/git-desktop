@@ -14,6 +14,42 @@ async function run(path: string, ...args: string[]) {
 }
 
 describe('unmerged branches', () => {
+  it('orders local and remote tips by committer date descending with stable ties', async t => {
+    const repo = await setupEmptyRepository(t)
+    await run(repo.path, 'commit', '--allow-empty', '-m', 'base')
+    await run(repo.path, 'checkout', '-b', 'a-older')
+    await git(
+      ['commit', '--allow-empty', '-m', 'older'],
+      repo.path,
+      'unmergedTest',
+      {
+        env: {
+          GIT_AUTHOR_DATE: '2025-06-01T00:00:00Z',
+          GIT_COMMITTER_DATE: '2025-01-01T00:00:00Z',
+        },
+      }
+    )
+    await run(repo.path, 'checkout', '-b', 'z-newer', 'master')
+    await git(
+      ['commit', '--allow-empty', '-m', 'newer'],
+      repo.path,
+      'unmergedTest',
+      {
+        env: {
+          GIT_AUTHOR_DATE: '2024-01-01T00:00:00Z',
+          GIT_COMMITTER_DATE: '2025-02-01T00:00:00Z',
+        },
+      }
+    )
+    await run(repo.path, 'branch', 'b-same-date')
+    await run(repo.path, 'update-ref', 'refs/remotes/origin/newer', 'HEAD')
+    await run(repo.path, 'checkout', 'master')
+    assert.deepEqual(
+      (await getUnmergedBranches(repo.path)).map(b => b.name),
+      ['b-same-date', 'z-newer', 'origin/newer', 'a-older']
+    )
+  })
+
   it('compares all local and remote branches with the chosen target', async t => {
     const repository = await setupEmptyRepository(t)
     const path = repository.path
@@ -36,6 +72,12 @@ describe('unmerged branches', () => {
     )
     assert(branches.every(b => b.commitsOutsideTarget === 1))
     assert.deepEqual(await getUnmergedBranches(path, 'refs/heads/feature'), [])
+    const merged = await getUnmergedBranches(path, 'HEAD', true)
+    assert.deepEqual(
+      new Set(merged.map(b => b.name)),
+      new Set(['master', 'already-merged'])
+    )
+    assert(merged.every(b => b.commitsOutsideTarget === 0 && b.lastCommitDate))
     const targets = await getUnmergedBranchTargets(path)
     assert(!targets.some(b => b.name === 'origin/HEAD'))
     assert(targets.some(b => b.ref === 'refs/heads/already-merged'))
@@ -56,6 +98,24 @@ describe('unmerged branches', () => {
     assert.deepEqual(await getUnmergedBranches(linked), [])
     await run(linked, 'checkout', '--detach')
     assert.deepEqual(await getUnmergedBranches(linked), [])
+  })
+
+  it('includes divergent branches checked out in another worktree', async t => {
+    const repo = await setupEmptyRepository(t)
+    await run(repo.path, 'commit', '--allow-empty', '-m', 'base')
+    const linked = Path.join(await createTempDirectory(t), 'upstream-checkout')
+    await run(repo.path, 'worktree', 'add', '-b', 'development', linked)
+    await run(linked, 'commit', '--allow-empty', '-m', 'upstream change')
+    await run(repo.path, 'commit', '--allow-empty', '-m', 'local change')
+    const candidates = await getUnmergedBranches(repo.path)
+    const branch = candidates.find(b => b.name === 'development')
+    assert(branch)
+    assert.equal(branch.commitsOutsideTarget, 1)
+    assert.equal(branch.commitsOnlyInTarget, 1)
+    assert.deepEqual(
+      branch.worktreePaths.map(p => Path.resolve(p)),
+      [Path.resolve(linked)]
+    )
   })
 
   it('reports invalid or unborn targets as errors', async t => {

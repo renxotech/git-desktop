@@ -115,3 +115,33 @@
     }
   }
 }
+
+.branch-status-buttons {
+  display: flex;
+  gap: var(--spacing-half);
+  padding: 0 var(--spacing);
+  .unmerged-branches-button {
+    flex: 1;
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
+#unmerged-branches .unmerged-branch-results {
+  max-height: 45vh;
+  overflow-y: auto;
+  list-style: none;
+  padding-left: 0;
+}
+
+#unmerged-branches {
+  .dialog-footer > span {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .unmerged-branch-results label {
+    gap: var(--spacing-half);
+    align-items: baseline;
+    overflow-wrap: anywhere;
+  }
+}

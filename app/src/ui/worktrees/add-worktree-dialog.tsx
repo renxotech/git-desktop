@@ -1,5 +1,4 @@
 import * as React from 'react'
-import { errorMessage } from '../../lib/repository-health'
 
 import { Branch, BranchType } from '../../models/branch'
 import { Repository } from '../../models/repository'
@@ -8,14 +7,12 @@ import { Dialog, DialogContent, DialogFooter } from '../dialog'
 import { RefNameTextBox } from '../lib/ref-name-text-box'
 import { Row } from '../lib/row'
 import { OkCancelButtonGroup } from '../dialog/ok-cancel-button-group'
-import { addWorktree, listWorktrees } from '../../lib/git/worktree'
 import { BranchAutocompletionProvider } from '../autocompletion/branch-autocompletion-provider'
 import memoizeOne from 'memoize-one'
 import { RepositoryPath } from '../lib/repository-path'
 import { Ref } from '../lib/ref'
 import { sanitizedRefName } from '../../lib/sanitize-ref-name'
 import { ISandboxRule } from '../../lib/sandbox-rule'
-import { saveSandboxRule } from '../../lib/git/sandbox-rule'
 
 interface IAddWorktreeDialogProps {
   readonly repository: Repository
@@ -95,70 +92,35 @@ export class AddWorktreeDialog extends React.Component<
       b => b.name === effectiveBranchName
     )
 
-    try {
-      if (this.props.initialStartPoint && branch) {
-        throw new Error('Choose a new branch name for this sandbox.')
-      }
-      if (branch?.type === BranchType.Remote) {
-        // Remote branch: create a new local branch from the remote ref
-        await addWorktree(this.props.repository, fullPath, {
-          createBranch: branch.nameWithoutRemote,
-          commitish: branch.ref,
-        })
-      } else if (branch) {
-        // Existing local branch: check it out in the new worktree
-        await addWorktree(this.props.repository, fullPath, {
-          commitish: branch.name,
-        })
-      } else {
-        // New branch: create it in the new worktree
-        await addWorktree(this.props.repository, fullPath, {
-          createBranch: effectiveBranchName,
-          commitish: this.props.initialStartPoint,
-        })
-      }
-    } catch (e) {
-      this.props.dispatcher.postError(e)
-      this.setState({ creating: false })
-      return
-    }
-
-    const { dispatcher, repository } = this.props
-    const worktrees = await listWorktrees(repository)
-    const worktree = worktrees.find(wt => wt.path === fullPath)
-
-    if (!worktree) {
+    if (this.props.initialStartPoint && branch) {
       this.props.dispatcher.postError(
-        new Error('Failed to find the newly created worktree')
+        new Error('Choose a new branch name for this sandbox.')
       )
       this.setState({ creating: false })
       return
     }
-
-    dispatcher.incrementMetric('worktreeCreatedCount')
-    if (this.props.initialSandboxRule && worktree.branch) {
-      try {
-        await saveSandboxRule(worktree.path, worktree.branch, {
-          ...this.props.initialSandboxRule,
-          branch: worktree.branch,
-          worktreePath: worktree.path,
-        })
-      } catch (error) {
-        dispatcher.postError(
-          new Error(
-            `Sandbox was created, but its fast-forward rule could not be saved: ${errorMessage(
-              error
-            )}`
-          )
-        )
-        this.props.onDismissed()
-        return
-      }
-    }
-    await dispatcher.switchWorktree(repository, worktree)
-
+    const options =
+      branch?.type === BranchType.Remote
+        ? {
+            createBranch: branch.nameWithoutRemote,
+            commitish: branch.ref,
+          }
+        : branch !== undefined
+        ? { commitish: branch.name }
+        : {
+            createBranch: effectiveBranchName,
+            commitish: this.props.initialStartPoint,
+          }
+    const created = await this.props.dispatcher.addWorktreeAndSwitch(
+      this.props.repository,
+      fullPath,
+      options,
+      this.props.initialSandboxRule
+    )
     this.setState({ creating: false })
-    this.props.onDismissed()
+    if (created) {
+      this.props.onDismissed()
+    }
   }
 
   private renderBranchStatus() {

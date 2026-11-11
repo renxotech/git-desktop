@@ -1,3 +1,5 @@
+import { IMenuItem } from '../lib/menu-item'
+import { FileHistoryRequestEvent } from './history/file-history-navigation'
 import * as React from 'react'
 import { Repository } from '../models/repository'
 import { Commit, CommitOneLine } from '../models/commit'
@@ -9,7 +11,8 @@ import { MultipleSelection } from './changes/multiple-selection'
 import { FilesChangedBadge } from './changes/files-changed-badge'
 import { SelectedCommits, CompareSidebar } from './history'
 import { Resizable } from './resizable'
-import { TabBar } from './tab-bar'
+import { RepositoryTabs } from './history/repository-tabs'
+import { FileHistoryExplorer } from './history/file-history-explorer'
 import {
   IRepositoryState,
   RepositorySectionTab,
@@ -36,6 +39,8 @@ import { PullRequestSuggestedNextAction } from '../models/pull-request'
 import { clamp } from '../lib/clamp'
 import { Emoji } from '../lib/emoji'
 import { PopupType } from '../models/popup'
+import { isAssistedCommitRepositoryLocked } from '../models/assisted-commit-run'
+import { isRepositoryAffectedByAssistedCommit } from '../lib/git/repository-operation'
 
 interface IRepositoryViewProps {
   readonly repository: Repository
@@ -85,6 +90,7 @@ interface IRepositoryViewProps {
   readonly isExternalEditorAvailable: boolean
 
   /** The name of the currently selected external editor */
+  readonly getFileEditorActions?: (fullPath: string) => ReadonlyArray<IMenuItem>
   readonly externalEditorLabel?: string
 
   /** A cached entry representing an external editor found on the user's machine */
@@ -146,11 +152,14 @@ interface IRepositoryViewProps {
 interface IRepositoryViewState {
   readonly changesListScrollTop: number
   readonly compareListScrollTop: number
+  readonly showFiles: boolean
+  readonly fileHistoryPath?: string
 }
 
 const enum Tab {
   Changes = 0,
   History = 1,
+  Files = 2,
 }
 
 export class RepositoryView extends React.Component<
@@ -176,6 +185,7 @@ export class RepositoryView extends React.Component<
     this.state = {
       changesListScrollTop: 0,
       compareListScrollTop: 0,
+      showFiles: false,
     }
   }
 
@@ -192,6 +202,7 @@ export class RepositoryView extends React.Component<
 
     this.setState({
       compareListScrollTop: 0,
+      showFiles: false,
     })
   }
 
@@ -214,23 +225,22 @@ export class RepositoryView extends React.Component<
     return <FilesChangedBadge filesChangedCount={filesChangedCount} />
   }
 
-  private renderTabs(): JSX.Element {
-    const selectedTab =
-      this.props.state.selectedSection === RepositorySectionTab.Changes
-        ? Tab.Changes
-        : Tab.History
+  private renderTabs(
+    width: number | string = clamp(this.props.sidebarWidth)
+  ): JSX.Element {
+    const selectedTab = this.state.showFiles
+      ? Tab.Files
+      : this.props.state.selectedSection === RepositorySectionTab.Changes
+      ? Tab.Changes
+      : Tab.History
 
     return (
-      <TabBar selectedIndex={selectedTab} onTabClicked={this.onTabClicked}>
-        <span className="with-indicator" id="changes-tab">
-          <span>Changes</span>
-          {this.renderChangesBadge()}
-        </span>
-
-        <div className="with-indicator" id="history-tab">
-          <span>History</span>
-        </div>
-      </TabBar>
+      <RepositoryTabs
+        width={width}
+        selectedIndex={selectedTab}
+        onTabClicked={this.onTabClicked}
+        changesBadge={this.renderChangesBadge()}
+      />
     )
   }
 
@@ -287,7 +297,13 @@ export class RepositoryView extends React.Component<
         issuesStore={this.props.issuesStore}
         availableWidth={availableWidth}
         gitHubUserStore={this.props.gitHubUserStore}
-        isCommitting={this.props.state.isCommitting}
+        isCommitting={
+          this.props.state.isCommitting ||
+          isRepositoryAffectedByAssistedCommit(this.props.repository.path) ||
+          isAssistedCommitRepositoryLocked(
+            this.props.state.changesState.assistedCommit
+          )
+        }
         hookProgress={this.props.state.hookProgress}
         onShowCommitProgress={
           this.props.state.subscribeToCommitOutput
@@ -310,6 +326,7 @@ export class RepositoryView extends React.Component<
         accounts={this.props.accounts}
         isShowingModal={this.props.isShowingModal}
         isShowingFoldout={this.props.isShowingFoldout}
+        getFileEditorActions={this.props.getFileEditorActions}
         externalEditorLabel={this.props.externalEditorLabel}
         onOpenInExternalEditor={this.props.onOpenInExternalEditor}
         onChangesListScrolled={this.onChangesListScrolled}
@@ -375,6 +392,12 @@ export class RepositoryView extends React.Component<
         tagsToPush={tagsToPush}
         aheadBehindStore={aheadBehindStore}
         isMultiCommitOperationInProgress={mcos !== null}
+        isAssistedCommitRepositoryLocked={
+          isRepositoryAffectedByAssistedCommit(repository.path) ||
+          isAssistedCommitRepositoryLocked(
+            this.props.state.changesState.assistedCommit
+          )
+        }
         askForConfirmationOnCheckoutCommit={
           this.props.askForConfirmationOnCheckoutCommit
         }
@@ -509,6 +532,7 @@ export class RepositoryView extends React.Component<
         emoji={this.props.emoji}
         commitSummaryWidth={this.props.commitSummaryWidth}
         selectedDiffType={this.props.imageDiffType}
+        getFileEditorActions={this.props.getFileEditorActions}
         externalEditorLabel={this.props.externalEditorLabel}
         onOpenInExternalEditor={this.props.onOpenInExternalEditor}
         onViewCommitOnGitHub={this.props.onViewCommitOnGitHub}
@@ -604,7 +628,13 @@ export class RepositoryView extends React.Component<
           dispatcher={this.props.dispatcher}
           file={selectedFile}
           diff={diff}
-          isCommitting={this.props.state.isCommitting}
+          isCommitting={
+            this.props.state.isCommitting ||
+            isRepositoryAffectedByAssistedCommit(this.props.repository.path) ||
+            isAssistedCommitRepositoryLocked(
+              this.props.state.changesState.assistedCommit
+            )
+          }
           imageDiffType={this.props.imageDiffType}
           hideWhitespaceInDiff={this.props.hideWhitespaceInChangesDiff}
           showSideBySideDiff={this.props.showSideBySideDiff}
@@ -646,6 +676,29 @@ export class RepositoryView extends React.Component<
   }
 
   public render() {
+    if (this.state.showFiles) {
+      return (
+        <UiView id="repository">
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              flex: 1,
+              minWidth: 0,
+            }}
+          >
+            <FileHistoryExplorer
+              getFileEditorActions={this.props.getFileEditorActions}
+              navigation={this.renderTabs('100%')}
+              key={this.props.repository.path}
+              repository={this.props.repository}
+              initialPath={this.state.fileHistoryPath}
+              refreshToken={this.props.state.changesState.workingDirectory}
+            />
+          </div>
+        </UiView>
+      )
+    }
     return (
       <UiView id="repository">
         {this.renderSidebar()}
@@ -669,10 +722,15 @@ export class RepositoryView extends React.Component<
 
   public componentDidMount() {
     window.addEventListener('keydown', this.onGlobalKeyDown)
+    window.addEventListener(FileHistoryRequestEvent, this.onFileHistoryRequest)
   }
 
   public componentWillUnmount() {
     window.removeEventListener('keydown', this.onGlobalKeyDown)
+    window.removeEventListener(
+      FileHistoryRequestEvent,
+      this.onFileHistoryRequest
+    )
   }
 
   public componentDidUpdate(): void {
@@ -705,7 +763,20 @@ export class RepositoryView extends React.Component<
     }
   }
 
+  private onFileHistoryRequest = (event: Event) => {
+    const detail = (
+      event as CustomEvent<{ repositoryPath: string; path: string }>
+    ).detail
+    if (detail.repositoryPath === this.props.repository.path) {
+      this.setState({ showFiles: true, fileHistoryPath: detail.path })
+    }
+  }
+
   private changeTab() {
+    if (this.state.showFiles) {
+      this.onTabClicked(Tab.Changes)
+      return
+    }
     const section =
       this.props.state.selectedSection === RepositorySectionTab.History
         ? RepositorySectionTab.Changes
@@ -718,6 +789,10 @@ export class RepositoryView extends React.Component<
   }
 
   private onTabClicked = (tab: Tab) => {
+    this.setState({ showFiles: tab === Tab.Files })
+    if (tab === Tab.Files) {
+      return
+    }
     const section =
       tab === Tab.History
         ? RepositorySectionTab.History

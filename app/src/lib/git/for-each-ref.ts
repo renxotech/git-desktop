@@ -80,6 +80,7 @@ export async function getBranchesDifferingFromUpstream(
     upstream: '%(upstream)',
     symref: '%(symref)',
     head: '%(HEAD)',
+    worktreePath: '%(worktreepath)',
   })
 
   const prefixes = ['refs/heads', 'refs/remotes']
@@ -102,8 +103,12 @@ export async function getBranchesDifferingFromUpstream(
   // - For local branches with upstream: name, ref, SHA and the upstream.
   // - For remote branches we only need the sha (and the ref as key).
   for (const ref of parse(result.stdout)) {
-    if (ref.symref.length > 0 || ref.head === '*') {
-      // Exclude symbolic refs and the current branch
+    if (
+      ref.symref.length > 0 ||
+      ref.head === '*' ||
+      ref.worktreePath.length > 0
+    ) {
+      // Exclude symbolic refs and branches checked out in any worktree.
       continue
     }
 

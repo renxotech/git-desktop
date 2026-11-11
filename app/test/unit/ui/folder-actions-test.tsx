@@ -9,12 +9,12 @@ import { Branch, BranchType } from '../../../src/models/branch'
 import { Repository } from '../../../src/models/repository'
 
 describe('shared folder actions', () => {
-  it('does not offer VS Code when it is not installed, even with a stale preference', () => {
+  it('does not add an implicit VS Code entry', () => {
     const actions = getFolderActions({
       path: 'D:/repo',
       missing: false,
-      availableEditors: ['Notepad++'],
-      editorLabel: 'Visual Studio Code',
+      additionalEditors: [],
+      editorLabel: 'Notepad++',
       shellLabel: 'Command Prompt',
       openShell: () => {},
       openEditor: () => {},
@@ -35,9 +35,10 @@ describe('shared folder actions', () => {
       const actions = getFolderActions({
         path,
         missing: false,
-        availableEditors: ['Visual Studio Code'],
+        additionalEditors: [],
         editorLabel: 'Visual Studio Code',
         shellLabel: 'Windows Terminal',
+        additionalShells: [{ shell: Shell.Cmd }, { shell: Shell.WSL }],
         openShell: (...args) => calls.push(args),
         openEditor: (p, editor) => calls.push(['editor', p, editor]),
         reveal: p => calls.push(['explorer', p]),
@@ -47,8 +48,8 @@ describe('shared folder actions', () => {
         actions.find(a => a.label === 'Open in Command Prompt')!.action!()
         actions.find(a => a.label === 'Open in WSL')!.action!()
         assert.deepEqual(calls.splice(0), [
-          [path, Shell.Cmd],
-          [path, Shell.WSL],
+          [path, { shell: Shell.Cmd }],
+          [path, { shell: Shell.WSL }],
         ])
       }
       actions.find(a => a.label === 'Open in Windows Terminal')!.action!()
@@ -56,7 +57,7 @@ describe('shared folder actions', () => {
       actions.find(a => a.label === 'Copy path')!.action!()
       assert.deepEqual(calls, [
         [path],
-        ['editor', path, 'Visual Studio Code'],
+        ['editor', path, undefined],
         ['copy', path],
       ])
 
@@ -89,6 +90,9 @@ describe('shared folder actions', () => {
         askForConfirmationOnRemoveRepository: true,
         onViewOnGitHub: noop,
         onOpenInShell: noop,
+        accounts: [],
+        onChangeRepositoryAccount: noop,
+        onShowRepositorySettings: noop,
         onShowRepository: noop,
         onOpenInExternalEditor: noop,
         onRemoveRepository: noop,
@@ -120,7 +124,7 @@ describe('shared folder actions', () => {
     const actions = getFolderActions({
       path: 'D:\\missing',
       missing: true,
-      availableEditors: ['Visual Studio Code'],
+      additionalEditors: [],
       editorLabel: undefined,
       shellLabel: 'Command Prompt',
       openShell: () => {},

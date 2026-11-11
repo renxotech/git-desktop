@@ -49,6 +49,7 @@ interface IPullRequestFilesChangedProps {
   readonly hideWhitespaceInDiff: boolean
 
   /** Label for selected external editor */
+  readonly getFileEditorActions?: (fullPath: string) => ReadonlyArray<IMenuItem>
   readonly externalEditorLabel?: string
 
   /** Width to use for the files list pane */
@@ -188,11 +189,13 @@ export class PullRequestFilesChanged extends React.Component<
         action: () => revealInFileManager(repository, file.path),
         enabled: fileExistsOnDisk,
       },
-      {
-        label: openInExternalEditor,
-        action: () => dispatcher.openInExternalEditor(fullPath),
-        enabled: fileExistsOnDisk,
-      },
+      ...(this.props.getFileEditorActions?.(fullPath) ?? [
+        {
+          label: openInExternalEditor,
+          action: () => dispatcher.openInExternalEditor(fullPath),
+          enabled: fileExistsOnDisk,
+        },
+      ]),
       {
         label: OpenWithDefaultProgramLabel,
         action: () => this.onOpenFile(file.path),
