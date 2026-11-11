@@ -1,5 +1,4 @@
 import {
-  exec,
   GitError as DugiteError,
   parseError,
   IGitResult as DugiteResult,
@@ -7,6 +6,7 @@ import {
   parseBadConfigValueErrorInfo,
   ExecError,
 } from 'dugite'
+import { exec } from './executable'
 
 import { assertNever } from '../fatal-error'
 import * as GitPerf from '../../ui/lib/git-perf'

@@ -1,4 +1,4 @@
-import { exec } from 'dugite'
+import { exec } from './git/executable'
 import * as Path from 'path'
 import { compare, valid } from 'semver'
 import { EventEmitter } from 'events'

@@ -8,12 +8,17 @@ import { GitConfigUserForm } from '../lib/git-config-user-form'
 import { TabBar } from '../tab-bar'
 import { Checkbox, CheckboxValue } from '../lib/checkbox'
 import { Select } from '../lib/select'
+import { GitExecutable } from './git-executable'
+import { GitExecutableSelection } from '../../lib/git/executable'
 import {
   shellFriendlyNames,
   SupportedHooksEnvShell,
 } from '../../lib/hooks/config'
 
 interface IGitProps {
+  readonly gitExecutableSelection: GitExecutableSelection
+  readonly gitExecutableError?: string
+  readonly onGitExecutableChanged: (selection: GitExecutableSelection) => void
   readonly name: string
   readonly email: string
   readonly defaultBranch: string
@@ -147,6 +152,7 @@ export class Git extends React.Component<IGitProps> {
           <span>Author</span>
           <span>Default branch</span>
           <span>Hooks</span>
+          <span>Executable</span>
         </TabBar>
         <div className="git-preferences-content">{this.renderCurrentTab()}</div>
       </DialogContent>
@@ -160,6 +166,14 @@ export class Git extends React.Component<IGitProps> {
       return this.renderDefaultBranchSetting()
     } else if (this.selectedTabIndex === 2) {
       return this.renderHooksSettings()
+    } else if (this.selectedTabIndex === 3) {
+      return (
+        <GitExecutable
+          selection={this.props.gitExecutableSelection}
+          error={this.props.gitExecutableError}
+          onChange={this.props.onGitExecutableChanged}
+        />
+      )
     }
 
     return null

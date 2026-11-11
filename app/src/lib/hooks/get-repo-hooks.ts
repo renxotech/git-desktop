@@ -1,4 +1,4 @@
-import { exec } from 'dugite'
+import { exec } from '../git/executable'
 import { access, constants, readdir } from 'fs/promises'
 import { basename, join, resolve } from 'path'
 
@@ -41,7 +41,7 @@ const knownHooks = [
 // getRepoHooks is used by withHooksEnv which is used by git in core.ts so we
 // have to be careful to not accidentally run into a circular dependency here
 // where we invoke git which calls us which calls git which calls us, etc. To
-// avoid that we call dugite directly here.
+// avoid that we use the low-level selected executable runner here.
 const git = (args: string[], path: string) =>
   exec(args, path).then(({ exitCode, stdout, stderr }) => {
     return exitCode === 0

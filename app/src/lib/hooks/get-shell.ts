@@ -5,6 +5,7 @@ import { bash, cmd, powershell } from './shell-escape'
 import { SupportedHooksEnvShell } from './config'
 import { assertNever } from '../fatal-error'
 import { enumerateValues, HKEY, RegistryValueType } from 'registry-js'
+import { getGitExecutable } from '../git/executable'
 
 type Shell = {
   shell: string
@@ -15,6 +16,13 @@ type Shell = {
 }
 
 export const findGitBash = async () => {
+  const selected = await getGitExecutable()
+  if (selected.selection.kind === 'installed') {
+    const selectedBash = join(selected.execPath, '../../../usr/bin/bash.exe')
+    if (await pathExists(selectedBash)) {
+      return selectedBash
+    }
+  }
   const gitPath = await which('git', { nothrow: true })
   let bashPath: string | null = null
 

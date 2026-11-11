@@ -9,7 +9,8 @@ import {
   deleteMostRecentSSHCredential,
   removeMostRecentSSHCredential,
 } from '../ssh/ssh-credential-storage'
-import { GitError as DugiteError, exec } from 'dugite'
+import { GitError as DugiteError } from 'dugite'
+import { exec } from '../git/executable'
 import memoizeOne from 'memoize-one'
 import { GitError, getDescriptionForError } from '../git/core'
 import { getDesktopAskpassTrampolineFilename } from 'desktop-trampoline'
