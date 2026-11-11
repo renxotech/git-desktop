@@ -219,8 +219,26 @@ export async function checkWorktreeBranchRemoval(
         '--get',
         'core.worktree'
       )
+      const ownerPath = Path.resolve(directory, owner)
+      if (!isInsideDirectory(worktree.path, ownerPath)) {
+        throw new Error(
+          'Cannot prove ownership of inactive submodule metadata.'
+        )
+      }
+      // A lexical owner inside this checkout can still resolve through a root
+      // junction to live external metadata. Reject that ambiguity before any
+      // Git worktree lookup or archival; never inspect the link target's .git.
+      // Missing uninitialized owners are safe only when existing ancestors are
+      // ordinary directories. Cleanup/archive/deletion roots remain strict.
+      try {
+        await verifyOrdinaryDirectory(ownerPath, true)
+      } catch (error) {
+        throw new Error(
+          `Cannot establish private ownership of inactive submodule metadata at ${directory}. Its worktree owner ${ownerPath} uses a link, is not an ordinary directory, or cannot be inspected. Resolve ownership separately before removal.`,
+          { cause: error }
+        )
+      }
       if (
-        !isInsideDirectory(worktree.path, Path.resolve(directory, owner)) ||
         (await cleanupPathExists(Path.join(directory, 'commondir'))) ||
         (await listWorktreesFromGitDir(directory)).length !== 1 ||
         ((await cleanupPathExists(Path.join(directory, 'worktrees'))) &&

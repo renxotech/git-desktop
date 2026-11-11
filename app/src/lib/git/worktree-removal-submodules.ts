@@ -20,6 +20,23 @@ export interface IRemovalSubmodule {
   readonly gitDir: string | null
   readonly linkTarget?: string
   readonly blockers: ReadonlyArray<string>
+  readonly issues: ReadonlyArray<IRemovalSubmoduleIssue>
+}
+
+export interface IRemovalSubmoduleIssue {
+  readonly kind:
+    | 'head-unavailable'
+    | 'target-unavailable'
+    | 'ancestry-unproven'
+    | 'history-unavailable'
+  readonly path: string
+  readonly revision: string
+  readonly message: string
+}
+
+const localReadEnvironment = {
+  GIT_NO_LAZY_FETCH: '1',
+  GIT_OPTIONAL_LOCKS: '0',
 }
 
 export function isInsideDirectory(root: string, path: string) {
@@ -45,7 +62,19 @@ export async function cleanupPathExists(path: string) {
 }
 
 export async function readCleanupGit(path: string, ...args: string[]) {
-  return (await git(args, path, 'checkWorktreeRemoval')).stdout.trim()
+  return (
+    await git(args, path, 'checkWorktreeRemoval', { env: localReadEnvironment })
+  ).stdout.trim()
+}
+
+async function verifyLocalRevision(path: string, revision: string) {
+  const result = await git(
+    ['rev-parse', '--verify', '--quiet', '--end-of-options', revision],
+    path,
+    'verifyLocalSubmoduleRevision',
+    { successExitCodes: new Set([0, 1]), env: localReadEnvironment }
+  )
+  return result.exitCode === 0 ? result.stdout.trim() : null
 }
 
 /** Reject active operations and index flags which can conceal changed files. */
@@ -108,6 +137,11 @@ export async function checkRemovalSubmodules(
       }
       const path = Path.relative(root, absolute)
       const blockers: string[] = []
+      const issues: IRemovalSubmoduleIssue[] = []
+      const addIssue = (issue: IRemovalSubmoduleIssue) => {
+        issues.push(issue)
+        blockers.push(issue.message)
+      }
       const entry =
         target === null
           ? ''
@@ -128,7 +162,7 @@ export async function checkRemovalSubmodules(
       }
       // The gitlink root alone may be a link. Never allow a linked ancestor
       // to route classification or later cleanup into another directory.
-      await verifyOrdinaryDirectory(Path.dirname(absolute))
+      await verifyOrdinaryDirectory(Path.dirname(absolute), true)
       if (!(await cleanupPathExists(absolute))) {
         result.push({
           path,
@@ -137,6 +171,7 @@ export async function checkRemovalSubmodules(
           target: expected,
           gitDir: null,
           blockers,
+          issues,
         })
         continue
       }
@@ -151,6 +186,7 @@ export async function checkRemovalSubmodules(
           gitDir: null,
           linkTarget: await Fs.readlink(absolute),
           blockers,
+          issues,
         })
         continue
       }
@@ -169,6 +205,7 @@ export async function checkRemovalSubmodules(
           target: expected,
           gitDir: null,
           blockers,
+          issues,
         })
         continue
       }
@@ -201,48 +238,85 @@ export async function checkRemovalSubmodules(
         throw new Error(`Submodule metadata contains links: ${path}`)
       }
       await checkCleanupIndex(absolute)
-      const head = await readCleanupGit(
-        absolute,
-        'rev-parse',
-        '--verify',
-        'HEAD^{commit}'
-      )
+      const head = await verifyLocalRevision(absolute, 'HEAD')
+      const headAvailable =
+        head !== null &&
+        (await verifyLocalRevision(absolute, `${head}^{commit}`)) !== null
+      const targetAvailable =
+        expected !== null &&
+        (await verifyLocalRevision(absolute, `${expected}^{commit}`)) !== null
+      if (!headAvailable) {
+        const revision = head ?? 'HEAD'
+        addIssue({
+          kind: 'head-unavailable',
+          path,
+          revision,
+          message: `Submodule ${path}: local HEAD commit ${revision} is unavailable. Make this submodule's local history available separately, then review removal again. No fetch or repair is performed.`,
+        })
+      }
+      if (expected !== null && !targetAvailable) {
+        addIssue({
+          kind: 'target-unavailable',
+          path,
+          revision: expected,
+          message: `Submodule ${path}: the selected target requires commit ${expected}, which is unavailable in this submodule's local object store. Make the required history available separately, then review removal again. No fetch or repair is performed.`,
+        })
+      }
       const incomplete =
         !(await cleanupPathExists(Path.join(gitDir, 'index'))) &&
         (await Fs.readdir(absolute)).every(name => name === '.git')
-      const status = await readCleanupGit(
-        absolute,
-        'status',
-        '--porcelain',
-        '-z',
-        '--untracked-files=all',
-        '--ignored=matching',
-        '--ignore-submodules=all'
-      )
-      const staged = await readCleanupGit(
-        absolute,
-        'diff',
-        '--cached',
-        '--name-only',
-        '-z',
-        '--ignore-submodules=none'
-      )
+      const status = !headAvailable
+        ? ''
+        : await readCleanupGit(
+            absolute,
+            'status',
+            '--porcelain',
+            '-z',
+            '--untracked-files=all',
+            '--ignored=matching',
+            '--ignore-submodules=all'
+          )
+      const staged = !headAvailable
+        ? ''
+        : await readCleanupGit(
+            absolute,
+            'diff',
+            '--cached',
+            '--name-only',
+            '-z',
+            '--ignore-submodules=none'
+          )
       if ((status || staged) && !incomplete) {
         blockers.push(
           'Submodule has staged, modified, untracked or ignored files.'
         )
       }
-      if (expected) {
+      if (
+        expected !== null &&
+        targetAvailable &&
+        head !== null &&
+        headAvailable
+      ) {
         const ancestor = await git(
           ['merge-base', '--is-ancestor', head, expected],
           absolute,
           'checkSubmoduleCommits',
-          { successExitCodes: new Set([0, 1]) }
+          { successExitCodes: new Set([0, 1, 128]), env: localReadEnvironment }
         )
-        if (ancestor.exitCode !== 0) {
-          blockers.push(
-            'Submodule HEAD contains commits outside the selected target.'
-          )
+        if (ancestor.exitCode === 1) {
+          addIssue({
+            kind: 'ancestry-unproven',
+            path,
+            revision: expected,
+            message: `Submodule ${path}: local history does not prove HEAD ${head} is included in target ${expected}. It may contain additional commits or incomplete history. Resolve this separately, then review removal again.`,
+          })
+        } else if (ancestor.exitCode !== 0) {
+          addIssue({
+            kind: 'history-unavailable',
+            path,
+            revision: expected,
+            message: `Submodule ${path}: Git could not verify local history between HEAD ${head} and target ${expected}. Resolve local object or access errors separately, then review removal again. No fetch or repair is performed.`,
+          })
         }
       }
       result.push({
@@ -256,8 +330,9 @@ export async function checkRemovalSubmodules(
         target: expected,
         gitDir,
         blockers,
+        issues,
       })
-      if (!incomplete) {
+      if (!incomplete && headAvailable && targetAvailable) {
         await visit(absolute, expected)
       }
     }

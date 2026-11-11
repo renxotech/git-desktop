@@ -148,7 +148,7 @@ proof can conservatively reject checkout text/filter conversions; it does not
 accept a misleading clean status as proof. Backend QA must independently verify
 the real fixture and staged, dirty, extra-data and genuine nested-repository
 variants. This reviewer performed no tests, actual cleanup or production edits.
-See [the scoped implementation report](2026-11-12-tracked-repository-fixture-cleanup.md).
+See [the scoped implementation report](2026-11-11-tracked-repository-fixture-cleanup.md).
 
 Before this documentation update, the normal sync status command failed closed
 while reading protected submodule metadata. A direct successful enumeration of
@@ -156,6 +156,47 @@ its established state directory,
 `D:/extcode/github-desktop/.git/codex-upstream-sync`, showed only the retained run
 directory and no `lock`. No clean-status assertion is inferred from that failed
 command, and no shared ledger was edited.
+
+## Follow-up: unavailable submodule target commit
+
+Accepted and fixed source finding from the screenshot reporting
+`fatal: Not a valid commit name ebcf0afa6af624bf59c3d3b674b744b029835a1e`.
+At isolated starting commit `cf2bdb187266d450ba7ffe91db172b845ce079c9`, both
+the selected checkout and current main record that gitlink for
+`app/static/common/gitignore`. The selected dedicated submodule store resolves
+local HEAD as `8ba69a4220df77b696fe97b60fb70eb668fb00e1`, but cannot resolve
+the selected target commit. It reports not shallow. This establishes unavailable
+local object data, not that ancestry is safe or that upstream lacks the commit.
+
+Independent source review passes the bounded change to
+`app/src/lib/git/worktree-removal-submodules.ts`, SHA-256
+`C255831A96EBC5267CF1B2F651355252100DAD8CE765ADF4233B8742CC24F60A`.
+Quiet local HEAD/target commit verification handles only expected exit 1 as
+unavailability; other operational failures propagate rather than being
+mislabeled missing. Typed issues carry module path and required revision, and
+their messages are also ordinary removal blockers consumed by the existing
+preview. Missing HEAD/target, unproven ancestry and history/access failures all
+remain blocked. Ancestry exit 1 does not assert definitively unique commits;
+exit 128 has a separate history-failure explanation. HEAD-dependent status/diff
+and recursive target-tree reads are gated on local commit availability. No
+uninspected descendant state is authorized for removal when a parent is blocked.
+
+The revised local read helper, direct revision checks and ancestry comparison
+set `GIT_NO_LAZY_FETCH=1` and `GIT_OPTIONAL_LOCKS=0`. There is no recovery,
+fetch, reset or hydration path in the fix. Source assessment has no unresolved
+actionable finding; backend QA must independently validate classifications,
+no implicit fetching, removal refusal and normal available ancestry behavior.
+
+Reviewer diagnosis was local and read-only. Initial diagnostic commands did not
+explicitly set command-local no-lazy-fetch flags; no fetch command was issued
+or observed. A later read of the selected store's local configuration found no
+partial-clone/promisor keys. This statement is separate from the verified flags
+in the revised source. No cleanup, fetch/repair, tests, dependency changes or
+production edits were performed by this reviewer. See the
+[scoped implementation report](2026-11-11-unavailable-submodule-commit-cleanup.md).
+
+Before this documentation update, normal local-access sync status returned
+`clean: false` with no active lock. No shared ledger was edited.
 
 ## Follow-up: registered submodule root junction
 

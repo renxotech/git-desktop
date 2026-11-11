@@ -17,14 +17,30 @@ function identity(stat: Awaited<ReturnType<typeof Fs.lstat>>) {
     : `${object}${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}`
 }
 
-/** Reject link ancestors, including the cleanup root itself. */
-export async function verifyOrdinaryDirectory(path: string): Promise<void> {
+/** Reject link ancestors; optionally permit absent uninitialized directories. */
+export async function verifyOrdinaryDirectory(
+  path: string,
+  allowMissing = false
+): Promise<void> {
   const absolute = Path.resolve(path)
   const parent = Path.dirname(absolute)
   if (parent !== absolute) {
-    await verifyOrdinaryDirectory(parent)
+    await verifyOrdinaryDirectory(parent, allowMissing)
   }
-  const stat = await Fs.lstat(absolute)
+  let stat: Awaited<ReturnType<typeof Fs.lstat>>
+  try {
+    stat = await Fs.lstat(absolute)
+  } catch (error) {
+    if (
+      allowMissing === true &&
+      error instanceof Error &&
+      'code' in error &&
+      error.code === 'ENOENT'
+    ) {
+      return
+    }
+    throw error
+  }
   if (!stat.isDirectory() || stat.isSymbolicLink()) {
     throw new Error(`Cleanup requires an ordinary directory: ${absolute}`)
   }

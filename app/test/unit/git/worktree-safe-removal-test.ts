@@ -123,16 +123,27 @@ async function fileSnapshot(root: string): Promise<ReadonlyArray<string>> {
   return entries
 }
 
-async function junctionSubmoduleFixture(t: TestContext) {
+async function junctionSubmoduleFixture(
+  t: TestContext,
+  retainAmbiguousMetadata = false
+) {
   const f = await fixture(t, true)
-  // Retain the worktree-owned metadata, as an existing initialized checkout
-  // would when its working directory is replaced by a shared junction.
+  const moduleMetadata = await run(f.module, 'rev-parse', '--absolute-git-dir')
+  // Successful link-only fixtures have no ambiguous inactive owner in the
+  // selected admin container. Keep setup-only private metadata intact outside
+  // that container; separate regressions retain it to verify refusal.
+  if (!retainAmbiguousMetadata) {
+    await Fs.rename(
+      moduleMetadata,
+      Path.join(f.root, 'preserved-private-module-metadata')
+    )
+  }
   await Fs.unlink(Path.join(f.module, '.git'))
   await Fs.unlink(Path.join(f.module, 'module.txt'))
   await Fs.rmdir(f.module)
   const target = Path.join(f.repo.path, 'module')
   await Fs.symlink(target, f.module, 'junction')
-  return { ...f, target }
+  return { ...f, target, moduleMetadata }
 }
 
 async function committedRepositoryFixture(t: TestContext) {
@@ -241,6 +252,249 @@ describe('committed repository-shaped fixtures during worktree cleanup', () => {
 })
 
 describe('safe worktree removal with real filesystem fixtures', () => {
+  it('blocks ambiguous inactive metadata through a junction for stale and external-live stores', async t => {
+    for (const externallyLive of [false, true]) {
+      const f = await junctionSubmoduleFixture(t, true)
+      if (externallyLive) {
+        await Fs.unlink(Path.join(f.target, '.git'))
+        await Fs.writeFile(
+          Path.join(f.target, '.git'),
+          `gitdir: ${f.moduleMetadata}\n`
+        )
+      }
+      const beforeTarget = await fileSnapshot(f.target)
+      const beforeMetadata = await fileSnapshot(f.moduleMetadata)
+      intercept = async ([, cwd]) => {
+        assert.notEqual(Path.resolve(cwd), Path.resolve(f.module))
+        assert.notEqual(Path.resolve(cwd), Path.resolve(f.target))
+      }
+      await assert.rejects(f.check(), /Cannot establish private ownership/)
+      intercept = undefined
+      assert.deepEqual(await fileSnapshot(f.target), beforeTarget)
+      assert.deepEqual(await fileSnapshot(f.moduleMetadata), beforeMetadata)
+      assert.match(await f.branch(), /finished/)
+      assert.equal(await exists(f.linked), true)
+    }
+  })
+
+  it('classifies an absent nested submodule parent while rejecting existing linked ancestors', async t => {
+    const f = await fixture(t)
+    const moduleSource = await setup(t)
+    await run(
+      moduleSource.path,
+      'commit',
+      '--allow-empty',
+      '-m',
+      'nested module'
+    )
+    const moduleSha = await run(moduleSource.path, 'rev-parse', 'HEAD')
+    await Fs.writeFile(
+      Path.join(f.repo.path, '.gitmodules'),
+      '[submodule "nested"]\n\tpath = nested/more/module\n\turl = ../module\n'
+    )
+    await run(f.repo.path, 'add', '--', '.gitmodules')
+    await run(
+      f.repo.path,
+      'update-index',
+      '--add',
+      '--cacheinfo',
+      `160000,${moduleSha},nested/more/module`
+    )
+    await run(f.repo.path, 'commit', '-m', 'record uninitialized nested module')
+    await run(f.linked, 'merge', 'master')
+    for (const relative of ['nested/more/module', 'nested/more', 'nested']) {
+      const path = Path.join(f.linked, relative)
+      if (await exists(path)) {
+        await Fs.rmdir(path)
+      }
+    }
+    const confirmed = await f.check()
+    assert.equal(confirmed.hasFiles, false)
+    assert.equal(confirmed.submodules[0].state, 'uninitialized')
+    assert.equal(
+      confirmed.submodules[0].path,
+      Path.join('nested', 'more', 'module')
+    )
+    const external = Path.join(f.root, 'external-parent')
+    await Fs.mkdir(external)
+    await Fs.writeFile(Path.join(external, 'sentinel'), 'external parent work')
+    await Fs.symlink(external, Path.join(f.linked, 'nested'), 'junction')
+    await assert.rejects(f.check(), /ordinary directory/)
+    assert.equal(
+      await Fs.readFile(Path.join(external, 'sentinel'), 'utf8'),
+      'external parent work'
+    )
+    await Fs.unlink(Path.join(f.linked, 'nested'))
+    await remove(f.repo.path, await f.check(), false, true)
+    assert.equal(await exists(f.linked), false)
+    assert.equal(await f.branch(), '')
+  })
+
+  it('returns a clear blocker for a target commit absent from the local module store without fetching', async t => {
+    const f = await fixture(t, true)
+    const foreign = await setup(t)
+    await Fs.writeFile(
+      Path.join(foreign.path, 'foreign.txt'),
+      'foreign target object'
+    )
+    await run(foreign.path, 'add', '.')
+    await run(foreign.path, 'commit', '-m', 'independent target')
+    const missing = await run(foreign.path, 'rev-parse', 'HEAD')
+    await run(
+      f.repo.path,
+      'update-index',
+      '--cacheinfo',
+      `160000,${missing},module`
+    )
+    await run(
+      f.repo.path,
+      'commit',
+      '-m',
+      'target records unavailable module commit'
+    )
+    const metadata = await run(f.module, 'rev-parse', '--absolute-git-dir')
+    const originalHead = await Fs.readFile(Path.join(metadata, 'HEAD'))
+    const originalIndex = await Fs.readFile(Path.join(metadata, 'index'))
+    const calls: ExecArgs[] = []
+    intercept = async args => {
+      calls.push(args)
+    }
+    const confirmed = await f.check()
+    const module = confirmed.submodules[0]
+    assert.equal(confirmed.hasFiles, true)
+    assert.equal(module.state, 'blocked')
+    assert.equal(module.issues[0].kind, 'target-unavailable')
+    assert.equal(module.issues[0].path, 'module')
+    assert.equal(module.issues[0].revision, missing)
+    assert.match(module.issues[0].message, /unavailable.*local object store/)
+    assert.equal(module.issues[0].message.includes(missing), true)
+    assert.doesNotMatch(module.issues[0].message, /fatal:|not a valid commit/)
+    await assert.rejects(
+      remove(f.repo.path, confirmed, true, true),
+      /files must be handled/
+    )
+    assert.equal(
+      calls.some(([args]) => args.includes('fetch')),
+      false
+    )
+    const probes = calls.filter(
+      ([args]) => args[0] === 'rev-parse' && args.includes('--quiet')
+    )
+    assert(probes.length > 0)
+    for (const [, , options] of probes) {
+      assert.equal(options?.env?.GIT_NO_LAZY_FETCH, '1')
+      assert.equal(options?.env?.GIT_OPTIONAL_LOCKS, '0')
+    }
+    intercept = undefined
+    assert.deepEqual(
+      await Fs.readFile(Path.join(metadata, 'HEAD')),
+      originalHead
+    )
+    assert.deepEqual(
+      await Fs.readFile(Path.join(metadata, 'index')),
+      originalIndex
+    )
+    assert.equal(
+      (await dugite.exec(['cat-file', '-e', `${missing}^{commit}`], f.module))
+        .exitCode,
+      128
+    )
+    assert.equal(
+      await Fs.readFile(Path.join(f.module, 'module.txt'), 'utf8'),
+      'module original\n'
+    )
+    assert.match(await f.branch(), /finished/)
+  })
+
+  it('returns a typed unavailable-HEAD blocker and preserves unborn local metadata', async t => {
+    const f = await fixture(t, true)
+    const metadata = await run(f.module, 'rev-parse', '--absolute-git-dir')
+    await run(f.module, 'symbolic-ref', 'HEAD', 'refs/heads/missing-local-head')
+    const originalHead = await Fs.readFile(Path.join(metadata, 'HEAD'))
+    const originalIndex = await Fs.readFile(Path.join(metadata, 'index'))
+    const confirmed = await f.check()
+    assert.equal(confirmed.submodules[0].state, 'blocked')
+    assert.equal(confirmed.submodules[0].issues[0].kind, 'head-unavailable')
+    assert.equal(confirmed.submodules[0].issues[0].revision, 'HEAD')
+    assert.equal(confirmed.submodules[0].issues[0].path, 'module')
+    await assert.rejects(
+      remove(f.repo.path, confirmed, true, true),
+      /files must be handled/
+    )
+    assert.deepEqual(
+      await Fs.readFile(Path.join(metadata, 'HEAD')),
+      originalHead
+    )
+    assert.deepEqual(
+      await Fs.readFile(Path.join(metadata, 'index')),
+      originalIndex
+    )
+    assert.match(await f.branch(), /finished/)
+  })
+
+  it('accepts normal ancestry when the target descendant commit is locally available', async t => {
+    const f = await fixture(t, true)
+    const original = await run(f.module, 'rev-parse', 'HEAD')
+    await run(f.module, 'commit', '--allow-empty', '-m', 'available descendant')
+    const target = await run(f.module, 'rev-parse', 'HEAD')
+    await run(f.module, 'checkout', '--detach', original)
+    await run(
+      f.repo.path,
+      'update-index',
+      '--cacheinfo',
+      `160000,${target},module`
+    )
+    await run(f.repo.path, 'commit', '-m', 'record available descendant target')
+    const confirmed = await f.check()
+    assert.equal(confirmed.hasFiles, false)
+    assert.equal(confirmed.submodules[0].state, 'clean')
+    assert.deepEqual(confirmed.submodules[0].issues, [])
+    assert.equal(confirmed.submodules[0].head, original)
+    assert.equal(confirmed.submodules[0].target, target)
+    assert(await remove(f.repo.path, confirmed, false, true))
+    assert.equal(await exists(f.linked), false)
+  })
+
+  it('distinguishes an unavailable intermediate history object from missing endpoints', async t => {
+    const f = await fixture(t, true)
+    const original = await run(f.module, 'rev-parse', 'HEAD')
+    await run(f.module, 'commit', '--allow-empty', '-m', 'intermediate history')
+    const intermediate = await run(f.module, 'rev-parse', 'HEAD')
+    await run(f.module, 'commit', '--allow-empty', '-m', 'available endpoint')
+    const target = await run(f.module, 'rev-parse', 'HEAD')
+    const metadata = await run(f.module, 'rev-parse', '--absolute-git-dir')
+    await run(f.module, 'checkout', '--detach', original)
+    await run(
+      f.repo.path,
+      'update-index',
+      '--cacheinfo',
+      `160000,${target},module`
+    )
+    await run(
+      f.repo.path,
+      'commit',
+      '-m',
+      'record target with incomplete local history'
+    )
+    const object = Path.join(
+      metadata,
+      'objects',
+      intermediate.slice(0, 2),
+      intermediate.slice(2)
+    )
+    await Fs.chmod(object, 0o666)
+    await Fs.unlink(object)
+    const confirmed = await f.check()
+    assert.equal(confirmed.submodules[0].state, 'blocked')
+    assert.equal(confirmed.submodules[0].issues[0].kind, 'history-unavailable')
+    assert.equal(confirmed.submodules[0].issues[0].revision, target)
+    await assert.rejects(
+      remove(f.repo.path, confirmed, true, true),
+      /files must be handled/
+    )
+    assert.match(await f.branch(), /finished/)
+  })
+
   it('unlinks a registered submodule junction without inspecting or changing the main submodule target', async t => {
     const f = await junctionSubmoduleFixture(t)
     const metadata = await run(f.target, 'rev-parse', '--absolute-git-dir')
@@ -554,6 +808,12 @@ describe('safe worktree removal with real filesystem fixtures', () => {
       const confirmed = await f.check()
       assert.equal(confirmed.hasFiles, true)
       assert.equal(confirmed.submodules[0].state, 'blocked')
+      if (change === 'unique-commit') {
+        assert.equal(
+          confirmed.submodules[0].issues[0].kind,
+          'ancestry-unproven'
+        )
+      }
       await assert.rejects(
         remove(f.repo.path, confirmed, true, true),
         /files must be handled/
