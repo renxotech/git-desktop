@@ -1,9 +1,14 @@
 # Build and run the notification correction
 
-Use the isolated worktree, not the main checkout. Source is on
+Use the isolated worktree, not the main checkout. The current pagination/worktree fixes follow c31e726db2. Source is on
 `codex/notification-initialization`, tracking `origin/desktop-improvements`.
 No package build or launch has been performed for this corrected source; the
 user owns the build/run and original-state trace.
+
+The current source also migrates the traced API pagination parser and excludes
+branches checked out in any worktree from automatic fast-forward, including
+bounded checkout-race handling. The output below is new so the user's running
+tracefix package remains untouched.
 
 The earlier user-built v2026.11.11_03-dirty package exposed a trace-helper
 startup bug: Electron makes `process.traceDeprecation` read-only in that launch
@@ -18,13 +23,13 @@ Open PowerShell and run:
 
 ```powershell
 Set-Location 'D:\code\git-desktop\.worktrees\notification-initialization'
-.\build.cmd -AllowDirty -NoLaunch -NonInteractive -OutputDirectory dist/notification-init-tracefix-20261111
+.\build.cmd -AllowDirty -NoLaunch -NonInteractive -OutputDirectory dist/runtime-fixes-20261111
 ```
 
 This builds an untagged dirty preview, leaves other packages intact and does not
 launch the app. A successful build creates:
 
-`D:\code\git-desktop\.worktrees\notification-initialization\dist\notification-init-tracefix-20261111\GitDesktop-win32-x64\GitDesktop.exe`
+`D:\code\git-desktop\.worktrees\notification-initialization\dist\runtime-fixes-20261111\GitDesktop-win32-x64\GitDesktop.exe`
 
 The normal local builder uses an 8 GB compiler allowance. Leave the worktree's
 source and review/evidence files unchanged while building; its existing build
@@ -40,8 +45,8 @@ fetch, change repositories or configure notifications.
 
 ```powershell
 $env:DESKTOP_TRACE_DEPRECATIONS = 'true'
-$env:DESKTOP_DEPRECATION_TRACE_FILE = 'D:\code\git-desktop\.worktrees\notification-initialization\dist\notification-init-tracefix-20261111\deprecation-trace.jsonl'
-& 'D:\code\git-desktop\.worktrees\notification-initialization\dist\notification-init-tracefix-20261111\GitDesktop-win32-x64\GitDesktop.exe' --trace-deprecation --enable-logging=file --log-file='D:\code\git-desktop\.worktrees\notification-initialization\dist\notification-init-tracefix-20261111\electron.log'
+$env:DESKTOP_DEPRECATION_TRACE_FILE = 'D:\code\git-desktop\.worktrees\notification-initialization\dist\runtime-fixes-20261111\deprecation-trace.jsonl'
+& 'D:\code\git-desktop\.worktrees\notification-initialization\dist\runtime-fixes-20261111\GitDesktop-win32-x64\GitDesktop.exe' --trace-deprecation --enable-logging=file --log-file='D:\code\git-desktop\.worktrees\notification-initialization\dist\runtime-fixes-20261111\electron.log'
 ```
 
 The explicit trace flag accepts only trimmed, case-insensitive `true`; unset,

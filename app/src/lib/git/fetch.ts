@@ -1,4 +1,4 @@
-import { git, IGitStringExecutionOptions } from './core'
+import { git, GitError, IGitStringExecutionOptions } from './core'
 import { Repository } from '../../models/repository'
 import { IFetchProgress } from '../../models/progress'
 import { FetchProgressParser, executionOptionsWithProgress } from '../progress'
@@ -6,6 +6,7 @@ import { IRemote } from '../../models/remote'
 import { ITrackingBranch } from '../../models/branch'
 import { envForRemoteOperation } from './environment'
 import { readSandboxRules } from '../sandbox-rule'
+import { listWorktrees } from './worktree'
 
 async function getFetchArgs(
   remote: string,
@@ -122,16 +123,26 @@ export async function fastForwardBranches(
   repository: Repository,
   branches: ReadonlyArray<ITrackingBranch>
 ): Promise<void> {
-  const rules = await readSandboxRules(repository.path)
-  branches = branches.filter(b => !rules.some(r => r.branch === b.ref))
-  if (branches.length === 0) {
-    return
-  }
+  // A candidate can become checked out after discovery, so enforce this at the
+  // mutation boundary as well. Failed inventory must stop the update.
+  while (branches.length > 0) {
+    const worktrees = await listWorktrees(repository)
+    const checkedOutRefs = new Set(worktrees.map(worktree => worktree.branch))
+    const rules = await readSandboxRules(repository.path)
+    branches = branches.filter(
+      branch =>
+        !checkedOutRefs.has(branch.ref) &&
+        !rules.some(rule => rule.branch === branch.ref)
+    )
+    if (branches.length === 0) {
+      return
+    }
 
-  const refPairs = branches.map(branch => `${branch.upstreamRef}:${branch.ref}`)
+    const refPairs = branches.map(
+      branch => `${branch.upstreamRef}:${branch.ref}`
+    )
 
-  await git(
-    [
+    const args = [
       'fetch',
       '.',
       // Make sure we don't try to update branches that can't be fast-forwarded
@@ -143,19 +154,42 @@ export async function fastForwardBranches(
       // Take branch refs from stdin to circumvent shell max line length
       // limitations (mainly on Windows)
       '--stdin',
-    ],
-    repository.path,
-    'fastForwardBranches',
-    {
+    ]
+    const result = await git(args, repository.path, 'fastForwardBranches', {
       // Fetch exits with an exit code of 1 if one or more refs failed to update
       // which is what we expect will happen
-      successExitCodes: new Set([0, 1]),
+      // Inspect 128 locally only to distinguish Git's checkout-race refusal
+      // from a genuine failure. Every other 128 is rethrown below.
+      successExitCodes: new Set([0, 1, 128]),
       env: {
         // This will make sure the reflog entries are correct after
         // fast-forwarding the branches.
         GIT_REFLOG_ACTION: 'pull',
       },
       stdin: refPairs.join('\n'),
+    })
+    if (result.exitCode !== 128) {
+      return
     }
-  )
+
+    const diagnostic = result.stderr.trimEnd()
+    const refused = branches.find(branch => {
+      const prefix = `fatal: refusing to fetch into branch '${branch.ref}' checked out at '`
+      return (
+        diagnostic.startsWith(prefix) &&
+        diagnostic.length > prefix.length + 1 &&
+        diagnostic.endsWith("'") &&
+        !diagnostic.includes('\n') &&
+        !diagnostic.includes('\r')
+      )
+    })
+    if (refused === undefined) {
+      throw new GitError(result, args, result.stderr)
+    }
+
+    // Never override Git's guard. Drop this raced branch, refresh the inventory
+    // and retry the rest. Every retry removes at least one candidate, bounding
+    // attempts by the original candidate count even during repeated checkouts.
+    branches = branches.filter(branch => branch.ref !== refused.ref)
+  }
 }

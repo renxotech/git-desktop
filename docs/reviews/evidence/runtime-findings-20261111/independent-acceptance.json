@@ -1,0 +1,55 @@
+{
+  "Reviewer": "notification_review",
+  "Branch": "codex/notification-initialization",
+  "Base": "c31e726db240980d93979de882223bf8db1c1b64",
+  "Source": [
+    {
+      "Path": "app/src/lib/api.ts",
+      "SHA256": "478038F19CD01C2AD539AAEB4011110BA6C784C7BE4D01C71B59A1656D458E46"
+    },
+    {
+      "Path": "app/src/lib/git/for-each-ref.ts",
+      "SHA256": "05BE25E54F3344E83A4FD8C6AD6376CD1CF5907BDD1B8EC7ADEBFBCBFD0E2799"
+    },
+    {
+      "Path": "app/src/lib/git/fetch.ts",
+      "SHA256": "FDA6FD4586D2F2AE68FF292F3DD8D51DF2D3F31F4427F28B7D1C3F685C61B730"
+    }
+  ],
+  "Harnesses": [
+    {
+      "Path": "pagination-contract-check.cjs",
+      "SHA256": "661721AEA1732B1E8780B4DA4D1F7FE1F01EB47AEA263EB216E9A481BC88F3F1"
+    },
+    {
+      "Path": "worktree-fastforward-contract-check.cjs",
+      "SHA256": "9C1E8F5272E2E2887ED858D2AEBCB84F4923ADB3946F0B3986D8112D50AC441C"
+    }
+  ],
+  "Pagination": {
+    "Passed": 16,
+    "Coverage": "Exact production functions extracted with TS AST: absolute/relative/query-only/enterprise paths, encoding/duplicates, empty/fragment/malformed/opaque, comma target, double slash path, growth schedules/cap; legacy parser replaced with throwing stub and never invoked"
+  },
+  "FastForward": {
+    "GitProcessAdapter": "Actual production query/parser/worktree/fetch modules transpiled; injected thin process adapter executes git with isolated config; sandbox policy provider stubbed",
+    "Passed": 9,
+    "Coverage": "Real Git in one synthetic disposable repository: candidate query and mutation boundary, checked-out main/linked branches, eligible update, unchanged FETCH_HEAD, sandbox rule exclusion, fail-closed inventory error, real checkout race with remaining branch progress, genuine/unsubmitted/mixed128 propagation"
+  },
+  "Static": {
+    "IndependentAppTypeScriptExit": 0,
+    "ScopedWhitespacePass": true
+  },
+  "Findings": [
+    "Pagination placeholder no-path compatibility edge accepted and fixed; null preserved for blank and fragment-only links",
+    "No remaining actionable source findings"
+  ],
+  "Environment": "Initial restricted Git/MSYS helper could not create its namespace; identical authorized local-only check passed with normal process access",
+  "Cleanup": "All owned disposable Git fixture directories retired; no active QA processes",
+  "Limits": [
+    "No frontend/UI/browser tests or AppStore UI execution",
+    "No network/user-repository fetch/push/ref changes",
+    "No app launch/package build/commit/push",
+    "New package runtime warning absence and user worktree flow acceptance remain pending user build/run"
+  ],
+  "UTC": "2026-11-11T02:33:34.0312466Z"
+}
