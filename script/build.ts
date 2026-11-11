@@ -68,6 +68,7 @@ import { verifyInjectedSassVariables } from './validate-sass/validate-all'
 import { join } from 'path'
 import { copyCopilotDependency } from './copilot'
 import { getNpmCommand } from './npm'
+import { copyStaticResources } from './static-resources'
 
 const isPublishableBuild = isPublishable()
 const isDevelopmentBuild = getChannel() === 'development'
@@ -93,7 +94,11 @@ console.log('Packaging emoji…')
 copyEmoji()
 
 console.log('Copying static resources…')
-copyStaticResources()
+copyStaticResources(
+  path.join(projectRoot, 'app', 'static', process.platform),
+  path.join(projectRoot, 'app', 'static', 'common'),
+  path.join(outRoot, 'static')
+)
 
 console.log('Parsing license metadata…')
 generateLicenseMetadata(outRoot)
@@ -281,25 +286,6 @@ function copyEmoji() {
   const emojiJSON = path.join(projectRoot, 'gemoji', 'db', 'emoji.json')
   const emojiJSONDestination = path.join(outRoot, 'emoji.json')
   removeAndCopy(emojiJSON, emojiJSONDestination)
-}
-
-function copyStaticResources() {
-  const dirName = process.platform
-  const platformSpecific = path.join(projectRoot, 'app', 'static', dirName)
-  const common = path.join(projectRoot, 'app', 'static', 'common')
-  const destination = path.join(outRoot, 'static')
-  rmSync(destination, { recursive: true, force: true })
-  if (existsSync(platformSpecific)) {
-    cpSync(platformSpecific, destination, {
-      recursive: true,
-      verbatimSymlinks: true,
-    })
-  }
-  cpSync(common, destination, {
-    recursive: true,
-    force: false,
-    verbatimSymlinks: true,
-  })
 }
 
 function moveAnalysisFiles() {
