@@ -156,3 +156,65 @@ its established state directory,
 `D:/extcode/github-desktop/.git/codex-upstream-sync`, showed only the retained run
 directory and no `lock`. No clean-status assertion is inferred from that failed
 command, and no shared ledger was edited.
+
+## Follow-up: registered submodule root junction
+
+Accepted and fixed: an exact registered gitlink entry represented by a junction
+was rejected as a nonordinary submodule directory before the existing link-only
+inventory and deletion path could handle it. Independent source assessment
+passes the frozen snapshot at `cf2bdb187266d450ba7ffe91db172b845ce079c9`:
+
+| Source | SHA-256 |
+| --- | --- |
+| `app/src/lib/git/worktree-removal-submodules.ts` | `454EA59F0B3A970AFE9B905CD699BA177EA2BCA42F5A02E82DCE1AE02DD0268C` |
+| `app/src/ui/branches/unmerged-branches-dialog.tsx` | `AE3CAC3E61D59BE6F5E20DF047F5C58871B8517E4DE170E068064B2E74F93D66` |
+
+The exception applies only to the exact indexed gitlink root. Its parent and all
+ancestors must pass ordinary-directory proof before existence or link
+classification. The selected target must still contain the gitlink. A link is
+recorded with explicit `linked` state, readlink target and null HEAD/Git directory,
+then immediately skipped: no target `.git` read, Git command in the linked root,
+or recursive target visit occurs. The null Git directory excludes the target
+from retention paths and short-circuits recovery pointer reads. Existing
+worktree-owned inactive metadata remains subject to ownership, link and object
+routing checks before archival.
+
+The unchanged full file inventory records link identity and readlink text
+without descent. Action-time repeated snapshots reject replacement, and the
+unchanged removal helper checks ordinary parents before unlinking that entry.
+Root and ancestor junctions remain rejected. The committed-repository-data proof,
+metadata ownership/alternate guards, branch compare-and-delete and partial-error
+handling are unchanged. Reviewed helper hashes still match their previously
+accepted values above. Existing dirty local-history diagnostics were preserved
+as the baseline, rather than replaced by this correction.
+
+Accepted and fixed copy finding: saying every linked target is preserved
+overclaims behavior when a target is itself independently inside the selected
+cleanup tree. The backend does not follow the link, but ordinary independently
+inventoried target files could still be removed. The final dialog now describes
+link-only removal and no link traversal or target archival through the link;
+the linked row shows its target without promising universal preservation.
+The ignored-links paragraph uses the same accurate wording. This correction
+requires no target read or resolution. The external main-checkout case remains
+protected by the no-traversal design.
+
+This is source review only; no UI/browser/manual tests were performed.
+Independent backend QA separately covers real junction cleanup,
+dirty target and dependency/metadata preservation, no Git calls at target paths,
+stale junction replacement and the existing preservation regressions. QA reported
+41/41 backend tests passing against the unchanged helper and the earlier UI hash
+`4B4E754BCF165E7B582039C2A00656510F1C648E19398480381FD3AB42537E3D`.
+The final UI-only copy change was independently source-reviewed after the safe
+QA boundary; no backend source changed, so it does not invalidate backend
+evidence or establish UI execution coverage. No unresolved actionable source
+issue remains in this bounded correction. This review authorizes no actual
+user checkout deletion, commit, integration, build, launch or push.
+
+The previously documented path-based concurrent-writer limitation remains.
+Normal restricted sync status failed while reading protected existing submodule
+metadata; direct enumeration of the established sync state directory showed no
+`lock` immediately before this documentation append. This reviewer changed only
+this report and ran no tests or production mutations. See the
+[scoped implementation report](2026-11-11-submodule-root-junction-cleanup.md).
+
+Commit scope: the junction correction is isolated from the pre-existing local-history diagnostic changes and their four regressions. The accepted 41-test run exercised the combined dirty snapshot; the scoped commit reuses that evidence for unchanged junction behavior and is not an execution receipt for its exact tree. The linked branch omits only the unrelated issues property when extracted onto HEAD. Three junction tests and shared test helpers are included; baseline local-history code/tests/review and a later unknown-owner second ancestor-check argument remain unstaged. UI runtime coverage remains excluded.

@@ -9,10 +9,16 @@ import {
 
 export interface IRemovalSubmodule {
   readonly path: string
-  readonly state: 'clean' | 'uninitialized' | 'incomplete' | 'blocked'
+  readonly state:
+    | 'clean'
+    | 'uninitialized'
+    | 'incomplete'
+    | 'linked'
+    | 'blocked'
   readonly head: string | null
   readonly target: string | null
   readonly gitDir: string | null
+  readonly linkTarget?: string
   readonly blockers: ReadonlyArray<string>
 }
 
@@ -120,6 +126,9 @@ export async function checkRemovalSubmodules(
           'The selected target does not retain this submodule commit.'
         )
       }
+      // The gitlink root alone may be a link. Never allow a linked ancestor
+      // to route classification or later cleanup into another directory.
+      await verifyOrdinaryDirectory(Path.dirname(absolute))
       if (!(await cleanupPathExists(absolute))) {
         result.push({
           path,
@@ -127,6 +136,20 @@ export async function checkRemovalSubmodules(
           head: null,
           target: expected,
           gitDir: null,
+          blockers,
+        })
+        continue
+      }
+      if ((await Fs.lstat(absolute)).isSymbolicLink()) {
+        // Shared checkouts are represented by one disposable link, not by the
+        // target's files or Git metadata. Do not read .git or run Git there.
+        result.push({
+          path,
+          state: blockers.length ? 'blocked' : 'linked',
+          head: null,
+          target: expected,
+          gitDir: null,
+          linkTarget: await Fs.readlink(absolute),
           blockers,
         })
         continue

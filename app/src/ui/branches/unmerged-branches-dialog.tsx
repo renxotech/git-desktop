@@ -285,8 +285,8 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
                 <p>
                   Ignored files may include dependencies, build output or local
                   configuration. Review these paths before deleting them.
-                  Directory links and junctions will be unlinked; their targets
-                  will be kept:
+                  Directory links and junctions will be unlinked; cleanup does
+                  not follow their targets:
                 </p>
                 <ul>
                   {removal.ignoredPaths.map(path => (
@@ -308,8 +308,10 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
               removal.metadataPaths.length > 0) && (
               <>
                 <p>
-                  Submodule checkouts will be removed. Their complete Git
-                  metadata, including local refs, stashes and reflogs, will be
+                  Submodule checkouts will be removed. Linked submodule roots
+                  will only be unlinked; cleanup does not follow these links or
+                  archive their targets. Any Git metadata owned by this
+                  worktree, including local refs, stashes and reflogs, will be
                   retained here:
                 </p>
                 <p className="health-path">{removal.metadataBackupRoot}</p>
@@ -319,6 +321,8 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
                       {module.path}:{' '}
                       {module.state === 'incomplete'
                         ? 'empty checkout with missing index; intent is unknown'
+                        : module.state === 'linked'
+                        ? `link only; target: ${module.linkTarget}`
                         : module.state}
                       {module.blockers.map(reason => (
                         <p key={reason}>{reason}</p>
@@ -333,7 +337,8 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
                     onChange={this.onSubmodulesChanged}
                     disabled={busy}
                   />{' '}
-                  Remove these submodule checkouts and retain their Git metadata
+                  Remove these submodule checkouts or links and preserve their
+                  Git metadata
                 </label>
               </>
             )}

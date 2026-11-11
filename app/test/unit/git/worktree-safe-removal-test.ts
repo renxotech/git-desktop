@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { before, describe, it, mock, type TestContext } from 'node:test'
 import * as Fs from 'fs/promises'
 import * as Path from 'path'
+import { createHash } from 'crypto'
 import * as dugite from 'dugite'
 import { createTempDirectory } from '../../helpers/temp'
 
@@ -96,6 +97,42 @@ async function exists(path: string) {
       throw e
     }
   )
+}
+
+async function fileSnapshot(root: string): Promise<ReadonlyArray<string>> {
+  const entries: string[] = []
+  const visit = async (path: string): Promise<void> => {
+    const stat = await Fs.lstat(path)
+    const relative = Path.relative(root, path)
+    if (stat.isSymbolicLink()) {
+      entries.push(`${relative}:link:${await Fs.readlink(path)}`)
+    } else if (stat.isDirectory()) {
+      entries.push(`${relative}:directory`)
+      for (const name of (await Fs.readdir(path)).sort()) {
+        await visit(Path.join(path, name))
+      }
+    } else {
+      entries.push(
+        `${relative}:file:${createHash('sha256')
+          .update(await Fs.readFile(path))
+          .digest('hex')}`
+      )
+    }
+  }
+  await visit(root)
+  return entries
+}
+
+async function junctionSubmoduleFixture(t: TestContext) {
+  const f = await fixture(t, true)
+  // Retain the worktree-owned metadata, as an existing initialized checkout
+  // would when its working directory is replaced by a shared junction.
+  await Fs.unlink(Path.join(f.module, '.git'))
+  await Fs.unlink(Path.join(f.module, 'module.txt'))
+  await Fs.rmdir(f.module)
+  const target = Path.join(f.repo.path, 'module')
+  await Fs.symlink(target, f.module, 'junction')
+  return { ...f, target }
 }
 
 async function committedRepositoryFixture(t: TestContext) {
@@ -204,6 +241,95 @@ describe('committed repository-shaped fixtures during worktree cleanup', () => {
 })
 
 describe('safe worktree removal with real filesystem fixtures', () => {
+  it('unlinks a registered submodule junction without inspecting or changing the main submodule target', async t => {
+    const f = await junctionSubmoduleFixture(t)
+    const metadata = await run(f.target, 'rev-parse', '--absolute-git-dir')
+    await Fs.mkdir(Path.join(f.target, 'node_modules'))
+    await Fs.writeFile(
+      Path.join(f.target, 'node_modules', 'dependency.js'),
+      'shared dependency sentinel'
+    )
+    await Fs.writeFile(Path.join(f.target, 'local.txt'), 'main-only work')
+    await Fs.writeFile(Path.join(f.target, 'module.txt'), 'main modified work')
+    const beforeTarget = await fileSnapshot(f.target)
+    const beforeMetadata = await fileSnapshot(metadata)
+    intercept = async ([, cwd]) => {
+      const relative = Path.relative(f.module, cwd)
+      assert(
+        relative.startsWith('..') || Path.isAbsolute(relative),
+        `Git must not inspect the linked submodule: ${cwd}`
+      )
+      assert.notEqual(Path.resolve(cwd), Path.resolve(f.target))
+    }
+    const confirmed = await f.check()
+    assert.equal(confirmed.hasFiles, false)
+    assert.equal(confirmed.submodules[0].state, 'linked')
+    assert.equal(confirmed.submodules[0].head, null)
+    assert.equal(confirmed.submodules[0].gitDir, null)
+    assert.equal(confirmed.metadataPaths.includes(metadata), false)
+    assert.equal(
+      confirmed.files.some(e => e.path === 'module' && e.kind === 'link'),
+      true
+    )
+    assert.equal(
+      confirmed.files.some(e => e.path.startsWith(`module${Path.sep}`)),
+      false
+    )
+    await assert.rejects(
+      remove(f.repo.path, confirmed),
+      /confirm removal of submodule/
+    )
+    await remove(f.repo.path, confirmed, false, true)
+    assert.equal(await exists(f.linked), false)
+    assert.equal(await f.branch(), '')
+    assert.deepEqual(await fileSnapshot(f.target), beforeTarget)
+    assert.deepEqual(await fileSnapshot(metadata), beforeMetadata)
+  })
+
+  it('rejects a registered submodule junction target replaced after confirmation', async t => {
+    const f = await junctionSubmoduleFixture(t)
+    const confirmed = await f.check()
+    const replacement = Path.join(f.root, 'replacement-module')
+    await Fs.mkdir(replacement)
+    await Fs.writeFile(Path.join(replacement, 'sentinel'), 'replacement work')
+    await Fs.unlink(f.module)
+    await Fs.symlink(replacement, f.module, 'junction')
+    await assert.rejects(
+      remove(f.repo.path, confirmed, true, true),
+      /changed|inventory/
+    )
+    assert.equal(
+      await Fs.readFile(Path.join(replacement, 'sentinel'), 'utf8'),
+      'replacement work'
+    )
+    assert.equal(
+      await Fs.readFile(Path.join(f.target, 'module.txt'), 'utf8'),
+      'module original\n'
+    )
+    assert.match(await f.branch(), /finished/)
+  })
+
+  it('continues rejecting cleanup junction roots and junction ancestors', async t => {
+    const root = await createTempDirectory(t)
+    const target = Path.join(root, 'target')
+    const link = Path.join(root, 'link')
+    await Fs.mkdir(Path.join(target, 'child'), { recursive: true })
+    await Fs.writeFile(Path.join(target, 'child', 'sentinel'), 'keep target')
+    await Fs.symlink(target, link, 'junction')
+    const { inventoryCleanupFiles } = await import(
+      '../../../src/lib/git/worktree-cleanup-files'
+    )
+    await assert.rejects(inventoryCleanupFiles(link), /ordinary directory/)
+    await assert.rejects(
+      inventoryCleanupFiles(Path.join(link, 'child')),
+      /ordinary directory/
+    )
+    assert.equal(
+      await Fs.readFile(Path.join(target, 'child', 'sentinel'), 'utf8'),
+      'keep target'
+    )
+  })
+
   it('preserves sandbox-protected worktree files before direct cleanup starts', async t => {
     const f = await fixture(t)
     const confirmed = await f.check()
