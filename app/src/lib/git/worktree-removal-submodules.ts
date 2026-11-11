@@ -3,6 +3,10 @@ import * as Fs from 'fs/promises'
 import { git } from './core'
 import { listWorktrees } from './worktree'
 import {
+  ICleanupPolicy,
+  partitionDisposablePaths,
+} from './worktree-disposable-files'
+import {
   inventoryCleanupFiles,
   verifyOrdinaryDirectory,
 } from './worktree-cleanup-files'
@@ -15,6 +19,10 @@ export interface IRemovalSubmodule {
     | 'incomplete'
     | 'linked'
     | 'blocked'
+  readonly changedPaths?: ReadonlyArray<string>
+  readonly untrackedPaths?: ReadonlyArray<string>
+  readonly ignoredPaths?: ReadonlyArray<string>
+  readonly disposablePaths?: ReadonlyArray<string>
   readonly head: string | null
   readonly target: string | null
   readonly gitDir: string | null
@@ -123,7 +131,8 @@ async function gitlinks(path: string) {
 export async function checkRemovalSubmodules(
   root: string,
   targetSha: string,
-  adminPath: string
+  adminPath: string,
+  policy: ICleanupPolicy = { text: null, identity: null }
 ): Promise<ReadonlyArray<IRemovalSubmodule>> {
   const result: IRemovalSubmodule[] = []
   const visit = async (
@@ -140,7 +149,9 @@ export async function checkRemovalSubmodules(
       const issues: IRemovalSubmoduleIssue[] = []
       const addIssue = (issue: IRemovalSubmoduleIssue) => {
         issues.push(issue)
-        blockers.push(issue.message)
+        if (issue.kind === 'head-unavailable') {
+          blockers.push(issue.message)
+        }
       }
       const entry =
         target === null
@@ -155,11 +166,7 @@ export async function checkRemovalSubmodules(
               relative
             )
       const expected = /^160000 commit ([0-9a-f]+)\t/.exec(entry)?.[1] ?? null
-      if (!expected) {
-        blockers.push(
-          'The selected target does not retain this submodule commit.'
-        )
-      }
+
       // The gitlink root alone may be a link. Never allow a linked ancestor
       // to route classification or later cleanup into another directory.
       await verifyOrdinaryDirectory(Path.dirname(absolute), true)
@@ -233,6 +240,11 @@ export async function checkRemovalSubmodules(
           `Cannot prove exclusive submodule metadata ownership: ${path}`
         )
       }
+      if (!(await cleanupPathExists(Path.join(gitDir, 'config')))) {
+        throw new Error(
+          `Submodule metadata lacks ownership configuration: ${path}`
+        )
+      }
       const metadata = await inventoryCleanupFiles(gitDir)
       if (metadata.some(e => e.kind === 'link')) {
         throw new Error(`Submodule metadata contains links: ${path}`)
@@ -259,7 +271,7 @@ export async function checkRemovalSubmodules(
           kind: 'target-unavailable',
           path,
           revision: expected,
-          message: `Submodule ${path}: the selected target requires commit ${expected}, which is unavailable in this submodule's local object store. Make the required history available separately, then review removal again. No fetch or repair is performed.`,
+          message: `Submodule ${path}: target commit ${expected} is unavailable locally. Existing local history will be retained in the verified metadata archive; no fetch or repair is performed.`,
         })
       }
       const incomplete =
@@ -286,9 +298,44 @@ export async function checkRemovalSubmodules(
             '-z',
             '--ignore-submodules=none'
           )
-      if ((status || staged) && !incomplete) {
+      const changedPaths = staged.split('\0').filter(Boolean)
+      const untrackedPaths: string[] = []
+      const ignoredPaths: string[] = []
+      const statusEntries = status.split('\0').filter(Boolean)
+      for (let i = 0; i < statusEntries.length; i++) {
+        const code = statusEntries[i].slice(0, 2)
+        const name = statusEntries[i].slice(3)
+        if (code === '??') {
+          untrackedPaths.push(name)
+        } else if (code === '!!') {
+          ignoredPaths.push(name)
+        } else {
+          changedPaths.push(name)
+          if (code.includes('R') || code.includes('C')) {
+            i++
+          }
+        }
+      }
+      const untracked = await partitionDisposablePaths(
+        root,
+        absolute,
+        untrackedPaths,
+        policy
+      )
+      const ignored = await partitionDisposablePaths(
+        root,
+        absolute,
+        ignoredPaths,
+        policy
+      )
+      if (
+        (changedPaths.length ||
+          untracked.remaining.length ||
+          ignored.remaining.length) &&
+        !incomplete
+      ) {
         blockers.push(
-          'Submodule has staged, modified, untracked or ignored files.'
+          'Submodule has staged, modified, untracked or ignored files outside the disposable policy.'
         )
       }
       if (
@@ -308,14 +355,14 @@ export async function checkRemovalSubmodules(
             kind: 'ancestry-unproven',
             path,
             revision: expected,
-            message: `Submodule ${path}: local history does not prove HEAD ${head} is included in target ${expected}. It may contain additional commits or incomplete history. Resolve this separately, then review removal again.`,
+            message: `Submodule ${path}: local HEAD ${head} is not proven included in target ${expected}. Existing local commits, refs, stashes and reflogs will be retained in the verified metadata archive.`,
           })
         } else if (ancestor.exitCode !== 0) {
           addIssue({
             kind: 'history-unavailable',
             path,
             revision: expected,
-            message: `Submodule ${path}: Git could not verify local history between HEAD ${head} and target ${expected}. Resolve local object or access errors separately, then review removal again. No fetch or repair is performed.`,
+            message: `Submodule ${path}: target ancestry is unavailable. Existing complete local history will be retained in the verified metadata archive. No fetch or repair is performed.`,
           })
         }
       }
@@ -326,14 +373,18 @@ export async function checkRemovalSubmodules(
           : incomplete
           ? 'incomplete'
           : 'clean',
+        changedPaths: incomplete ? [] : [...new Set(changedPaths)],
+        untrackedPaths: untracked.remaining,
+        ignoredPaths: ignored.remaining,
+        disposablePaths: [...untracked.disposable, ...ignored.disposable],
         head,
         target: expected,
         gitDir,
         blockers,
         issues,
       })
-      if (!incomplete && headAvailable && targetAvailable) {
-        await visit(absolute, expected)
+      if (!incomplete && headAvailable) {
+        await visit(absolute, targetAvailable ? expected : null)
       }
     }
   }

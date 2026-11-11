@@ -252,6 +252,7 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
     if (removal) {
       const blocked =
         removal.hasFiles ||
+        removal.submodules.some(module => module.blockers.length > 0) ||
         (removal.ignoredPaths.length > 0 && !this.state.includeIgnored) ||
         ((removal.submodules.length > 0 || removal.metadataPaths.length > 0) &&
           !this.state.includeSubmodules)
@@ -286,6 +287,24 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
                 )}
               </ul>
             )}
+            {removal.disposablePaths.length > 0 && (
+              <details>
+                <summary>
+                  Disposable files matched by .safe_to_remove (
+                  {removal.disposablePaths.length})
+                </summary>
+                <p>
+                  These untracked or ignored paths will be deleted with final
+                  confirmation. Links and junctions are unlinked without
+                  following their targets.
+                </p>
+                <ul>
+                  {removal.disposablePaths.map(path => (
+                    <li key={path}>{path}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
             {removal.ignoredPaths.length > 0 && (
               <>
                 <p>
@@ -318,7 +337,7 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
                   will only be unlinked; cleanup does not follow these links or
                   archive their targets. Any Git metadata owned by this
                   worktree, including local refs, stashes and reflogs, will be
-                  retained here:
+                  archived and verified before checkout deletion here:
                 </p>
                 <p className="health-path">{removal.metadataBackupRoot}</p>
                 <ul>
@@ -330,6 +349,13 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
                         : module.state === 'linked'
                         ? `link only; target: ${module.linkTarget}`
                         : module.state}
+                      {module.issues
+                        .filter(
+                          issue => !module.blockers.includes(issue.message)
+                        )
+                        .map(issue => (
+                          <p key={issue.kind}>{issue.message}</p>
+                        ))}
                       {module.blockers.map(reason => (
                         <p key={reason}>{reason}</p>
                       ))}
@@ -348,7 +374,10 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
                 </label>
               </>
             )}
-            <p>All existing stashes will be preserved.</p>
+            <p>
+              All existing stashes will be preserved. Retained submodule
+              metadata includes recovery instructions and a file manifest.
+            </p>
             {!blocked && (
               <p>
                 No uncommitted or untracked files block removal. Checks will run

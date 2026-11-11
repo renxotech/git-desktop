@@ -99,6 +99,34 @@ async function exists(path: string) {
   )
 }
 
+async function commitRemovalPolicy(
+  f: Awaited<ReturnType<typeof fixture>>,
+  rules: string
+) {
+  await Fs.writeFile(Path.join(f.repo.path, '.safe_to_remove'), rules)
+  await run(f.repo.path, 'add', '--', '.safe_to_remove')
+  await run(f.repo.path, 'commit', '-m', 'declare disposable local paths')
+  await run(f.linked, 'merge', 'master')
+}
+
+async function retainedModule(backup: string, original: string) {
+  const originalPath = Path.resolve(original)
+  const manifest = JSON.parse(
+    await Fs.readFile(Path.join(backup, 'restore.json'), 'utf8')
+  )
+  const entry = manifest.metadata.find(
+    (item: { original: string; saved: string }) =>
+      originalPath === Path.resolve(item.original) ||
+      originalPath.startsWith(`${Path.resolve(item.original)}${Path.sep}`)
+  )
+  assert(entry, 'restore manifest must locate the complete original metadata')
+  return Path.join(
+    backup,
+    entry.saved,
+    Path.relative(entry.original, originalPath)
+  )
+}
+
 async function fileSnapshot(root: string): Promise<ReadonlyArray<string>> {
   const entries: string[] = []
   const visit = async (path: string): Promise<void> => {
@@ -330,7 +358,7 @@ describe('safe worktree removal with real filesystem fixtures', () => {
     assert.equal(await f.branch(), '')
   })
 
-  it('returns a clear blocker for a target commit absent from the local module store without fetching', async t => {
+  it('retains a complete private module when the target commit is unavailable without fetching', async t => {
     const f = await fixture(t, true)
     const foreign = await setup(t)
     await Fs.writeFile(
@@ -361,18 +389,18 @@ describe('safe worktree removal with real filesystem fixtures', () => {
     }
     const confirmed = await f.check()
     const module = confirmed.submodules[0]
-    assert.equal(confirmed.hasFiles, true)
-    assert.equal(module.state, 'blocked')
+    assert.equal(confirmed.hasFiles, false)
+    assert.notEqual(module.state, 'blocked')
+    assert.deepEqual(module.blockers, [])
     assert.equal(module.issues[0].kind, 'target-unavailable')
     assert.equal(module.issues[0].path, 'module')
     assert.equal(module.issues[0].revision, missing)
-    assert.match(module.issues[0].message, /unavailable.*local object store/)
+    assert.match(module.issues[0].message, /unavailable.*local/i)
     assert.equal(module.issues[0].message.includes(missing), true)
     assert.doesNotMatch(module.issues[0].message, /fatal:|not a valid commit/)
-    await assert.rejects(
-      remove(f.repo.path, confirmed, true, true),
-      /files must be handled/
-    )
+    const backup = await remove(f.repo.path, confirmed, false, true)
+    assert(backup)
+    const savedMetadata = await retainedModule(backup, metadata)
     assert.equal(
       calls.some(([args]) => args.includes('fetch')),
       false
@@ -387,23 +415,39 @@ describe('safe worktree removal with real filesystem fixtures', () => {
     }
     intercept = undefined
     assert.deepEqual(
-      await Fs.readFile(Path.join(metadata, 'HEAD')),
+      await Fs.readFile(Path.join(savedMetadata, 'HEAD')),
       originalHead
     )
     assert.deepEqual(
-      await Fs.readFile(Path.join(metadata, 'index')),
+      await Fs.readFile(Path.join(savedMetadata, 'index')),
       originalIndex
     )
     assert.equal(
-      (await dugite.exec(['cat-file', '-e', `${missing}^{commit}`], f.module))
-        .exitCode,
+      (
+        await dugite.exec(
+          [
+            `--git-dir=${savedMetadata}`,
+            'cat-file',
+            '-e',
+            `${missing}^{commit}`,
+          ],
+          f.repo.path
+        )
+      ).exitCode,
       128
     )
     assert.equal(
-      await Fs.readFile(Path.join(f.module, 'module.txt'), 'utf8'),
-      'module original\n'
+      await run(
+        f.repo.path,
+        `--git-dir=${savedMetadata}`,
+        `--work-tree=${f.repo.path}`,
+        'show',
+        'HEAD:module.txt'
+      ),
+      'module original'
     )
-    assert.match(await f.branch(), /finished/)
+    assert.equal(await exists(f.linked), false)
+    assert.equal(await f.branch(), '')
   })
 
   it('returns a typed unavailable-HEAD blocker and preserves unborn local metadata', async t => {
@@ -419,7 +463,7 @@ describe('safe worktree removal with real filesystem fixtures', () => {
     assert.equal(confirmed.submodules[0].issues[0].path, 'module')
     await assert.rejects(
       remove(f.repo.path, confirmed, true, true),
-      /files must be handled/
+      /files.*(?:handled|block)/i
     )
     assert.deepEqual(
       await Fs.readFile(Path.join(metadata, 'HEAD')),
@@ -484,14 +528,9 @@ describe('safe worktree removal with real filesystem fixtures', () => {
     )
     await Fs.chmod(object, 0o666)
     await Fs.unlink(object)
-    const confirmed = await f.check()
-    assert.equal(confirmed.submodules[0].state, 'blocked')
-    assert.equal(confirmed.submodules[0].issues[0].kind, 'history-unavailable')
-    assert.equal(confirmed.submodules[0].issues[0].revision, target)
-    await assert.rejects(
-      remove(f.repo.path, confirmed, true, true),
-      /files must be handled/
-    )
+    await assert.rejects(f.check(), /object|history|fsck|missing/i)
+    assert.equal(await exists(f.linked), true)
+    assert.equal(await exists(metadata), true)
     assert.match(await f.branch(), /finished/)
   })
 
@@ -787,7 +826,6 @@ describe('safe worktree removal with real filesystem fixtures', () => {
     'modified',
     'staged',
     'untracked',
-    'unique-commit',
     'staged-deletions',
   ]) {
     it(`blocks genuine ${change} in a submodule and preserves its content and branch`, async t => {
@@ -801,22 +839,13 @@ describe('safe worktree removal with real filesystem fixtures', () => {
         if (change !== 'modified') {
           await run(f.module, 'add', '.')
         }
-        if (change === 'unique-commit') {
-          await run(f.module, 'commit', '-m', 'unique local work')
-        }
       }
       const confirmed = await f.check()
       assert.equal(confirmed.hasFiles, true)
       assert.equal(confirmed.submodules[0].state, 'blocked')
-      if (change === 'unique-commit') {
-        assert.equal(
-          confirmed.submodules[0].issues[0].kind,
-          'ancestry-unproven'
-        )
-      }
       await assert.rejects(
         remove(f.repo.path, confirmed, true, true),
-        /files must be handled/
+        /files.*(?:handled|block)/i
       )
       assert.match(await f.branch(), /finished/)
       assert.equal(await exists(Path.join(f.module, '.git')), true)
@@ -958,5 +987,478 @@ describe('safe worktree removal with real filesystem fixtures', () => {
       await run(Path.join(f.repo.path, 'module'), 'status', '--porcelain'),
       ''
     )
+  })
+})
+
+describe('explicit disposable-file policy for worktree cleanup', () => {
+  it('blocks an externally routed GIT_GRAFT_FILE before inspection or mutation', async t => {
+    const f = await fixture(t, true)
+    const confirmed = await f.check()
+    const graft = Path.join(f.root, 'external-grafts')
+    await Fs.writeFile(graft, '# external history routing must not be used\n')
+    const before = await fileSnapshot(f.linked)
+    const previous = process.env.GIT_GRAFT_FILE
+    try {
+      process.env.GIT_GRAFT_FILE = graft
+      intercept = async () =>
+        assert.fail('Git must not inspect externally routed history')
+      await assert.rejects(f.check(), /environment routing/)
+      await assert.rejects(
+        remove(f.repo.path, confirmed, true, true),
+        /environment routing/
+      )
+    } finally {
+      intercept = undefined
+      if (previous === undefined) {
+        delete process.env.GIT_GRAFT_FILE
+      } else {
+        process.env.GIT_GRAFT_FILE = previous
+      }
+    }
+    assert.deepEqual(await fileSnapshot(f.linked), before)
+    assert.equal(
+      await Fs.readFile(graft, 'utf8'),
+      '# external history routing must not be used\n'
+    )
+    assert.match(await f.branch(), /finished/)
+  })
+
+  it('refuses metadata refs changed after confirmation before deleting any checkout files', async t => {
+    const f = await fixture(t, true)
+    const confirmed = await f.check()
+    await run(
+      f.module,
+      'update-ref',
+      'refs/private/late-work',
+      confirmed.submodules[0].head ?? 'HEAD'
+    )
+    await assert.rejects(
+      remove(f.repo.path, confirmed, false, true),
+      /changed|refresh|review/i
+    )
+    assert.equal(await exists(f.linked), true)
+    assert.equal(
+      await Fs.readFile(Path.join(f.module, 'module.txt'), 'utf8'),
+      'module original\n'
+    )
+    assert.equal(
+      await run(f.module, 'rev-parse', 'refs/private/late-work'),
+      confirmed.submodules[0].head
+    )
+    assert.match(await f.branch(), /finished/)
+  })
+
+  it('refuses a staged gitlink change even when wildcard policy matches the module', async t => {
+    const f = await fixture(t, true)
+    await commitRemovalPolicy(f, '*\n')
+    await run(f.module, 'commit', '--allow-empty', '-m', 'local module commit')
+    await run(f.linked, 'add', '--', 'module')
+    const confirmed = await f.check()
+    assert.equal(confirmed.hasFiles, true)
+    assert(confirmed.changedPaths.includes('module'))
+    await assert.rejects(
+      remove(f.repo.path, confirmed, true, true),
+      /files.*(?:handled|block)/i
+    )
+    assert.match(await f.branch(), /finished/)
+    assert.equal(await exists(f.module), true)
+  })
+
+  it('blocks a corrupt unreachable local object before archiving or deleting the checkout', async t => {
+    const f = await fixture(t, true)
+    const metadata = await run(f.module, 'rev-parse', '--absolute-git-dir')
+    const directory = Path.join(metadata, 'objects', 'aa')
+    await Fs.mkdir(directory, { recursive: true })
+    await Fs.writeFile(
+      Path.join(directory, 'b'.repeat(38)),
+      'corrupt loose object'
+    )
+    const before = await fileSnapshot(metadata)
+    await assert.rejects(
+      f.check(),
+      /object|inflate|corrupt|fsck|history|git returned/i
+    )
+    assert.deepEqual(await fileSnapshot(metadata), before)
+    assert.equal(
+      await Fs.readFile(Path.join(f.module, 'module.txt'), 'utf8'),
+      'module original\n'
+    )
+    assert.match(await f.branch(), /finished/)
+  })
+
+  it('recovers differing local commits, private refs, stashes, reflog-only commits and loose objects from the archive', async t => {
+    const f = await fixture(t, true)
+    await Fs.writeFile(
+      Path.join(f.module, 'module.txt'),
+      'private committed content\n'
+    )
+    await run(f.module, 'add', '--', 'module.txt')
+    await run(f.module, 'commit', '-m', 'private local commit')
+    const localHead = await run(f.module, 'rev-parse', 'HEAD')
+    await run(f.module, 'branch', 'private-keep')
+    await run(f.module, 'update-ref', 'refs/private/sentinel', localHead)
+    await run(
+      f.module,
+      'commit',
+      '--allow-empty',
+      '-m',
+      'reflog-only saved commit'
+    )
+    const reflogOnly = await run(f.module, 'rev-parse', 'HEAD')
+    await run(f.module, 'reset', '--hard', localHead)
+    await Fs.writeFile(
+      Path.join(f.module, 'stashed.txt'),
+      'private stash content'
+    )
+    await run(f.module, 'stash', 'push', '-u', '-m', 'private saved work')
+    const stash = await run(f.module, 'rev-parse', 'refs/stash')
+    const metadata = await run(f.module, 'rev-parse', '--absolute-git-dir')
+    const reflog = await Fs.readFile(Path.join(metadata, 'logs', 'HEAD'))
+    const looseFile = Path.join(f.root, 'unreachable-object.txt')
+    await Fs.writeFile(looseFile, 'unreachable object sentinel')
+    const loose = await run(f.module, 'hash-object', '-w', '--', looseFile)
+    const mainModule = Path.join(f.repo.path, 'module')
+    const mainMetadata = await run(
+      mainModule,
+      'rev-parse',
+      '--absolute-git-dir'
+    )
+    const mainFiles = await fileSnapshot(mainModule)
+    const mainGit = await fileSnapshot(mainMetadata)
+    const confirmed = await f.check()
+    assert.equal(confirmed.hasFiles, false)
+    assert.deepEqual(confirmed.submodules[0].blockers, [])
+    assert(
+      confirmed.submodules[0].issues.some(
+        issue => issue.kind === 'ancestry-unproven'
+      )
+    )
+    await assert.rejects(
+      remove(f.repo.path, confirmed),
+      /confirm removal of submodule/
+    )
+    const backup = await remove(f.repo.path, confirmed, false, true)
+    assert(backup)
+    const saved = await retainedModule(backup, metadata)
+    const archived = (...args: string[]) =>
+      run(
+        f.repo.path,
+        `--git-dir=${saved}`,
+        `--work-tree=${f.repo.path}`,
+        ...args
+      )
+    assert.equal(await exists(metadata), false)
+    assert.equal(await exists(f.linked), false)
+    assert.equal(await f.branch(), '')
+    assert.equal(await archived('rev-parse', 'HEAD'), localHead)
+    assert.equal(
+      await archived('rev-parse', 'refs/heads/private-keep'),
+      localHead
+    )
+    assert.equal(
+      await archived('rev-parse', 'refs/private/sentinel'),
+      localHead
+    )
+    assert.equal(await archived('rev-parse', 'refs/stash'), stash)
+    assert.equal(
+      await archived('show', 'HEAD:module.txt'),
+      'private committed content'
+    )
+    assert.equal(
+      await archived('show', 'refs/stash^3:stashed.txt'),
+      'private stash content'
+    )
+    assert.equal(await archived('cat-file', '-t', reflogOnly), 'commit')
+    assert.equal(
+      await archived('cat-file', '-p', loose),
+      'unreachable object sentinel'
+    )
+    assert.deepEqual(
+      await Fs.readFile(Path.join(saved, 'logs', 'HEAD')),
+      reflog
+    )
+    assert.equal(
+      await exists(Path.join(saved, 'objects', 'info', 'alternates')),
+      false
+    )
+    await archived('fsck', '--full', '--strict')
+    assert.deepEqual(await fileSnapshot(mainModule), mainFiles)
+    assert.deepEqual(await fileSnapshot(mainMetadata), mainGit)
+  })
+
+  it('removes matching untracked and ignored paths without extra ignored-file consent', async t => {
+    const f = await fixture(t, true)
+    await commitRemovalPolicy(
+      f,
+      '# disposable outputs\n/root-output/\n/dist/\nmodule/generated/**\nmodule/*.cache\n'
+    )
+    await Fs.mkdir(Path.join(f.linked, 'root-output'))
+    await Fs.writeFile(
+      Path.join(f.linked, 'root-output', 'local.txt'),
+      'discard'
+    )
+    await Fs.mkdir(Path.join(f.linked, 'dist'))
+    await Fs.writeFile(Path.join(f.linked, 'dist', 'bundle.js'), 'discard')
+    await Fs.mkdir(Path.join(f.module, 'generated'))
+    const moduleMetadata = await run(
+      f.module,
+      'rev-parse',
+      '--absolute-git-dir'
+    )
+    await Fs.appendFile(
+      Path.join(moduleMetadata, 'info', 'exclude'),
+      '\ngenerated/\n'
+    )
+    await Fs.writeFile(Path.join(f.module, 'generated', 'asset.js'), 'discard')
+    await Fs.writeFile(Path.join(f.module, 'result.cache'), 'discard')
+    const mainModule = Path.join(f.repo.path, 'module')
+    const mainMetadata = await run(
+      mainModule,
+      'rev-parse',
+      '--absolute-git-dir'
+    )
+    const main = await fileSnapshot(mainModule)
+    const mainGit = await fileSnapshot(mainMetadata)
+    const mainFile = await Fs.readFile(Path.join(f.repo.path, 'tracked.txt'))
+    const confirmed = await f.check()
+    assert.equal(confirmed.hasFiles, false)
+    const backup = await remove(f.repo.path, confirmed, false, true)
+    assert(backup)
+    assert.equal(await exists(f.linked), false)
+    assert.equal(await f.branch(), '')
+    // Parent checkout, its module and dependency metadata are never cleanup targets.
+    assert.deepEqual(await fileSnapshot(mainModule), main)
+    assert.deepEqual(await fileSnapshot(mainMetadata), mainGit)
+    assert.deepEqual(
+      await Fs.readFile(Path.join(f.repo.path, 'tracked.txt')),
+      mainFile
+    )
+  })
+
+  it('uses gitignore anchoring, globstars, character classes and escaped markers', async t => {
+    const f = await fixture(t)
+    await commitRemovalPolicy(
+      f,
+      '/root.tmp\n**/*.cache\n[a-b].tmp\n\\#generated\n\\!generated\n'
+    )
+    await Fs.mkdir(Path.join(f.linked, 'nested'))
+    for (const path of [
+      'root.tmp',
+      'nested/item.cache',
+      'a.tmp',
+      '#generated',
+      '!generated',
+    ]) {
+      await Fs.writeFile(Path.join(f.linked, path), 'discard')
+    }
+    const confirmed = await f.check()
+    assert.equal(confirmed.hasFiles, false)
+    await remove(f.repo.path, confirmed)
+    assert.equal(await exists(f.linked), false)
+  })
+
+  for (const ignored of [false, true]) {
+    it(`keeps a negated ${
+      ignored ? 'ignored' : 'untracked'
+    } exception blocked`, async t => {
+      const f = await fixture(t)
+      const directory = ignored ? 'dist' : 'scratch'
+      await commitRemovalPolicy(f, `${directory}/*\n!${directory}/keep.txt\n`)
+      await Fs.mkdir(Path.join(f.linked, directory))
+      await Fs.writeFile(
+        Path.join(f.linked, directory, 'remove.txt'),
+        'discard'
+      )
+      await Fs.writeFile(Path.join(f.linked, directory, 'keep.txt'), 'preserve')
+      const confirmed = await f.check()
+      if (ignored) {
+        assert(confirmed.ignoredPaths.length > 0)
+        await assert.rejects(remove(f.repo.path, confirmed), /ignored files/)
+      } else {
+        assert.equal(confirmed.hasFiles, true)
+        await assert.rejects(
+          remove(f.repo.path, confirmed, true),
+          /files.*(?:handled|block)/i
+        )
+      }
+      assert.equal(
+        await Fs.readFile(Path.join(f.linked, directory, 'keep.txt'), 'utf8'),
+        'preserve'
+      )
+      assert.match(await f.branch(), /finished/)
+    })
+  }
+
+  it('does not let a root-anchored pattern authorize a nested same-name file', async t => {
+    const f = await fixture(t)
+    await commitRemovalPolicy(f, '/local.txt\n')
+    await Fs.mkdir(Path.join(f.linked, 'nested'))
+    await Fs.writeFile(Path.join(f.linked, 'nested', 'local.txt'), 'preserve')
+    const confirmed = await f.check()
+    assert.equal(confirmed.hasFiles, true)
+    await assert.rejects(
+      remove(f.repo.path, confirmed, true),
+      /files.*(?:handled|block)/i
+    )
+    assert.equal(await exists(Path.join(f.linked, 'nested', 'local.txt')), true)
+  })
+
+  it('requires an untracked policy to explicitly match its own filename', async t => {
+    const f = await fixture(t)
+    await Fs.writeFile(Path.join(f.linked, '.safe_to_remove'), 'local.txt\n')
+    await Fs.writeFile(Path.join(f.linked, 'local.txt'), 'discard')
+    const blocked = await f.check()
+    assert.equal(blocked.hasFiles, true)
+    await assert.rejects(
+      remove(f.repo.path, blocked, true),
+      /files.*(?:handled|block)/i
+    )
+    await Fs.appendFile(
+      Path.join(f.linked, '.safe_to_remove'),
+      '/.safe_to_remove\n'
+    )
+    const permitted = await f.check()
+    assert.equal(permitted.hasFiles, false)
+    await remove(f.repo.path, permitted)
+    assert.equal(await exists(f.linked), false)
+  })
+
+  for (const inModule of [false, true]) {
+    for (const change of [
+      'modified',
+      'staged',
+      'staged-new',
+      'staged-deletion',
+    ]) {
+      it(`refuses wildcard policy override of ${change} ${
+        inModule ? 'submodule' : 'root'
+      } tracked state`, async t => {
+        const f = await fixture(t, inModule)
+        await commitRemovalPolicy(f, '*\n')
+        const root = inModule ? f.module : f.linked
+        const name = inModule ? 'module.txt' : 'tracked.txt'
+        if (change === 'staged-deletion') {
+          await run(root, 'rm', '--', name)
+        } else if (change === 'staged-new') {
+          await Fs.writeFile(Path.join(root, 'new.txt'), 'preserve staged work')
+          await run(root, 'add', '--', 'new.txt')
+        } else {
+          await Fs.writeFile(Path.join(root, name), 'preserve modified work')
+          if (change === 'staged') {
+            await run(root, 'add', '--', name)
+          }
+        }
+        const confirmed = await f.check()
+        assert.equal(confirmed.hasFiles, true)
+        await assert.rejects(
+          remove(f.repo.path, confirmed, true, true),
+          /files.*(?:handled|block)/i
+        )
+        assert.equal(await exists(f.linked), true)
+        assert.match(await f.branch(), /finished/)
+      })
+    }
+  }
+
+  it('rejects policy edits made after review even when matching output paths stay the same', async t => {
+    const f = await fixture(t)
+    await Fs.writeFile(Path.join(f.linked, '.safe_to_remove'), '*\n')
+    await Fs.writeFile(Path.join(f.linked, 'output.txt'), 'discard')
+    const confirmed = await f.check()
+    assert.equal(confirmed.hasFiles, false)
+    await Fs.writeFile(
+      Path.join(f.linked, '.safe_to_remove'),
+      '*\n# changed consent\n'
+    )
+    await assert.rejects(
+      remove(f.repo.path, confirmed, true),
+      /changed|inventory/
+    )
+    assert.equal(
+      await Fs.readFile(Path.join(f.linked, 'output.txt'), 'utf8'),
+      'discard'
+    )
+    assert.match(await f.branch(), /finished/)
+  })
+
+  it('rejects a policy junction without traversing or changing its external target', async t => {
+    const f = await fixture(t)
+    const external = Path.join(f.root, 'external-policy')
+    await Fs.mkdir(external)
+    await Fs.writeFile(
+      Path.join(external, 'sentinel'),
+      'preserve external policy directory'
+    )
+    await Fs.symlink(
+      external,
+      Path.join(f.linked, '.safe_to_remove'),
+      'junction'
+    )
+    const before = await fileSnapshot(external)
+    await assert.rejects(
+      f.check(),
+      /safe_to_remove|policy|ordinary|regular file/i
+    )
+    assert.deepEqual(await fileSnapshot(external), before)
+    assert.match(await f.branch(), /finished/)
+  })
+
+  it('unlinks explicitly disposable junctions while preserving their targets and a sibling worktree', async t => {
+    const f = await fixture(t)
+    await commitRemovalPolicy(f, '/disposable-link\n')
+    const target = Path.join(f.root, 'shared-dependency')
+    await Fs.mkdir(target)
+    await Fs.writeFile(Path.join(target, 'sentinel'), 'keep dependency')
+    await Fs.symlink(target, Path.join(f.linked, 'disposable-link'), 'junction')
+    const sibling = Path.join(f.root, 'sibling')
+    await run(f.repo.path, 'worktree', 'add', '-b', 'sibling', sibling)
+    await Fs.writeFile(Path.join(sibling, 'sentinel'), 'keep sibling work')
+    const beforeTarget = await fileSnapshot(target)
+    const beforeSibling = await fileSnapshot(sibling)
+    const confirmed = await f.check()
+    assert.equal(confirmed.hasFiles, false)
+    await remove(f.repo.path, confirmed)
+    assert.equal(await exists(f.linked), false)
+    assert.deepEqual(await fileSnapshot(target), beforeTarget)
+    assert.deepEqual(await fileSnapshot(sibling), beforeSibling)
+  })
+
+  it('does not authorize a junction itself from a rule matching only a target descendant', async t => {
+    const f = await fixture(t)
+    await commitRemovalPolicy(f, '/disposable-link/sentinel\n')
+    const target = Path.join(f.root, 'shared-dependency')
+    await Fs.mkdir(target)
+    await Fs.writeFile(Path.join(target, 'sentinel'), 'keep dependency')
+    await Fs.symlink(target, Path.join(f.linked, 'disposable-link'), 'junction')
+    const before = await fileSnapshot(target)
+    const confirmed = await f.check()
+    assert.equal(confirmed.hasFiles, true)
+    await assert.rejects(
+      remove(f.repo.path, confirmed, true),
+      /files.*(?:handled|block)/i
+    )
+    assert.deepEqual(await fileSnapshot(target), before)
+    assert.equal(
+      (await Fs.lstat(Path.join(f.linked, 'disposable-link'))).isSymbolicLink(),
+      true
+    )
+    assert.match(await f.branch(), /finished/)
+  })
+
+  it('blocks external alternates rather than claiming a private self-contained archive', async t => {
+    const f = await fixture(t, true)
+    const metadata = await run(f.module, 'rev-parse', '--absolute-git-dir')
+    const external = Path.join(f.root, 'external-objects')
+    await Fs.mkdir(Path.join(external, 'info'), { recursive: true })
+    await Fs.mkdir(Path.join(metadata, 'objects', 'info'), { recursive: true })
+    await Fs.writeFile(
+      Path.join(metadata, 'objects', 'info', 'alternates'),
+      `${external.replace(/\\/g, '/')}\n`
+    )
+    const before = await fileSnapshot(metadata)
+    await assert.rejects(f.check(), /alternate|object|self-contained|private/i)
+    assert.deepEqual(await fileSnapshot(metadata), before)
+    assert.equal(await exists(f.linked), true)
+    assert.match(await f.branch(), /finished/)
   })
 })

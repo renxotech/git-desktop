@@ -20,6 +20,16 @@ import {
   removeCleanupFiles,
   verifyOrdinaryDirectory,
 } from './worktree-cleanup-files'
+import {
+  ICleanupPolicy,
+  readCleanupPolicy,
+  partitionDisposablePaths,
+} from './worktree-disposable-files'
+import {
+  IMetadataSnapshot,
+  snapshotCleanupMetadata,
+  verifyCleanupMetadata,
+} from './worktree-metadata-backup'
 import { isCommittedRepositoryData } from './worktree-cleanup-repository-data'
 import {
   IRemovalSubmodule,
@@ -40,6 +50,9 @@ export interface IWorktreeBranchRemoval {
   readonly ignoredPaths: ReadonlyArray<string>
   readonly untrackedPaths: ReadonlyArray<string>
   readonly changedPaths: ReadonlyArray<string>
+  readonly disposablePaths: ReadonlyArray<string>
+  readonly policy: ICleanupPolicy
+  readonly metadataSnapshots: ReadonlyArray<IMetadataSnapshot>
   readonly hasFiles: boolean
   readonly submodules: ReadonlyArray<IRemovalSubmodule>
   readonly metadataPaths: ReadonlyArray<string>
@@ -54,6 +67,25 @@ export async function checkWorktreeBranchRemoval(
   branchRef: string,
   targetRef: string
 ): Promise<IWorktreeBranchRemoval> {
+  if (
+    [
+      'GIT_DIR',
+      'GIT_COMMON_DIR',
+      'GIT_WORK_TREE',
+      'GIT_INDEX_FILE',
+      'GIT_OBJECT_DIRECTORY',
+      'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+      'GIT_SHALLOW_FILE',
+      'GIT_GRAFT_FILE',
+      'GIT_CONFIG_COUNT',
+      'GIT_CONFIG_PARAMETERS',
+      'GIT_REPLACE_REF_BASE',
+    ].some(name => process.env[name]?.trim())
+  ) {
+    throw new Error(
+      'Object, index or configuration environment routing prevents safe worktree cleanup.'
+    )
+  }
   if (!branchRef.startsWith('refs/heads/')) {
     throw new Error('Only local branches can have a worktree removed.')
   }
@@ -142,10 +174,12 @@ export async function checkWorktreeBranchRemoval(
     throw new Error('Cannot verify the linked worktree metadata directory.')
   }
   await checkCleanupIndex(worktree.path)
+  const policy = await readCleanupPolicy(worktree.path)
   const submodules = await checkRemovalSubmodules(
     worktree.path,
     targetSha,
-    adminPath
+    adminPath,
+    policy
   )
   const [status, staged, stash] = await Promise.all([
     git(
@@ -189,8 +223,22 @@ export async function checkWorktreeBranchRemoval(
       }
     }
   }
-  for (const module of submodules.filter(m => m.blockers.length > 0)) {
-    changedPaths.push(module.path)
+  const ignored = await partitionDisposablePaths(
+    worktree.path,
+    worktree.path,
+    ignoredPaths,
+    policy
+  )
+  const untracked = await partitionDisposablePaths(
+    worktree.path,
+    worktree.path,
+    untrackedPaths,
+    policy
+  )
+  for (const module of submodules) {
+    changedPaths.push(
+      ...(module.changedPaths ?? []).map(path => Path.join(module.path, path))
+    )
   }
   const metadataPaths = submodules.flatMap(m =>
     m.gitDir === null ? [] : [m.gitDir]
@@ -264,7 +312,12 @@ export async function checkWorktreeBranchRemoval(
     }
     metadataPaths.push(modulesPath)
   }
-  for (const metadataPath of metadataPaths) {
+  const ownedMetadataPaths = metadataPaths.filter(
+    (path, i, all) =>
+      all.indexOf(path) === i &&
+      !all.some(other => isInsideDirectory(other, path))
+  )
+  for (const metadataPath of ownedMetadataPaths) {
     const entries = await inventoryCleanupFiles(metadataPath)
     // Git expands transitive alternates (and environment routing); inspecting
     // only this store's alternates file can miss a later disposable object dir.
@@ -289,75 +342,98 @@ export async function checkWorktreeBranchRemoval(
           'Redirected primary object storage prevents safe metadata retention.'
         )
       }
-      const graph = await readCleanupGit(
+      const graphResult = await git(
+        ['--git-dir', directory, 'count-objects', '-v'],
+        worktree.path,
+        'checkRetainedObjectRouting',
+        { env: { GIT_NO_LAZY_FETCH: '1', GIT_OPTIONAL_LOCKS: '0' } }
+      )
+      if (
+        graphResult.stderr.trim() ||
+        graphResult.stdout
+          .split(/\r?\n/)
+          .some(line => line.startsWith('alternate: '))
+      ) {
+        throw new Error(
+          'External or unverifiable object alternates prevent a complete standalone metadata archive.'
+        )
+      }
+      const config = await readCleanupGit(
         worktree.path,
         '--git-dir',
         directory,
-        'count-objects',
-        '-v'
+        'config',
+        '--local',
+        '--list'
       )
-      for (const line of graph
-        .split(/\r?\n/)
-        .filter(line => line.startsWith('alternate: '))) {
-        const alternate = line.slice('alternate: '.length)
-        if (!Path.isAbsolute(alternate) || alternate.startsWith('"')) {
-          throw new Error(
-            'Cannot verify the complete alternate object routing for retained metadata.'
-          )
-        }
-        const actual = await Fs.realpath(alternate)
-        if (
-          Path.resolve(alternate) === Path.resolve(worktree.path) ||
-          Path.resolve(alternate) === Path.resolve(adminPath) ||
-          isInsideDirectory(worktree.path, Path.resolve(alternate)) ||
-          isInsideDirectory(adminPath, Path.resolve(alternate)) ||
-          actual === Path.resolve(worktree.path) ||
-          actual === Path.resolve(adminPath) ||
-          isInsideDirectory(worktree.path, actual) ||
-          isInsideDirectory(adminPath, actual)
-        ) {
-          throw new Error(
-            'An alternate object dependency would be removed with the worktree.'
-          )
-        }
+      if (/(?:^|\n)include(?:if\.[^=]+)?\.path=/i.test(config)) {
+        throw new Error(
+          'External Git configuration includes prevent a complete standalone metadata archive.'
+        )
+      }
+      if (await cleanupPathExists(Path.join(directory, 'config.worktree'))) {
+        throw new Error(
+          'Per-worktree Git configuration prevents a complete standalone metadata archive.'
+        )
+      }
+      if (
+        (await cleanupPathExists(Path.join(directory, 'shallow'))) ||
+        /(?:^|\n)(?:extensions\.partialclone|remote\.[^=]+\.promisor)=/i.test(
+          config
+        ) ||
+        entries.some(
+          entry =>
+            entry.path.startsWith(
+              Path.relative(metadataPath, Path.join(directory, 'objects')) +
+                Path.sep
+            ) && entry.path.endsWith('.promisor')
+        )
+      ) {
+        throw new Error(
+          'Incomplete shallow or partial-clone local history prevents a complete metadata archive.'
+        )
+      }
+      if (
+        !submodules.some(
+          module =>
+            module.gitDir === directory &&
+            module.issues.some(issue => issue.kind === 'head-unavailable')
+        )
+      ) {
+        await git(
+          [
+            '--no-replace-objects',
+            '--git-dir',
+            directory,
+            'fsck',
+            '--full',
+            '--no-dangling',
+          ],
+          worktree.path,
+          'verifyRetainedLocalHistory',
+          {
+            env: {
+              GIT_NO_LAZY_FETCH: '1',
+              GIT_OPTIONAL_LOCKS: '0',
+              GIT_NO_REPLACE_OBJECTS: '1',
+            },
+          }
+        )
       }
     }
-    for (const entry of entries.filter(
-      e => Path.basename(e.path) === 'alternates'
+    for (const entry of entries.filter(e =>
+      ['alternates', 'http-alternates', 'grafts'].includes(
+        Path.basename(e.path)
+      )
     )) {
       const alternates = await Fs.readFile(
         Path.join(metadataPath, entry.path),
         'utf8'
       )
-      if (
-        alternates
-          .split(/\r?\n/)
-          .filter(Boolean)
-          .some(
-            path =>
-              !Path.isAbsolute(path) ||
-              Path.resolve(path) === Path.resolve(worktree.path) ||
-              Path.resolve(path) === Path.resolve(adminPath) ||
-              isInsideDirectory(worktree.path, Path.resolve(path)) ||
-              isInsideDirectory(adminPath, Path.resolve(path))
-          )
-      ) {
+      if (alternates.trim()) {
         throw new Error(
-          'Relative or disposable object alternates prevent safe submodule metadata retention.'
+          'Object alternates or legacy grafts prevent a complete standalone metadata archive.'
         )
-      }
-      for (const alternate of alternates.split(/\r?\n/).filter(Boolean)) {
-        const actual = await Fs.realpath(alternate)
-        if (
-          actual === Path.resolve(worktree.path) ||
-          actual === Path.resolve(adminPath) ||
-          isInsideDirectory(worktree.path, actual) ||
-          isInsideDirectory(adminPath, actual)
-        ) {
-          throw new Error(
-            'An object alternate resolves into files selected for removal.'
-          )
-        }
       }
     }
   }
@@ -412,17 +488,32 @@ export async function checkWorktreeBranchRemoval(
     branchSha,
     targetSha,
     targetRef,
-    ignoredPaths,
-    untrackedPaths,
-    changedPaths,
-    hasFiles: changedPaths.length > 0 || untrackedPaths.length > 0,
+    ignoredPaths: ignored.remaining,
+    untrackedPaths: [
+      ...untracked.remaining,
+      ...submodules.flatMap(module =>
+        (module.untrackedPaths ?? []).map(path => Path.join(module.path, path))
+      ),
+    ],
+    changedPaths: [...new Set(changedPaths)],
+    disposablePaths: [
+      ...untracked.disposable,
+      ...ignored.disposable,
+      ...submodules.flatMap(module =>
+        (module.disposablePaths ?? []).map(path => Path.join(module.path, path))
+      ),
+    ].sort(),
+    policy,
+    metadataSnapshots: await Promise.all(
+      ownedMetadataPaths.map(snapshotCleanupMetadata)
+    ),
+    hasFiles:
+      changedPaths.length > 0 ||
+      untracked.remaining.length > 0 ||
+      submodules.some(module => (module.untrackedPaths?.length ?? 0) > 0),
     stashes: stash.stdout.trim().split('\n').filter(Boolean),
     submodules,
-    metadataPaths: metadataPaths.filter(
-      (path, i, all) =>
-        all.indexOf(path) === i &&
-        !all.some(other => isInsideDirectory(other, path))
-    ),
+    metadataPaths: ownedMetadataPaths,
     metadataBackupRoot: Path.join(
       commonDir,
       'desktop-worktree-metadata-backups'
@@ -439,6 +530,10 @@ function sameSnapshot(a: IWorktreeBranchRemoval, b: IWorktreeBranchRemoval) {
     a.targetSha === b.targetSha &&
     a.adminPath === b.adminPath &&
     a.metadataBackupRoot === b.metadataBackupRoot &&
+    JSON.stringify(a.policy) === JSON.stringify(b.policy) &&
+    JSON.stringify(a.disposablePaths) === JSON.stringify(b.disposablePaths) &&
+    JSON.stringify(a.metadataSnapshots) ===
+      JSON.stringify(b.metadataSnapshots) &&
     JSON.stringify(a.submodules) === JSON.stringify(b.submodules) &&
     JSON.stringify(a.metadataPaths) === JSON.stringify(b.metadataPaths)
   )
@@ -484,6 +579,11 @@ async function removeCheckedWorktreeAndBranchCore(
       'The branch, target, submodules or worktree changed. Refresh and review removal again.'
     )
   }
+  if (fresh.submodules.some(module => module.blockers.length > 0)) {
+    throw new Error(
+      'Submodule files, local history or metadata safety checks block removal.'
+    )
+  }
   if (fresh.hasFiles) {
     throw new Error(
       'Uncommitted or untracked files must be handled before removal.'
@@ -522,6 +622,8 @@ async function removeCheckedWorktreeAndBranchCore(
   if (
     !sameSnapshot(fresh, final) ||
     final.hasFiles ||
+    final.submodules.some(module => module.blockers.length > 0) ||
+    JSON.stringify(fresh.ignoredPaths) !== JSON.stringify(final.ignoredPaths) ||
     JSON.stringify(fresh.files) !== JSON.stringify(final.files)
   ) {
     throw new Error(
@@ -572,6 +674,7 @@ async function removeCheckedWorktreeAndBranchCore(
                 metadata: fresh.metadataPaths.map((original, i) => ({
                   original,
                   saved: String(i),
+                  snapshot: fresh.metadataSnapshots[i],
                 })),
               },
               null,
@@ -579,12 +682,32 @@ async function removeCheckedWorktreeAndBranchCore(
             ),
             { flag: 'wx' }
           )
+          await Fs.writeFile(
+            Path.join(backup, 'README.txt'),
+            'Retained private submodule Git metadata. Keep this directory intact.\n' +
+              'restore.json records original locations, checkout pointers, refs and SHA-256 file manifests.\n' +
+              'For recovery, close Git Desktop and stop repository writers, then copy each numbered directory back to its exact original path before restoring the recorded checkout .git pointer. Do not overwrite existing metadata.\n' +
+              'For inspection without restoring a checkout, use git --git-dir <numbered-directory-or-nested-module> show-ref and git --git-dir <directory> reflog show --all. config core.worktree may name the removed checkout.\n' +
+              'The manifest covers every retained local byte; unavailable target commits were not fetched or created.\n',
+            { flag: 'wx' }
+          )
           for (let i = 0; i < fresh.metadataPaths.length; i++) {
             const original = fresh.metadataPaths[i]
             await verifyOrdinaryDirectory(original)
+            await verifyCleanupMetadata(fresh.metadataSnapshots[i], original)
             await Fs.rename(original, Path.join(backup, String(i)))
             changed = true
+            await verifyCleanupMetadata(
+              fresh.metadataSnapshots[i],
+              Path.join(backup, String(i))
+            )
           }
+        }
+        if (
+          JSON.stringify(await readCleanupPolicy(fresh.path)) !==
+          JSON.stringify(fresh.policy)
+        ) {
+          throw new Error('.safe_to_remove changed before checkout deletion.')
         }
         changed = true
         await removeCleanupFiles(fresh.path, fresh.files, fresh.metadataPaths)
