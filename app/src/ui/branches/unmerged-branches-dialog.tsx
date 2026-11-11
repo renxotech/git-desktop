@@ -10,6 +10,7 @@ import { Dispatcher } from '../dispatcher'
 import { DeleteBranch, DeleteRemoteBranch } from '../delete-branch'
 import { ComputedAction } from '../../models/computed-action'
 import { determineMergeability } from '../../lib/git/merge-tree'
+import { getBranches } from '../../lib/git/for-each-ref'
 import {
   getUnmergedBranches,
   getUnmergedBranchTargets,
@@ -33,6 +34,7 @@ interface IState {
   readonly target: string
   readonly targets: ReadonlyArray<IBranchTarget>
   readonly branches: ReadonlyArray<IUnmergedBranch>
+  readonly loadedBranches: ReadonlyArray<Branch>
   readonly includeRemotes: boolean
   readonly busy: boolean
   readonly error: string | null
@@ -52,6 +54,7 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
       target: 'HEAD',
       targets: [],
       branches: [],
+      loadedBranches: [],
       includeRemotes: false,
       busy: true,
       error: null,
@@ -72,22 +75,32 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
   }
   private refresh = async () => {
     const request = ++this.request
+    const { target } = this.state
     this.setState({ busy: true, error: null, selected: '' })
     try {
-      const [targets, branches] = await Promise.all([
+      const [targets, branches, loadedBranches] = await Promise.all([
         getUnmergedBranchTargets(this.props.repository.path),
         getUnmergedBranches(
           this.props.repository.path,
-          this.state.target,
+          target,
           this.props.merged
         ),
+        // The app's cached branch list can omit refs from secondary remotes.
+        // Load full Branch metadata for the refs displayed by this dialog.
+        getBranches(this.props.repository),
       ])
       if (request === this.request) {
-        this.setState({ targets, branches, busy: false })
+        this.setState({ targets, branches, loadedBranches, busy: false })
       }
     } catch (error) {
       if (request === this.request) {
-        this.setState({ branches: [], busy: false, error: errorMessage(error) })
+        this.setState({
+          targets: [],
+          branches: [],
+          loadedBranches: [],
+          busy: false,
+          error: errorMessage(error),
+        })
       }
     }
   }
@@ -111,7 +124,7 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
     return null
   }
   private merge = async () => {
-    const branch = this.props.allBranches.find(
+    const branch = this.state.loadedBranches.find(
       b => b.ref === this.state.selected
     )
     const current = this.props.currentBranch
@@ -165,7 +178,7 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
     this.setState({ selected: e.currentTarget.value })
   private onRemove = () => {
     const branch = this.state.branches.find(b => b.ref === this.state.selected)
-    const selected = this.props.allBranches.find(b => b.ref === branch?.ref)
+    const selected = this.state.loadedBranches.find(b => b.ref === branch?.ref)
     if (!this.state.busy && selected && this.removalReason(branch) === null) {
       this.setState({ deleting: selected })
     }
@@ -246,7 +259,7 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
     const selectedResult = branches.find(b => b.ref === this.state.selected)
     const selected =
       selectedResult &&
-      this.props.allBranches.find(b => b.ref === selectedResult.ref)
+      this.state.loadedBranches.find(b => b.ref === selectedResult.ref)
     const reason = this.removalReason(selectedResult)
     const removal = this.state.removal
     if (removal) {
@@ -416,7 +429,7 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
       ) : (
         <DeleteBranch
           {...common}
-          existsOnRemote={this.props.allBranches.some(
+          existsOnRemote={this.state.loadedBranches.some(
             b => b.name === deleting.upstream
           )}
         />
