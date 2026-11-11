@@ -20,6 +20,7 @@ import {
   removeCleanupFiles,
   verifyOrdinaryDirectory,
 } from './worktree-cleanup-files'
+import { isCommittedRepositoryData } from './worktree-cleanup-repository-data'
 import {
   IRemovalSubmodule,
   checkRemovalSubmodules,
@@ -351,7 +352,16 @@ export async function checkWorktreeBranchRemoval(
     if (
       Path.basename(entry.path) === '.git' &&
       entry.path !== '.git' &&
-      !modulePointers.has(entry.path)
+      !modulePointers.has(entry.path) &&
+      !(
+        entry.kind === 'directory' &&
+        (await isCommittedRepositoryData(
+          worktree.path,
+          entry.path,
+          branchSha,
+          files
+        ))
+      )
     ) {
       throw new Error(`Nested repository prevents cleanup: ${entry.path}`)
     }
@@ -364,7 +374,13 @@ export async function checkWorktreeBranchRemoval(
       if (
         (await cleanupPathExists(Path.join(directory, 'HEAD'))) &&
         (await cleanupPathExists(Path.join(directory, 'objects'))) &&
-        (await cleanupPathExists(Path.join(directory, 'refs')))
+        (await cleanupPathExists(Path.join(directory, 'refs'))) &&
+        !(await isCommittedRepositoryData(
+          worktree.path,
+          entry.path,
+          branchSha,
+          files
+        ))
       ) {
         throw new Error(
           `Nested bare repository prevents cleanup: ${entry.path}`

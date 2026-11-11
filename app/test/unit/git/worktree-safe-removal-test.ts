@@ -98,6 +98,111 @@ async function exists(path: string) {
   )
 }
 
+async function committedRepositoryFixture(t: TestContext) {
+  const f = await fixture(t)
+  await Fs.cp(
+    Path.resolve(__dirname, '../../fixtures/branch-prune-tests/_git'),
+    Path.join(f.repo.path, 'test-data', '_git'),
+    { recursive: true }
+  )
+  await Fs.writeFile(
+    Path.join(f.repo.path, '.gitattributes'),
+    'test-data/** -text\n'
+  )
+  await Fs.appendFile(
+    Path.join(f.repo.path, '.gitignore'),
+    'test-data/_git/local-ignored\n'
+  )
+  await run(
+    f.repo.path,
+    'add',
+    '--force',
+    '--',
+    '.gitattributes',
+    '.gitignore',
+    'test-data'
+  )
+  await run(
+    f.repo.path,
+    'commit',
+    '-m',
+    'committed repository-shaped test data'
+  )
+  // Populate the selected tree from the actual commit, excluding source-only
+  // empty directories which Git cannot retain.
+  await run(f.linked, 'merge', 'master')
+  return { ...f, data: Path.join(f.linked, 'test-data', '_git') }
+}
+
+describe('committed repository-shaped fixtures during worktree cleanup', () => {
+  it('removes a clean committed copy of the actual branch-prune fixture', async t => {
+    const f = await committedRepositoryFixture(t)
+    const confirmed = await f.check()
+    assert.equal(confirmed.hasFiles, false)
+    await remove(f.repo.path, confirmed)
+    assert.equal(await exists(f.linked), false)
+    assert.equal(await f.branch(), '')
+    assert.equal(
+      await exists(Path.join(f.repo.path, 'test-data', '_git', 'HEAD')),
+      true
+    )
+  })
+
+  for (const change of [
+    'modified',
+    'staged',
+    'staged-new',
+    'untracked',
+    'ignored',
+    'empty-directory',
+  ]) {
+    it(`blocks ${change} state inside committed repository-shaped data`, async t => {
+      const f = await committedRepositoryFixture(t)
+      const confirmed = await f.check()
+      if (change === 'modified' || change === 'staged') {
+        await Fs.writeFile(
+          Path.join(f.data, 'HEAD'),
+          'ref: refs/heads/local-work\n'
+        )
+        if (change === 'staged') {
+          await run(f.linked, 'add', '--', 'test-data/_git/HEAD')
+        }
+      } else if (change === 'empty-directory') {
+        await Fs.mkdir(Path.join(f.data, 'local-empty'))
+      } else {
+        const extra = change === 'ignored' ? 'local-ignored' : 'local-extra'
+        await Fs.writeFile(
+          Path.join(f.data, extra),
+          'local fixture work must survive'
+        )
+        if (change === 'staged-new') {
+          await run(f.linked, 'add', '--', `test-data/_git/${extra}`)
+        }
+      }
+      await assert.rejects(f.check(), /Nested bare repository prevents cleanup/)
+      await assert.rejects(
+        remove(f.repo.path, confirmed, true),
+        /Nested bare repository prevents cleanup/
+      )
+      assert.equal(await exists(f.linked), true)
+      assert.match(await f.branch(), /finished/)
+    })
+  }
+
+  for (const ignored of [false, true]) {
+    it(`rejects a genuine ${
+      ignored ? 'ignored' : 'untracked'
+    } bare repository`, async t => {
+      const f = await fixture(t)
+      const bare = Path.join(f.linked, ignored ? 'dist' : 'local-bare')
+      await run(f.linked, 'init', '--bare', '--', bare)
+      await assert.rejects(f.check(), /Nested bare repository prevents cleanup/)
+      assert.equal(await exists(Path.join(bare, 'HEAD')), true)
+      assert.match(await f.branch(), /finished/)
+    })
+  }
+})
+
 describe('safe worktree removal with real filesystem fixtures', () => {
   it('preserves sandbox-protected worktree files before direct cleanup starts', async t => {
     const f = await fixture(t)

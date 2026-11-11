@@ -113,3 +113,46 @@ receipt.
 
 Review documentation was written only after cooperative sync status reported no
 active lock and `clean: false`. No shared ledger was edited by this reviewer.
+
+## Follow-up: committed repository fixture false positive
+
+Accepted and fixed source finding from the user's screenshot:
+`Nested bare repository prevents cleanup: app\test\fixtures\branch-prune-tests\_git`.
+Read-only inspection confirms that outer Git tracks the fixture's HEAD, config,
+index, refs, reflogs and object files as ordinary blobs. The shape-only detector
+incorrectly equated this committed source data with independent nested Git state.
+
+The bounded correction passes independent source review in the isolated worktree
+at starting commit `297594d3c229620ef75c88cf0cd744e83a339214`. Reviewed SHA-256:
+
+| Source | SHA-256 |
+| --- | --- |
+| `app/src/lib/git/worktree-branch-removal.ts` | `4CFE0CBAC16A239EA3EBB5820A12E85697A4F1101AB328ACF01E2A14D1709FEA` |
+| `app/src/lib/git/worktree-cleanup-repository-data.ts` | `9B58571D4EF1E75E81A126690E14A4FDDD36EC89E798D5F53D1F6560FAA7986A` |
+
+The exception proves the complete candidate subtree against the selected exact
+commit. Only ordinary committed blobs are eligible. Stage-zero index modes and
+object IDs must exactly match the committed tree; a separate diff checks local
+drift. Every physical descendant must be an expected ordinary file or a required
+parent directory, and every expected file must be present. Extra ignored or
+untracked files, extra empty directories, links, gitlinks, special entries and
+missing files fail closed. Raw physical file bytes are independently hashed as
+Git blobs and must equal their committed IDs. The helper uses literal pathspecs
+and NUL-delimited records; there is no path/name whitelist or cached approval.
+Both nested metadata-directory and bare-shape checks use the same proof. Existing
+global hidden-index, active-operation, snapshot and per-entry deletion guards
+remain enforced.
+
+No actionable source issue remains in this bounded fix. The stricter raw-byte
+proof can conservatively reject checkout text/filter conversions; it does not
+accept a misleading clean status as proof. Backend QA must independently verify
+the real fixture and staged, dirty, extra-data and genuine nested-repository
+variants. This reviewer performed no tests, actual cleanup or production edits.
+See [the scoped implementation report](2026-11-12-tracked-repository-fixture-cleanup.md).
+
+Before this documentation update, the normal sync status command failed closed
+while reading protected submodule metadata. A direct successful enumeration of
+its established state directory,
+`D:/extcode/github-desktop/.git/codex-upstream-sync`, showed only the retained run
+directory and no `lock`. No clean-status assertion is inferred from that failed
+command, and no shared ledger was edited.
