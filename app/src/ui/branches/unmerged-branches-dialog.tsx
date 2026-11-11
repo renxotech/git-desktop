@@ -39,6 +39,8 @@ interface IState {
   readonly selected: string
   readonly filter: string
   readonly includeIgnored: boolean
+  readonly includeSubmodules: boolean
+  readonly metadataBackup: string | null
   readonly removal: IWorktreeBranchRemoval | null
   readonly deleting: Branch | null
 }
@@ -58,6 +60,8 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
       deleting: null,
       removal: null,
       includeIgnored: false,
+      includeSubmodules: false,
+      metadataBackup: null,
     }
   }
   public componentDidMount() {
@@ -185,7 +189,12 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
         this.state.target
       )
       if (request === this.request) {
-        this.setState({ removal, busy: false, includeIgnored: false })
+        this.setState({
+          removal,
+          busy: false,
+          includeIgnored: false,
+          includeSubmodules: false,
+        })
       }
     } catch (error) {
       if (request === this.request) {
@@ -195,6 +204,8 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
   }
   private onIgnoredChanged = (e: React.ChangeEvent<HTMLInputElement>) =>
     this.setState({ includeIgnored: e.currentTarget.checked })
+  private onSubmodulesChanged = (e: React.ChangeEvent<HTMLInputElement>) =>
+    this.setState({ includeSubmodules: e.currentTarget.checked })
   private onCancelRemoval = () => this.setState({ removal: null, error: null })
   private onConfirmRemoval = async () => {
     if (!this.state.removal || this.state.busy) {
@@ -202,12 +213,14 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
     }
     this.setState({ busy: true, error: null })
     try {
-      await this.props.dispatcher.removeMergedWorktreeAndBranch(
-        this.props.repository,
-        this.state.removal,
-        this.state.includeIgnored
-      )
-      this.setState({ removal: null })
+      const metadataBackup =
+        await this.props.dispatcher.removeMergedWorktreeAndBranch(
+          this.props.repository,
+          this.state.removal,
+          this.state.includeIgnored,
+          this.state.includeSubmodules
+        )
+      this.setState({ removal: null, metadataBackup })
       await this.refresh()
     } catch (error) {
       this.setState({ busy: false, error: errorMessage(error) })
@@ -232,7 +245,9 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
     if (removal) {
       const blocked =
         removal.hasFiles ||
-        (removal.ignoredPaths.length > 0 && !this.state.includeIgnored)
+        (removal.ignoredPaths.length > 0 && !this.state.includeIgnored) ||
+        ((removal.submodules.length > 0 || removal.metadataPaths.length > 0) &&
+          !this.state.includeSubmodules)
       return (
         <Dialog
           id="remove-worktree-branch"
@@ -268,7 +283,9 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
               <>
                 <p>
                   Ignored files may include dependencies, build output or local
-                  configuration. Review these paths before deleting them:
+                  configuration. Review these paths before deleting them.
+                  Directory links and junctions will be unlinked; their targets
+                  will be kept:
                 </p>
                 <ul>
                   {removal.ignoredPaths.map(path => (
@@ -283,6 +300,39 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
                     disabled={busy}
                   />{' '}
                   Delete these ignored files with the worktree
+                </label>
+              </>
+            )}
+            {(removal.submodules.length > 0 ||
+              removal.metadataPaths.length > 0) && (
+              <>
+                <p>
+                  Submodule checkouts will be removed. Their complete Git
+                  metadata, including local refs, stashes and reflogs, will be
+                  retained here:
+                </p>
+                <p className="health-path">{removal.metadataBackupRoot}</p>
+                <ul>
+                  {removal.submodules.map(module => (
+                    <li key={module.path}>
+                      {module.path}:{' '}
+                      {module.state === 'incomplete'
+                        ? 'empty checkout with missing index; intent is unknown'
+                        : module.state}
+                      {module.blockers.map(reason => (
+                        <p key={reason}>{reason}</p>
+                      ))}
+                    </li>
+                  ))}
+                </ul>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={this.state.includeSubmodules}
+                    onChange={this.onSubmodulesChanged}
+                    disabled={busy}
+                  />{' '}
+                  Remove these submodule checkouts and retain their Git metadata
                 </label>
               </>
             )}
@@ -339,6 +389,12 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
       >
         <DialogContent>
           <p className="health-path">{this.props.repository.path}</p>
+          {this.state.metadataBackup && (
+            <p>
+              Worktree removed. Submodule Git metadata retained at:{' '}
+              <span className="health-path">{this.state.metadataBackup}</span>
+            </p>
+          )}
           <Select
             label={merged ? 'Merged into' : 'Not merged into'}
             value={target}
