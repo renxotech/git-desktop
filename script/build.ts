@@ -435,6 +435,14 @@ function copyDependencies() {
     process.platform === 'win32' ? '.exe' : ''
   }`
 
+  // Installed Git must find Desktop's helper without using the bundled
+  // distribution's GIT_EXEC_PATH or modifying the user's Git installation.
+  cpSync(
+    path.resolve(trampolineSource, desktopCredentialHelperTrampolineFile),
+    path.resolve(desktopTrampolineDir, desktopCredentialHelperFile),
+    { recursive: true, verbatimSymlinks: true }
+  )
+
   cpSync(
     path.resolve(trampolineSource, desktopCredentialHelperTrampolineFile),
     path.resolve(gitCoreDir, desktopCredentialHelperFile),

@@ -3,6 +3,7 @@ import { afterEach, before, beforeEach, describe, it, mock } from 'node:test'
 import * as FileSystem from 'fs/promises'
 import type { CopyOptions } from 'fs'
 import * as Dugite from 'dugite'
+import * as SelectedGit from '../../../src/lib/git/executable'
 import { basename, join } from 'path'
 import { getProxyCommandPath } from 'process-proxy'
 import type { HookProgress } from '../../../src/lib/git/core'
@@ -18,16 +19,15 @@ let nativeExecFault:
       options?: Dugite.IGitExecutionOptions
     ) => Promise<Dugite.IGitResult> | undefined)
   | undefined
-let nativeExec: typeof Dugite.exec
+let nativeExec: typeof SelectedGit.exec
 let loginGitParameters: string | undefined
 
 before(async () => {
   // Unit tests do not have webpack's packaged binary assets. Resolve only those
   // assets and the login-shell environment; all Git, hooks and proxy IPC are real.
   const copy = FileSystem.cp
-  const resolveBinary = Dugite.resolveGitBinary
   const resolveExecPath = Dugite.resolveGitExecPath
-  const originalExec = Dugite.exec
+  const originalExec = SelectedGit.exec
   nativeExec = originalExec
   mock.module('fs/promises', {
     namedExports: {
@@ -42,17 +42,17 @@ before(async () => {
         ),
     },
   })
-  mock.module('dugite', {
+  mock.module('../../../src/lib/git/executable.ts', {
     namedExports: {
-      ...Dugite,
+      ...SelectedGit,
       exec: (
         args: string[],
         cwd: string,
-        options?: Dugite.IGitExecutionOptions
+        options?: Dugite.IGitExecutionOptions,
+        beforeSpawn?: () => void
       ) =>
         nativeExecFault?.(args, cwd, options) ??
-        originalExec(args, cwd, options),
-      resolveGitBinary: () => resolveBinary(),
+        originalExec(args, cwd, options, beforeSpawn),
     },
   })
   mock.module('../../../src/lib/hooks/get-shell-env.ts', {
@@ -191,7 +191,12 @@ describe('git/assisted-commit real hook interception', () => {
     nativeExecFault = (args, cwd, options) =>
       nativeExec(args, cwd, {
         ...options,
-        env: { GIT_CONFIG: queryConfig, ...options?.env },
+        // The shared runner also serves unrelated --local sandbox-rule reads.
+        // Inject into operation environments, preserving explicit unsetting.
+        env: {
+          ...(options === undefined ? {} : { GIT_CONFIG: queryConfig }),
+          ...options?.env,
+        },
       })
     const result = await fixtures.single(repository, {
       ...input,

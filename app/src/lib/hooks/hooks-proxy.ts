@@ -1,18 +1,13 @@
-import { execFile, spawn } from 'child_process'
-import { basename, join, resolve } from 'path'
+import { spawn } from 'child_process'
+import { basename, join } from 'path'
 import { ProcessProxyConnection as Connection } from 'process-proxy'
 import type { HookCallbackOptions } from '../git'
-import { resolveGitBinary } from 'dugite'
+import { getGitEnvironment } from '../git/executable'
 import { ShellEnvResult } from './get-shell-env'
 import { shellFriendlyNames } from './config'
 import { Writable } from 'stream'
 import { pipeline } from 'stream/promises'
-import { promisify } from 'util'
-import memoizeOne from 'memoize-one'
-import which from 'which'
 import { createWriteStream } from 'fs'
-
-const execFileAsync = promisify(execFile)
 
 const ignoredOnFailureHooks = [
   'post-applypatch',
@@ -70,76 +65,6 @@ const exitWithMessage = (conn: Connection, msg: string, exitCode = 0) =>
 
 const exitWithError = (conn: Connection, msg: string, exitCode = 1) =>
   exitWithMessage(conn, msg, exitCode)
-
-const memoizedGetExecPathFromGit = memoizeOne(
-  (systemGitPath: string, env: Record<string, string | undefined>) =>
-    execFileAsync(systemGitPath, ['--exec-path'], { env })
-      .then(({ stdout }) => stdout.replace(/\r?\n$/, ''))
-      .catch(err => {
-        debug(`Failed to get GIT_EXEC_PATH from Git`, err)
-        return undefined
-      }),
-  // memoize-one invokes this equality function once per argument as
-  // (newArg, lastArg), not with the full argument arrays. The first argument
-  // is the path to the Git binary (a string) and the second is the
-  // environment object.
-  //
-  // git --exec-path is only affected by the GIT_EXEC_PATH environment
-  // variable. If that's not set it'll only spit out compile time constants so
-  // we can memoize it based on just the path to the Git binary and the value
-  // of GIT_EXEC_PATH. Note that theoretically this could mean that Apple ships
-  // a new version of Git which has a different compile time GIT_EXEC_PATH but
-  // that should be rare enough that we can get away with not worrying about
-  // cache invalidation here.
-  (a, b) =>
-    typeof a === 'string' ? a === b : a?.GIT_EXEC_PATH === b?.GIT_EXEC_PATH
-)
-
-// We're invoking our own built-in Git binary here (git hook run) because we
-// can't be certain that the user's Git binary is new enough to support the
-// hook run command. Unfortunately this means that our own Git binary will
-// set GIT_EXEC_PATH before invoking the hook
-// (https://github.com/git/git/blob/26d8d94e94df5535eecd036f16627493506a0614/exec-cmd.c#L313)
-// and since our internal Git is built without a prefix this means it'll set
-// GIT_EXEC_PATH to //libexec/git-core which won't exist. So we'll need to
-// manually set GIT_EXEC_PATH to the system Git's exec path if it's not
-// already set in the shell environment.
-const ensureGitExecPathEnv = async (shellEnv: ShellEnvResult) => {
-  if (shellEnv.kind !== 'success' || shellEnv.env.GIT_EXEC_PATH) {
-    return shellEnv
-  }
-
-  // PATH is uppercase on most platforms but isn't guaranteed to be on Windows
-  // (e.g. cmd/PowerShell may store it as Path), and shellEnv.env is a plain,
-  // case-sensitive object so we look it up case-insensitively here.
-  const pathEnv =
-    shellEnv.env.PATH ??
-    Object.entries(shellEnv.env).find(
-      ([key]) => key.toUpperCase() === 'PATH'
-    )?.[1]
-
-  if (pathEnv) {
-    const systemGitPath = await which('git', { path: pathEnv }).catch(
-      () => undefined
-    )
-
-    if (!systemGitPath) {
-      debug('Failed to find system git in PATH')
-      return shellEnv
-    }
-    const execPath = await memoizedGetExecPathFromGit(
-      systemGitPath,
-      shellEnv.env
-    )
-
-    if (execPath) {
-      debug(`Setting GIT_EXEC_PATH from system git (${execPath})`)
-      return { ...shellEnv, env: { ...shellEnv.env, GIT_EXEC_PATH: execPath } }
-    }
-  }
-
-  return shellEnv
-}
 
 export const createHooksProxy = (
   getShellEnv: (cwd: string) => Promise<ShellEnvResult>,
@@ -203,8 +128,7 @@ export const createHooksProxy = (
     ]
 
     const terminalOutput: Buffer[] = []
-    const gitPath = resolveGitBinary(resolve(__dirname, 'git'))
-    const shellEnv = await ensureGitExecPathEnv(await getShellEnv(proxyCwd))
+    const shellEnv = await getShellEnv(proxyCwd)
 
     if (shellEnv.kind === 'failure') {
       let errMsg = `Failed to load shell environment for hook ${hookName}.`
@@ -243,18 +167,21 @@ export const createHooksProxy = (
       }
     }
 
+    const { gitLocation, env: gitEnv } = await getGitEnvironment(
+      { ...shellEnv.env, ...safeEnv, GITHUB_DESKTOP: '1' },
+      {}
+    )
+
     const { code, signal } = await new Promise<{
       code: number | null
       signal: NodeJS.Signals | null
     }>((resolve, reject) => {
-      const child = spawn(gitPath, args, {
+      const child = spawn(gitLocation, args, {
         cwd: proxyCwd,
         // GITHUB_DESKTOP lets hooks know they're run from Git Desktop.
         // See https://github.com/desktop/desktop/issues/19001
         env: {
-          ...shellEnv.env,
-          ...safeEnv,
-          GITHUB_DESKTOP: '1',
+          ...gitEnv,
           ...(capturedGitParameters === undefined
             ? {}
             : { GIT_CONFIG_PARAMETERS: capturedGitParameters }),

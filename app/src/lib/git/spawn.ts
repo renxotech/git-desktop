@@ -1,4 +1,5 @@
-import { spawn, IGitSpawnOptions } from 'dugite'
+import { IGitSpawnOptions } from 'dugite'
+import { spawn } from './executable'
 import * as GitPerf from '../../ui/lib/git-perf'
 import { withTrampolineEnv } from '../trampoline/trampoline-environment'
 

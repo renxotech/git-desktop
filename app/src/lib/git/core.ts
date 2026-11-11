@@ -1,5 +1,4 @@
 import {
-  exec,
   GitError as DugiteError,
   parseError,
   IGitResult as DugiteResult,
@@ -7,6 +6,7 @@ import {
   parseBadConfigValueErrorInfo,
   ExecError,
 } from 'dugite'
+import { exec } from './executable'
 
 import { assertNever } from '../fatal-error'
 import * as GitPerf from '../../ui/lib/git-perf'
@@ -316,20 +316,25 @@ export async function git(
             const commandName = `${name}: git ${args.join(' ')}`
             const result = await GitPerf.measure(commandName, () => {
               verifyRepositoryGitSpawnFence()
-              return exec(args, path, {
-                ...opts,
-                env: {
-                  // Explicitly set TERM to 'dumb' so that if Desktop was launched
-                  // from a terminal or if the system environment variables
-                  // have TERM set Git won't consider us as a smart terminal.
-                  // See https://github.com/git/git/blob/a7312d1a2/editor.c#L11-L15
-                  TERM: 'dumb',
-                  ...opts.env,
-                  ...getRepositoryGitReadEnvironment(),
-                  ...hooksEnv,
-                  ...env,
+              return exec(
+                args,
+                path,
+                {
+                  ...opts,
+                  env: {
+                    // Explicitly set TERM to 'dumb' so that if Desktop was launched
+                    // from a terminal or if the system environment variables
+                    // have TERM set Git won't consider us as a smart terminal.
+                    // See https://github.com/git/git/blob/a7312d1a2/editor.c#L11-L15
+                    TERM: 'dumb',
+                    ...opts.env,
+                    ...getRepositoryGitReadEnvironment(),
+                    ...hooksEnv,
+                    ...env,
+                  },
                 },
-              })
+                verifyRepositoryGitSpawnFence
+              )
             }).catch(err => {
               // If this is an exception thrown by Node.js (as opposed to
               // dugite) let's keep the salient details but include the name of

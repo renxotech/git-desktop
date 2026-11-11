@@ -1,5 +1,5 @@
 import { Stats, lstatSync } from 'fs'
-import { exec } from 'dugite'
+import { exec } from '../executable'
 import {
   lstat,
   mkdir,

@@ -90,6 +90,12 @@ import {
   enableFormattingPreferences,
 } from '../../lib/feature-flag'
 import { validateCopilotAppPath } from '../../lib/copilot-app'
+import {
+  GitExecutableSelection,
+  readGitExecutableSelection,
+  saveGitExecutableSelection,
+  validateGitExecutable,
+} from '../../lib/git/executable'
 
 interface IPreferencesProps {
   readonly dispatcher: Dispatcher
@@ -192,12 +198,15 @@ interface IPreferencesState {
   readonly alwaysShowWorktreeList: boolean
 
   readonly isLoadingGitConfig: boolean
+  readonly gitConfigUnavailable?: boolean
 
   readonly underlineLinks: boolean
 
   readonly showDiffCheckMarks: boolean
 
   readonly selectedGitTabIndex?: number
+  readonly gitExecutableSelection: GitExecutableSelection
+  readonly gitExecutableError?: string
   readonly enableGitHookEnv: boolean | undefined
   readonly cacheGitHookEnv: boolean | undefined
   readonly selectedGitHookEnvShell: string | undefined
@@ -232,6 +241,13 @@ export class Preferences extends React.Component<
 
     this.state = {
       selectedIndex: this.props.initialSelectedTab || PreferencesTab.Accounts,
+      gitExecutableSelection: (() => {
+        try {
+          return readGitExecutableSelection()
+        } catch {
+          return { kind: 'bundled' } as const
+        }
+      })(),
       committerName: '',
       committerEmail: '',
       defaultBranch: '',
@@ -289,14 +305,23 @@ export class Preferences extends React.Component<
   }
 
   public async componentWillMount() {
-    const initialCommitterName = await getGlobalConfigValue('user.name')
-    const initialCommitterEmail = await getGlobalConfigValue('user.email')
-    const initialDefaultBranch = await getDefaultBranch()
+    // Preferences must remain usable when the selected installation is missing.
+    let gitConfigUnavailable = false
+    const [initialCommitterName, initialCommitterEmail, initialDefaultBranch] =
+      await Promise.all([
+        getGlobalConfigValue('user.name'),
+        getGlobalConfigValue('user.email'),
+        getDefaultBranch(),
+      ]).catch(error => {
+        log.warn('Could not load Git preferences', error)
+        gitConfigUnavailable = true
+        return ['', '', ''] as const
+      })
 
     let committerName = initialCommitterName
     let committerEmail = initialCommitterEmail
 
-    if (!committerName || !committerEmail) {
+    if (!gitConfigUnavailable && (!committerName || !committerEmail)) {
       const { accounts } = this.props
       const account = accounts.find(isDotComAccount) ?? accounts.at(0)
 
@@ -329,6 +354,7 @@ export class Preferences extends React.Component<
     const availableShells = shells.map(e => e.shell) ?? null
 
     this.setState({
+      gitConfigUnavailable,
       committerName,
       committerEmail,
       defaultBranch: initialDefaultBranch,
@@ -651,6 +677,9 @@ export class Preferences extends React.Component<
           <>
             {error}
             <Git
+              gitExecutableSelection={this.state.gitExecutableSelection}
+              gitExecutableError={this.state.gitExecutableError}
+              onGitExecutableChanged={this.onGitExecutableChanged}
               name={this.state.committerName}
               email={this.state.committerEmail}
               accounts={this.props.accounts}
@@ -1042,7 +1071,9 @@ export class Preferences extends React.Component<
   }
 
   private renderFooter() {
-    const hasDisabledError = this.state.disallowedCharactersMessage != null
+    const hasDisabledError =
+      this.state.disallowedCharactersMessage != null ||
+      this.state.isLoadingGitConfig
 
     return (
       <DialogFooter>
@@ -1054,8 +1085,35 @@ export class Preferences extends React.Component<
     )
   }
 
+  private onGitExecutableChanged = (
+    gitExecutableSelection: GitExecutableSelection
+  ) => {
+    this.setState({ gitExecutableSelection, gitExecutableError: undefined })
+  }
+
   private onSave = async () => {
     const { dispatcher } = this.props
+    const selection = this.state.gitExecutableSelection
+    let selectionChanged = true
+    try {
+      selectionChanged =
+        JSON.stringify(selection) !==
+        JSON.stringify(readGitExecutableSelection())
+    } catch {
+      /* Allow repairing an invalid saved preference. */
+    }
+    if (selectionChanged) {
+      try {
+        await validateGitExecutable(selection)
+      } catch (error) {
+        this.setState({
+          selectedIndex: PreferencesTab.Git,
+          selectedGitTabIndex: 3,
+          gitExecutableError: error.message,
+        })
+        return
+      }
+    }
     this.setState({ editorError: undefined })
     const customEditors = [
       ...(this.state.useCustomEditor ? [this.state.customEditor] : []),
@@ -1133,12 +1191,18 @@ export class Preferences extends React.Component<
     try {
       let shouldRefreshAuthor = false
 
-      if (this.state.committerName !== this.state.initialCommitterName) {
+      if (
+        !this.state.gitConfigUnavailable &&
+        this.state.committerName !== this.state.initialCommitterName
+      ) {
         await setGlobalConfigValue('user.name', this.state.committerName)
         shouldRefreshAuthor = true
       }
 
-      if (this.state.committerEmail !== this.state.initialCommitterEmail) {
+      if (
+        !this.state.gitConfigUnavailable &&
+        this.state.committerEmail !== this.state.initialCommitterEmail
+      ) {
         await setGlobalConfigValue('user.email', this.state.committerEmail)
         shouldRefreshAuthor = true
       }
@@ -1155,6 +1219,7 @@ export class Preferences extends React.Component<
       // block the user from clicking "Save" because the entered branch is not valid
       // (they will not be able to know the issue if they are in a different tab).
       if (
+        !this.state.gitConfigUnavailable &&
         this.state.defaultBranch.length > 0 &&
         this.state.defaultBranch !== this.state.initialDefaultBranch
       ) {
@@ -1314,6 +1379,13 @@ export class Preferences extends React.Component<
       }
     }
 
+    if (selectionChanged) {
+      saveGitExecutableSelection(
+        selection.kind === 'installed'
+          ? { ...selection, path: selection.path.trim() }
+          : selection
+      )
+    }
     this.props.onDismissed()
   }
 
