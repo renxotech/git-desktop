@@ -168,8 +168,19 @@ dialog#remove-worktree-branch {
 
   .dialog-content {
     min-height: 0;
+    // Bound the scroller itself: a fieldset's anonymous content box can keep
+    // its intrinsic height when the form and fieldset have automatic heights.
+    // Reserve space for the title bar, dialog header/footer and outer margins.
+    max-height: calc(100vh - 210px);
     overflow-y: auto;
     overflow-wrap: anywhere;
+  }
+
+  @media (max-height: 550px) {
+    .dialog-content {
+      // The shared short-window rule uses !important with a smaller reserve.
+      max-height: calc(100vh - 210px) !important;
+    }
   }
 
   .health-path {
