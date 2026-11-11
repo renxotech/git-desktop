@@ -689,13 +689,26 @@ function getNextPagePathFromLink(response: Response): string | null {
     return null
   }
 
-  for (const part of linkHeader.split(',')) {
+  for (const match of linkHeader.matchAll(/<([^>]+)>;\s*rel="([^"]+)"/g)) {
     // https://github.com/philschatz/octokat.js/blob/5658abe442e8bf405cfda1c72629526a37554613/src/plugins/pagination.js#L17
-    const match = part.match(/<([^>]+)>; rel="([^"]+)"/)
-
-    if (match && match[2] === 'next') {
-      const nextURL = URL.parse(match[1])
-      return nextURL.path || null
+    if (match[2] === 'next') {
+      const target = match[1].trim()
+      // Empty/fragment-only links previously had no path; resolving them against
+      // the placeholder must not accidentally fetch the API root.
+      if (target.length === 0 || target.startsWith('#')) {
+        return null
+      }
+      try {
+        // API Link headers can contain either absolute or relative URLs. The
+        // placeholder is only a parsing base; requests still use the API client.
+        const nextURL = new URL.URL(target, 'https://pagination.invalid/')
+        if (nextURL.protocol !== 'http:' && nextURL.protocol !== 'https:') {
+          return null
+        }
+        return nextURL.pathname + nextURL.search
+      } catch {
+        return null
+      }
     }
   }
 
@@ -754,11 +767,20 @@ export function getNextPagePathWithIncreasingPageSize(response: Response) {
     return null
   }
 
-  const { pathname, query } = URL.parse(nextPath, true)
-  const { per_page, page } = query
+  // nextPath is already a root-relative path. Concatenation prevents a path
+  // beginning with // from being reinterpreted as a different authority.
+  const nextURL = new URL.URL(`https://pagination.invalid${nextPath}`)
+  const perPageValues = nextURL.searchParams.getAll('per_page')
+  const pageValues = nextURL.searchParams.getAll('page')
 
-  const pageSize = typeof per_page === 'string' ? parseInt(per_page, 10) : NaN
-  const pageNumber = typeof page === 'string' ? parseInt(page, 10) : NaN
+  // The legacy parser returned arrays for duplicate values, which intentionally
+  // prevented ramp-up. Do not silently choose the first conflicting value.
+  if (perPageValues.length !== 1 || pageValues.length !== 1) {
+    return nextPath
+  }
+
+  const pageSize = parseInt(perPageValues[0], 10)
+  const pageNumber = parseInt(pageValues[0], 10)
 
   if (!pageSize || !pageNumber) {
     return nextPath
@@ -779,9 +801,9 @@ export function getNextPagePathWithIncreasingPageSize(response: Response) {
   // second page would seamlessly fit? No sense going
   // above 100 since that's the max the API supports
   if (pageSize !== nextPageSize && received % nextPageSize === 0) {
-    query.per_page = `${nextPageSize}`
-    query.page = `${received / nextPageSize + 1}`
-    return URL.format({ pathname, query })
+    nextURL.searchParams.set('per_page', `${nextPageSize}`)
+    nextURL.searchParams.set('page', `${received / nextPageSize + 1}`)
+    return nextURL.pathname + nextURL.search
   }
 
   return nextPath
