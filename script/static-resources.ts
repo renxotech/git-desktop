@@ -1,6 +1,6 @@
 /* eslint-disable no-sync */
 
-import { cpSync, existsSync, rmSync } from 'fs'
+import { copyFileSync, cpSync, existsSync, readFileSync, rmSync } from 'fs'
 import * as path from 'path'
 
 /** Stage static assets without copying repository metadata into the package. */
@@ -23,4 +23,18 @@ export function copyStaticResources(
     cpSync(platformSpecific, destination, options)
   }
   cpSync(common, destination, { ...options, force: false })
+
+  // Git checks out this upstream alias as a plain link-target file when
+  // core.symlinks is false (common on Windows). Materialize only that exact
+  // placeholder in the output, preserving both source files and real templates.
+  const clojure = path.join(destination, 'gitignore', 'Clojure.gitignore')
+  if (
+    existsSync(clojure) &&
+    readFileSync(clojure, 'utf8') === 'Leiningen.gitignore'
+  ) {
+    copyFileSync(
+      path.join(destination, 'gitignore', 'Leiningen.gitignore'),
+      clojure
+    )
+  }
 }
