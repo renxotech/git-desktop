@@ -5,6 +5,33 @@ Run `build.cmd -NoLaunch` on Windows, or
 entry points create versions such as `v2026.11.10_01`. Low-level npm
 compile/build commands remain available without automatic tagging.
 
+Production webpack builds reuse five separate filesystem caches under this
+checkout's `.webpack-cache/`, outside shared `node_modules` and packaged outputs.
+Webpack tracks configuration dependencies, manifests, lockfiles and TypeScript
+configuration. Resolved build replacements (including version and commit SHA),
+platform, architecture, target, channel, Node version and analysis mode also
+invalidate the cache. A new date-based build version intentionally invalidates
+the whole production cache; identical-identity rebuilds can reuse it. Cache
+files are disposable local data and are not packaged or committed. Cold/warm
+speed improvements have not yet been measured.
+
+Renderer bundle analysis is off by default. Use `build.cmd -AnalyzeBundle -NoLaunch`
+(WSL: `bash script/build-local.sh --analyze-bundle --no-launch`) to generate the
+optional `renderer.report.html`. Low-level production commands accept
+`DESKTOP_BUNDLE_ANALYZE=true`; only a trimmed, case-insensitive `true` enables
+analysis. Unset, null, empty, false and invalid values disable it. The build
+entry point restores the prior environment after success or failure. Report
+generation still uses the existing staging/report location and packaging filter.
+
+The local build entry point prints elapsed seconds for compile, resource
+preparation (including Sass/license checks), package copy/promotion, version
+finalization and default-output housekeeping. Failed stages print `failed`
+and preserve the existing failure result. Housekeeping remains best effort:
+its warnings can accompany a completed timing line. Explicit output builds
+skip default-output housekeeping; launch-only runs have no build timings.
+These durations exclude prerequisite checks, launch and optional tests, and
+are wall-clock stage durations rather than summed webpack compiler durations.
+
 The date uses the Windows machine's local calendar. The counter starts at 01
 each day and increments above the highest matching local tag across all
 branches. It grows to 100 after 99. Tags are not fetched automatically; fetch
