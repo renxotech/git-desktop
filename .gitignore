@@ -35,3 +35,9 @@ dist-build/
 *.log
 /'dist
 /docs/reviews
+/preserved-builds
+docs/Codex-ToDo.md
+docs/Codex-ToDo.md
+/tmp
+/docs/tasks/assisted-commit-test-split/evidence
+/docs/tasks
