@@ -145,3 +145,39 @@
     overflow-wrap: anywhere;
   }
 }
+
+dialog#remove-worktree-branch {
+  // Leave room for the title bar and keep the actions outside the scroller.
+  max-height: calc(100vh - 60px);
+
+  > form {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+
+    > fieldset {
+      flex: 1 1 auto;
+      height: auto;
+    }
+  }
+
+  .dialog-header,
+  .dialog-footer {
+    flex-shrink: 0;
+  }
+
+  .dialog-content {
+    min-height: 0;
+    overflow-y: auto;
+    overflow-wrap: anywhere;
+  }
+
+  .health-path {
+    color: var(--text-secondary-color);
+    user-select: text;
+  }
+
+  .health-error {
+    color: var(--form-error-text-color);
+  }
+}
