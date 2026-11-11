@@ -4,13 +4,14 @@ param(
     [switch]$NoLaunch,
     [switch]$LaunchOnly,
     [switch]$AllowDirty,
+    [switch]$AnalyzeBundle,
     [string]$OutputDirectory
 )
 
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent $PSScriptRoot
 $taskOldLocation = Get-Location
-$taskEnvNames = @('NODE_ENV', 'DESKTOP_SKIP_PACKAGE', 'DESKTOP_LOCAL_BUNDLE', 'DESKTOP_BUILD_VERSION', 'DESKTOP_PACKAGE_VERSION', 'DESKTOP_FILE_VERSION', 'DESKTOP_DIST_ROOT')
+$taskEnvNames = @('NODE_ENV', 'DESKTOP_SKIP_PACKAGE', 'DESKTOP_LOCAL_BUNDLE', 'DESKTOP_BUILD_VERSION', 'DESKTOP_PACKAGE_VERSION', 'DESKTOP_FILE_VERSION', 'DESKTOP_DIST_ROOT', 'DESKTOP_BUNDLE_ANALYZE')
 $taskOldEnv = @{}
 foreach ($taskName in $taskEnvNames) {
     $taskOldEnv[$taskName] = [Environment]::GetEnvironmentVariable($taskName, 'Process')
@@ -21,6 +22,20 @@ function Invoke-Npm {
     & npm.cmd @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "Build command failed (exit $LASTEXITCODE): npm $($Arguments -join ' ')"
+    }
+}
+
+function Invoke-DesktopBuildStage {
+    param([string]$Name, [scriptblock]$Action)
+    $taskStageTimer = [Diagnostics.Stopwatch]::StartNew()
+    $taskStageCompleted = $false
+    try {
+        & $Action
+        $taskStageCompleted = $true
+    } finally {
+        $taskStageTimer.Stop()
+        $taskStageStatus = if ($taskStageCompleted) { 'completed' } else { 'failed' }
+        Write-Host ('Build timing: {0} {1} in {2:F2}s' -f $Name, $taskStageStatus, $taskStageTimer.Elapsed.TotalSeconds)
     }
 }
 
@@ -39,7 +54,11 @@ try {
         $taskActive = Get-Content -LiteralPath $taskActiveFile -Raw | ConvertFrom-Json
         if ([IO.Path]::GetFullPath($taskActive.candidate) -ne $taskRoot) { throw 'An upstream sync owns this repository.' }
     }
+    . (Join-Path $PSScriptRoot 'build-output.ps1')
     if ($OutputDirectory) {
+        if ($OutputDirectory.Contains("'")) {
+            throw 'OutputDirectory contains a literal single quote. In Command Prompt, use double quotes: -OutputDirectory "dist/my-preview".'
+        }
         $taskOutputRoot = [IO.Path]::GetFullPath((Join-Path $taskRoot $OutputDirectory))
         if (!$taskOutputRoot.StartsWith($taskRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Output must stay inside this checkout.' }
         if ($taskOutputRoot -eq (Join-Path $taskRoot 'dist')) { throw 'Choose a separate output subdirectory.' }
@@ -53,6 +72,21 @@ try {
         $env:DESKTOP_FILE_VERSION = $taskVersion.FileVersion
         Write-Host "Building Git Desktop $($taskVersion.Label)"
     }
+    if (!$OutputDirectory) {
+        if ($LaunchOnly) {
+            $taskExecutable = Get-DesktopLatestExecutable -Root $taskRoot
+            $taskOutputRoot = Split-Path -Parent (Split-Path -Parent $taskExecutable)
+        } else {
+            $taskOutputRoot = Join-Path (Join-Path $taskRoot 'dist') $taskVersion.Label
+        }
+    }
+    Assert-DesktopOutputPath -Root $taskRoot -Path $taskOutputRoot
+    $taskOwnedOutput = $null
+    if (!$OutputDirectory -and !$LaunchOnly -and (Test-Path -LiteralPath $taskOutputRoot)) {
+        $taskOwnedOutput = Get-DesktopOwnedOutputs -Root $taskRoot | Where-Object { $_.Path -eq $taskOutputRoot }
+        if (!$taskOwnedOutput) { throw "The default output already exists without a completed ownership receipt. Preserve it and choose -OutputDirectory explicitly: $taskOutputRoot" }
+    }
+    $env:DESKTOP_DIST_ROOT = $taskOutputRoot
     foreach ($taskAsset in @('gemoji\images\emoji', 'gemoji\db\emoji.json', 'app\static\common\choosealicense.com\_licenses', 'app\static\common\gitignore\Global')) {
         if (!(Test-Path -LiteralPath $taskAsset)) {
             throw "Missing submodule asset: $taskAsset. From this checkout, run git submodule update --init before building. npm does not install Git submodules."
@@ -61,7 +95,8 @@ try {
     if (!(Test-Path 'node_modules\electron\dist\electron.exe')) {
         throw 'Dependencies are missing. Install them before building.'
     }
-    while (!$OutputDirectory -and !$LaunchOnly -and (Get-Process -Name GitDesktop -ErrorAction SilentlyContinue)) {
+    $taskSelectedExecutable = Join-Path $taskOutputRoot 'GitDesktop-win32-x64\GitDesktop.exe'
+    while (!$LaunchOnly -and (Get-Process -Name GitDesktop -ErrorAction SilentlyContinue | Where-Object { ($_.Path -and $_.Path.StartsWith($taskOutputRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) -or (!$_.Path -and (Test-Path -LiteralPath $taskSelectedExecutable)) })) {
         if ($NonInteractive) {
             throw 'Close Git Desktop, then rerun the build. The app is using the output files.'
         }
@@ -71,19 +106,36 @@ try {
     }
 
     if (!$LaunchOnly) {
+        if ($OutputDirectory -or $taskOwnedOutput) {
+            Clear-DesktopBuildOutputOwnership -Root $taskRoot -Output $taskOutputRoot
+        }
         $env:NODE_ENV = 'production'
-        Invoke-Npm -Arguments @('exec', '--', 'cross-env', 'NODE_ENV=production', 'TS_NODE_PROJECT=script/tsconfig.json', 'NODE_OPTIONS=--max_old_space_size=8192', 'webpack', '--config', 'app/webpack.production.ts')
+        if ($AnalyzeBundle) { $env:DESKTOP_BUNDLE_ANALYZE = 'true' }
+        Invoke-DesktopBuildStage -Name 'Compile' -Action {
+            Invoke-Npm -Arguments @('exec', '--', 'cross-env', 'NODE_ENV=production', 'TS_NODE_PROJECT=script/tsconfig.json', 'NODE_OPTIONS=--max_old_space_size=8192', 'webpack', '--config', 'app/webpack.production.ts')
+        }
         $env:DESKTOP_SKIP_PACKAGE = '1'
-        Invoke-Npm -Arguments @('exec', '--', 'ts-node', '-P', 'script/tsconfig.json', 'script/build.ts')
+        Invoke-DesktopBuildStage -Name 'Resource preparation' -Action {
+            Invoke-Npm -Arguments @('exec', '--', 'ts-node', '-P', 'script/tsconfig.json', 'script/build.ts')
+        }
         $env:DESKTOP_LOCAL_BUNDLE = 'out'
-        Invoke-Npm -Arguments @('run', 'package:local')
+        Invoke-DesktopBuildStage -Name 'Package' -Action {
+            Invoke-Npm -Arguments @('run', 'package:local')
+        }
     }
 
-    $taskDistRoot = if ($OutputDirectory) { $taskOutputRoot } else { Join-Path $taskRoot 'dist' }
+    $taskDistRoot = $taskOutputRoot
     $taskExecutable = Join-Path $taskDistRoot 'GitDesktop-win32-x64\GitDesktop.exe'
     if (!(Test-Path -LiteralPath $taskExecutable)) { throw 'Packaging did not produce the executable.' }
     if (!$LaunchOnly) {
-        Complete-DesktopBuildVersion -Version $taskVersion -Executable $taskExecutable
+        Invoke-DesktopBuildStage -Name 'Version finalization' -Action {
+            Complete-DesktopBuildVersion -Version $taskVersion -Executable $taskExecutable
+        }
+        if (!$OutputDirectory) {
+            Invoke-DesktopBuildStage -Name 'Output housekeeping' -Action {
+                Complete-DesktopBuildOutput -Root $taskRoot -Output $taskOutputRoot -Label $taskVersion.Label
+            }
+        }
     }
     Write-Host "Executable ready: $taskExecutable" -ForegroundColor Green
     if (!$NoLaunch) {

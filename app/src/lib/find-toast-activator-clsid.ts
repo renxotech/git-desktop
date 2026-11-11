@@ -1,17 +1,21 @@
 import * as path from 'path'
-import * as os from 'os'
-import { shell } from 'electron'
+import { app, shell } from 'electron'
+
+export interface IWindowsNotificationIdentity {
+  readonly toastActivatorClsid: string
+  readonly appUserModelId: string
+}
 
 /**
  * Checks all Windows shortcuts created by Squirrel looking for the toast
  * activator CLSID needed to handle Windows notifications from the Action Center.
  */
-export function findToastActivatorClsid() {
+export function findWindowsNotificationIdentity():
+  | IWindowsNotificationIdentity
+  | undefined {
   const shortcutPaths = [
     path.join(
-      os.homedir(),
-      'AppData',
-      'Roaming',
+      app.getPath('appData'),
       'Microsoft',
       'Windows',
       'Start Menu',
@@ -19,37 +23,42 @@ export function findToastActivatorClsid() {
       'GitHub, Inc',
       'Git Desktop.lnk'
     ),
-    path.join(os.homedir(), 'Desktop', 'Git Desktop.lnk'),
+    path.join(app.getPath('desktop'), 'Git Desktop.lnk'),
   ]
 
   for (const shortcutPath of shortcutPaths) {
-    const toastActivatorClsid = findToastActivatorClsidInShorcut(shortcutPath)
+    const identity = findIdentityInShortcut(shortcutPath)
 
-    if (toastActivatorClsid !== undefined) {
-      return toastActivatorClsid
+    if (identity !== undefined) {
+      return identity
     }
   }
 
   return undefined
 }
 
-function findToastActivatorClsidInShorcut(shortcutPath: string) {
+function findIdentityInShortcut(
+  shortcutPath: string
+): IWindowsNotificationIdentity | undefined {
   try {
     const shortcutDetails = shell.readShortcutLink(shortcutPath)
 
     if (
       shortcutDetails.toastActivatorClsid === undefined ||
-      shortcutDetails.toastActivatorClsid === ''
+      !/^\{[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}\}$/i.test(
+        shortcutDetails.toastActivatorClsid
+      ) ||
+      shortcutDetails.appUserModelId !== 'com.squirrel.GitDesktop.GitDesktop'
     ) {
       return undefined
     }
 
-    return shortcutDetails.toastActivatorClsid
-  } catch (error) {
-    log.error(
-      `Error looking for toast activator CLSID in shortcut ${shortcutPath}`,
-      error
-    )
+    return {
+      toastActivatorClsid: shortcutDetails.toastActivatorClsid,
+      appUserModelId: shortcutDetails.appUserModelId,
+    }
+  } catch {
+    // Unpacked local builds do not install Windows shortcuts.
     return undefined
   }
 }

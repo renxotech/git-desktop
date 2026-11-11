@@ -1,3 +1,4 @@
+import '../lib/logging/deprecation-trace'
 import '../lib/logging/main/install'
 
 import {

@@ -50,6 +50,8 @@ public:
                                 Napi::Function &callback);
     ~DesktopNotificationsManager();
 
+    bool isInitialized() const { return m_initialized; }
+
     const std::string getCurrentPermission();
 
     HRESULT displayToast(const std::wstring &id,
@@ -129,7 +131,6 @@ private:
 
     std::vector<std::shared_ptr<DesktopNotification>> m_desktopNotifications;
 
-    void SignalObjectCountZero();
     HRESULT RegisterClassObjects(const std::wstring &toastActivatorClsid);
     HRESULT UnregisterClassObjects();
     bool closeNotification(std::shared_ptr<DesktopNotification> d);
@@ -143,6 +144,9 @@ private:
     Napi::ThreadSafeFunction m_callback;
     std::wstring m_appID;
     ULONG m_ref;
+    bool m_initialized = false;
+    bool m_runtimeInitialized = false;
+    bool m_classObjectsRegistered = false;
 };
 
 extern std::shared_ptr<DesktopNotificationsManager> desktopNotificationsManager;

@@ -15,10 +15,13 @@ profile, credential namespaces, and browser authentication protocols. The local
 build includes the repository folder groups, history tag layout, branch discovery,
 repository health, and folder actions from the desktop improvements work.
 
-Run `build.cmd` to compile and package the local Windows build. Close Git Desktop
-first if it is running from this checkout. The output executable is
-`dist\GitDesktop-win32-x64\GitDesktop.exe`. Use
-`launch-github-desktop.cmd` to launch it. `build.cmd -Tests` also runs unit tests.
+Run `build.cmd` to compile and package the local Windows build. The output executable
+is `dist\<version>\GitDesktop-win32-x64\GitDesktop.exe`, for example under
+`dist\v2026.11.11_01`. Use `launch-github-desktop.cmd` to launch the newest completed
+default version. Older running versions may stay open. After a successful build,
+older automatically owned version folders are removed where possible; locked,
+legacy and custom outputs are preserved. See [date-based builds](../date-based-builds.md)
+for output overrides and cleanup rules. `build.cmd -Tests` also runs unit tests.
 
 There is no separate profile import or credential migration in this build. It uses
 the normal Git Desktop profile and credentials. Development builds use the
