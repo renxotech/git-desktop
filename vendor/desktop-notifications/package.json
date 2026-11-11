@@ -5,7 +5,7 @@
   "license": "MIT",
   "main": "dist/index.js",
   "scripts": {
-    "install": "node-gyp rebuild && tsc",
+    "install": "node-gyp rebuild --napi_build_version=4 && tsc && node script/build-receipt.cjs",
     "build": "tsc",
     "pretest": "npm run build",
     "prettify": "prettier --write \"./**/*.{ts,tsx,js,json,jsx,scss,html,yaml,yml}\"",
