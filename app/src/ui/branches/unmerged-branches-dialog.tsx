@@ -233,6 +233,7 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
     const merged = this.props.merged === true
     const branches = this.state.branches.filter(
       b =>
+        (!merged || b.ref !== this.props.currentBranch?.ref) &&
         (includeRemotes || !b.remote) &&
         b.name.toLowerCase().includes(this.state.filter.toLowerCase())
     )
