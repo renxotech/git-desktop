@@ -7,6 +7,7 @@ import { forceUnwrap as u } from '../app/src/lib/fatal-error'
 import configs from '../app/webpack.development'
 
 import { run } from './run'
+import { getNpmCommand } from './npm'
 import { createServer } from 'http'
 import { spawnSync } from 'child_process'
 import { join } from 'path'
@@ -114,15 +115,17 @@ if (process.env.NODE_ENV === 'production') {
         }
         console.log('Preparing development resources (without packaging)…')
         const root = join(__dirname, '..')
+        const prepareResources = getNpmCommand([
+          'exec',
+          '--',
+          'ts-node',
+          '-P',
+          'script/tsconfig.json',
+          'script/build.ts',
+        ])
         const prepared = spawnSync(
-          process.execPath,
-          [
-            join(root, 'vendor', 'yarn-1.21.1.js'),
-            'ts-node',
-            '-P',
-            'script/tsconfig.json',
-            'script/build.ts',
-          ],
+          prepareResources.executable,
+          prepareResources.args,
           {
             cwd: root,
             stdio: 'inherit',
