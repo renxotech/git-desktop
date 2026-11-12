@@ -59,6 +59,42 @@ async function snapshot(root: string): Promise<readonly string[]> {
 }
 
 describe('static resource copying', () => {
+  for (const clojureContent of [
+    'Leiningen.gitignore',
+    '*.class\n/target/\n',
+    'Leiningen.gitignore\n*.local\n',
+  ]) {
+    it(`preserves Clojure template behavior for ${JSON.stringify(
+      clojureContent
+    )}`, async t => {
+      const { platform, common, destination } = await createFixture(t)
+      const leiningenContent = 'pom.xml\n*.jar\n/target/\n'
+      await put(common, 'gitignore/Clojure.gitignore', clojureContent)
+      await put(common, 'gitignore/Leiningen.gitignore', leiningenContent)
+      const before = await snapshot(common)
+
+      copyStaticResources(platform, common, destination)
+
+      assert.equal(
+        await readFile(
+          join(destination, 'gitignore/Clojure.gitignore'),
+          'utf8'
+        ),
+        clojureContent === 'Leiningen.gitignore'
+          ? leiningenContent
+          : clojureContent
+      )
+      assert.equal(
+        await readFile(
+          join(destination, 'gitignore/Leiningen.gitignore'),
+          'utf8'
+        ),
+        leiningenContent
+      )
+      assert.deepEqual(await snapshot(common), before)
+    })
+  }
+
   for (const gitDirectory of [false, true]) {
     it(`omits root and nested .git ${
       gitDirectory ? 'directories' : 'files'
