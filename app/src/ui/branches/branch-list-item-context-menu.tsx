@@ -44,6 +44,16 @@ export function generateBranchContextMenuItems(
     action: () => writeClipboardText(branch.name),
   })
 
+  const remoteBranchName =
+    branch.type === BranchType.Remote ? branch.name : branch.upstream
+
+  if (remoteBranchName !== null) {
+    items.push({
+      label: __DARWIN__ ? 'Copy Remote Branch Name' : 'Copy remote branch name',
+      action: () => writeClipboardText(remoteBranchName),
+    })
+  }
+
   if (onViewBranchOnGitHub !== undefined) {
     items.push({
       label: 'View Branch on GitHub',
