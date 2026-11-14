@@ -442,93 +442,101 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
         onDismissed={this.props.onDismissed}
       >
         <DialogContent>
-          <p className="health-path">{this.props.repository.path}</p>
-          {this.state.metadataBackup && (
-            <p>
-              Worktree removed. Submodule Git metadata retained at:{' '}
-              <span className="health-path">{this.state.metadataBackup}</span>
-            </p>
-          )}
-          <Select
-            label={merged ? 'Merged into' : 'Not merged into'}
-            value={target}
-            disabled={busy}
-            onChange={this.onTargetChanged}
-          >
-            <option value="HEAD">
-              Current branch:{' '}
-              {this.props.currentBranch?.name ?? 'detached HEAD'}
-            </option>
-            {targets.map(b => (
-              <option key={b.ref} value={b.ref}>
-                {b.name}
-                {b.remote ? ' (remote)' : ''}
+          <div className="branch-dialog-controls">
+            <Select
+              label={merged ? 'Merged into' : 'Not merged into'}
+              value={target}
+              disabled={busy}
+              onChange={this.onTargetChanged}
+            >
+              <option value="HEAD">
+                Current branch:{' '}
+                {this.props.currentBranch?.name ?? 'detached HEAD'}
               </option>
-            ))}
-          </Select>
-          <input
-            aria-label="Filter branches"
-            placeholder="Filter branches"
-            value={this.state.filter}
-            onChange={this.onFilterChanged}
-          />
-          <label>
-            <input
-              type="checkbox"
-              checked={includeRemotes}
-              onChange={this.onRemotesChanged}
-            />{' '}
-            Include remote branches
-          </label>
-          <p>
-            {merged
-              ? 'Branch tips contained in the selected target’s history.'
-              : 'Branches with commits outside the selected target’s history.'}{' '}
-            This checks ancestry; squash merges and cherry-picks may still
-            appear as unmerged. Remote branches use cached refs. Sorted by
-            newest last commit.
-          </p>
-          <p role="status">
-            {busy
-              ? 'Checking branches…'
-              : `${branches.length} ${merged ? 'merged' : 'unmerged'} branches`}
-          </p>
-          {error && <p className="health-error">{error}</p>}
-          {!busy && !error && !branches.length && <p>No matching branches.</p>}
-          {!busy && (
-            <ul className="unmerged-branch-results">
-              {branches.map(b => (
-                <li key={b.ref}>
-                  <label>
-                    <input
-                      type="radio"
-                      name="selected-branch"
-                      checked={this.state.selected === b.ref}
-                      value={b.ref}
-                      onChange={this.onSelectionChanged}
-                    />
-                    <strong>{b.name}</strong>{' '}
-                    {b.remote ? '(remote)' : '(local)'}
-                  </label>
-                  {!merged && (
-                    <span>
-                      {b.commitsOutsideTarget} commits to merge
-                      {b.commitsOnlyInTarget > 0
-                        ? ` · Diverged: ${b.commitsOnlyInTarget} commits only in target`
-                        : ''}{' '}
-                      ·{' '}
-                    </span>
-                  )}
-                  <span>{b.lastCommitDate}</span>
-                  {b.worktreePaths.map(path => (
-                    <div className="health-path" key={path}>
-                      {path}
-                    </div>
-                  ))}
-                </li>
+              {targets.map(b => (
+                <option key={b.ref} value={b.ref}>
+                  {b.name}
+                  {b.remote ? ' (remote)' : ''}
+                </option>
               ))}
-            </ul>
-          )}
+            </Select>
+            <input
+              aria-label="Filter branches"
+              placeholder="Filter branches"
+              value={this.state.filter}
+              onChange={this.onFilterChanged}
+            />
+            <label>
+              <input
+                type="checkbox"
+                checked={includeRemotes}
+                onChange={this.onRemotesChanged}
+              />{' '}
+              Include remote branches
+            </label>
+          </div>
+          <div className="branch-dialog-results">
+            <p className="health-path">{this.props.repository.path}</p>
+            {this.state.metadataBackup && (
+              <p>
+                Worktree removed. Submodule Git metadata retained at:{' '}
+                <span className="health-path">{this.state.metadataBackup}</span>
+              </p>
+            )}
+            <p>
+              {merged
+                ? 'Branch tips contained in the selected target’s history.'
+                : 'Branches with commits outside the selected target’s history.'}{' '}
+              This checks ancestry; squash merges and cherry-picks may still
+              appear as unmerged. Remote branches use cached refs. Sorted by
+              newest last commit.
+            </p>
+            <p role="status">
+              {busy
+                ? 'Checking branches…'
+                : `${branches.length} ${
+                    merged ? 'merged' : 'unmerged'
+                  } branches`}
+            </p>
+            {error && <p className="health-error">{error}</p>}
+            {!busy && !error && !branches.length && (
+              <p>No matching branches.</p>
+            )}
+            {!busy && (
+              <ul className="unmerged-branch-results">
+                {branches.map(b => (
+                  <li key={b.ref}>
+                    <label>
+                      <input
+                        type="radio"
+                        name="selected-branch"
+                        checked={this.state.selected === b.ref}
+                        value={b.ref}
+                        onChange={this.onSelectionChanged}
+                      />
+                      <strong>{b.name}</strong>{' '}
+                      {b.remote ? '(remote)' : '(local)'}
+                    </label>
+                    {!merged && (
+                      <span>
+                        {b.commitsOutsideTarget} commits to merge
+                        {b.commitsOnlyInTarget > 0
+                          ? ` · Diverged: ${b.commitsOnlyInTarget} commits only in target`
+                          : ''}{' '}
+                        ·{' '}
+                      </span>
+                    )}
+                    <span>{b.lastCommitDate}</span>
+                    {b.worktreePaths.map(path => (
+                      <div className="health-path" key={path}>
+                        {path}
+                      </div>
+                    ))}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </DialogContent>
         <DialogFooter>
           <span role="status">
