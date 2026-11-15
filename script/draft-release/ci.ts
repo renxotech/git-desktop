@@ -5,7 +5,10 @@
  * of truth for version computation, tag discovery, and changelog aggregation.
  *
  * Usage (from repo root):
- *   node script/checked-run.mjs scripts script/draft-release/ci.ts <command> [args]
+ *   npm run --silent draft-release:ci -- <repository-root> <command> [args]
+ *
+ * The repository being released can differ from this tooling checkout. All
+ * release data and Git operations use the explicit repository root.
  *
  * Commands:
  *   version <channel>
@@ -25,7 +28,7 @@
  */
 
 import { appendFileSync, readFileSync, writeFileSync } from 'fs'
-import { join } from 'path'
+import { isAbsolute, join } from 'path'
 
 import { getLatestRelease } from './tags'
 import { getNextVersionNumber } from './version'
@@ -33,8 +36,6 @@ import { getChangelogEntriesSince } from '../changelog/parser'
 import { Channel } from './channel'
 import { execFileSync } from 'child_process'
 import { getNpmCommand } from '../npm'
-
-const repoRoot = join(__dirname, '..', '..')
 
 function parseChannel(arg: string): Channel {
   if (arg === 'production' || arg === 'beta') {
@@ -128,12 +129,19 @@ async function commandVersion(channel: Channel): Promise<void> {
   setOutput(outputs)
 }
 
-function commandChangelogEntries(previousVersion: string): void {
-  const entries = getChangelogEntriesSince(previousVersion)
+function commandChangelogEntries(
+  repoRoot: string,
+  previousVersion: string
+): void {
+  const entries = getChangelogEntriesSince(previousVersion, repoRoot)
   console.log(JSON.stringify(entries))
 }
 
-function commandPrepare(nextVersion: string, entriesJson: string): void {
+function commandPrepare(
+  repoRoot: string,
+  nextVersion: string,
+  entriesJson: string
+): void {
   const npm = getNpmCommand([
     'version',
     nextVersion,
@@ -159,7 +167,11 @@ function commandPrepare(nextVersion: string, entriesJson: string): void {
 }
 
 async function main(): Promise<void> {
-  const [command, ...args] = process.argv.slice(2)
+  const [repoRoot, command, ...args] = process.argv.slice(2)
+  if (repoRoot === undefined || !isAbsolute(repoRoot)) {
+    throw new Error('Usage: ci.ts <absolute-repository-root> <command> [args]')
+  }
+  process.chdir(repoRoot)
 
   switch (command) {
     case 'version': {
@@ -172,7 +184,7 @@ async function main(): Promise<void> {
       if (!previousVersion) {
         throw new Error('Usage: ci.ts changelog-entries <previous-version>')
       }
-      commandChangelogEntries(previousVersion)
+      commandChangelogEntries(repoRoot, previousVersion)
       break
     }
     case 'prepare': {
@@ -181,7 +193,7 @@ async function main(): Promise<void> {
       if (!nextVersion || !entriesJson) {
         throw new Error('Usage: ci.ts prepare <next-version> <entries-json>')
       }
-      commandPrepare(nextVersion, entriesJson)
+      commandPrepare(repoRoot, nextVersion, entriesJson)
       break
     }
     default:

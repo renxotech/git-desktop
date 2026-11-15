@@ -142,8 +142,10 @@ export async function convertToChangelogFormat(
   return entries
 }
 
-export function getChangelogEntriesSince(previousVersion: string): string[] {
-  const root = Path.dirname(Path.dirname(__dirname))
+export function getChangelogEntriesSince(
+  previousVersion: string,
+  root = Path.dirname(Path.dirname(__dirname))
+): string[] {
   const changelogPath = Path.join(root, 'changelog.json')
 
   // eslint-disable-next-line no-sync

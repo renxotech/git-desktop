@@ -48,24 +48,34 @@ jobs:
           ref: ${{ inputs.ref || github.event.repository.default_branch }}
           token: ${{ steps.generate-token.outputs.token }}
 
+      # Release refs can predate the current runner and package manager. Keep
+      # the complete tooling checkout independent of the source being released.
+      - name: Checkout release tooling
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: '.release-tooling/.nvmrc'
           cache: npm
           cache-dependency-path: |
-            package-lock.json
-            app/package-lock.json
-            vendor/*/package-lock.json
+            .release-tooling/package-lock.json
+            .release-tooling/app/package-lock.json
+            .release-tooling/vendor/*/package-lock.json
 
       - name: Install dependencies
+        working-directory: .release-tooling
         run: npm ci
 
       - name: Determine previous and next versions
         id: version
         run: >
-          node script/checked-run.mjs scripts script/draft-release/ci.ts version
-          ${{ inputs.channel }}
+          npm --prefix .release-tooling run --silent draft-release:ci --
+          "$GITHUB_WORKSPACE" version ${{ inputs.channel }}
 
       - name: Generate release notes (beta only)
         id: notes
@@ -92,8 +102,8 @@ jobs:
         run: |
           if [ "$CHANNEL" = "production" ]; then
             # Production: aggregate existing beta entries via shared script
-            ENTRIES=$(node script/checked-run.mjs scripts \
-              script/draft-release/ci.ts changelog-entries "$PREVIOUS")
+            ENTRIES=$(npm --prefix .release-tooling run --silent draft-release:ci -- \
+              "$GITHUB_WORKSPACE" changelog-entries "$PREVIOUS")
           else
             # Beta: extract descriptions from structured JSON output
             if [ -z "$RELEASE_NOTES_JSON" ] || [ "$RELEASE_NOTES_JSON" = "[]" ]; then
@@ -175,12 +185,12 @@ jobs:
           fi
 
           # Bump app/package.json and its lockfile, and update changelog.json
-          node script/checked-run.mjs scripts \
-            script/draft-release/ci.ts prepare "$NEXT_VERSION" "$ENTRIES"
+          npm --prefix .release-tooling run --silent draft-release:ci -- \
+            "$GITHUB_WORKSPACE" prepare "$NEXT_VERSION" "$ENTRIES"
 
           # Ensure changelog.json passes Prettier (ci.ts writes with
           # JSON.stringify which differs from Prettier's formatting)
-          npm exec -- prettier --write changelog.json
+          .release-tooling/node_modules/.bin/prettier --write changelog.json
 
           git add app/package.json changelog.json
           # Release refs from before the npm migration have no npm lockfile.

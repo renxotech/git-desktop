@@ -52,6 +52,7 @@
     "rebuild-hard:dev": "npm run clean-slate && npm run build:dev --",
     "rebuild-hard:prod": "npm run clean-slate && npm run build:prod --",
     "draft-release": "node script/checked-run.mjs scripts script/draft-release/index.ts",
+    "draft-release:ci": "node script/checked-run.mjs scripts script/draft-release/ci.ts",
     "draft-release:format": "prettier --check --write changelog.json app/package.json && npm run validate-changelog --",
     "draft-release:pr": "node script/checked-run.mjs scripts script/draft-release/draft-pull-request.ts",
     "validate-changelog": "node script/checked-run.mjs scripts script/validate-changelog.ts",
