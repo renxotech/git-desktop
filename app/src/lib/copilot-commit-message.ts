@@ -1,6 +1,9 @@
 import type { CopilotResponseSchema } from './copilot-operation'
 import { isRecord } from './is-record'
 
+/** UTF-8 protocol bound, not a commit-message style or model context limit. */
+export const CopilotCommitMessageResponseLimitBytes = 1024 * 1024
+
 /** Per-run generation contract; an empty description represents an omitted body. */
 export const CopilotCommitMessageResponseSchema: CopilotResponseSchema = {
   type: 'object',
@@ -21,6 +24,12 @@ export interface ICopilotCommitMessage {
 export function parseCopilotCommitMessage(
   content: string
 ): ICopilotCommitMessage {
+  if (
+    Buffer.byteLength(content, 'utf8') > CopilotCommitMessageResponseLimitBytes
+  ) {
+    throw new Error('Copilot exceeded the commit message response limit')
+  }
+
   let parsed: unknown
   try {
     parsed = JSON.parse(content)
@@ -43,6 +52,12 @@ export function parseCopilotCommitMessage(
     )
   }
 
+  if (/[\r\n\0\u0085\u2028\u2029]/.test(title)) {
+    throw new Error(
+      'Copilot returned an invalid commit message payload: "title" must be a single line without NUL bytes'
+    )
+  }
+
   const description = parsed.description
   if (description === undefined) {
     return {
@@ -54,6 +69,12 @@ export function parseCopilotCommitMessage(
   if (typeof description !== 'string') {
     throw new Error(
       'Copilot returned an invalid commit message payload: "description" must be a string when provided'
+    )
+  }
+
+  if (description.includes('\0')) {
+    throw new Error(
+      'Copilot returned an invalid commit message payload: "description" must not contain NUL bytes'
     )
   }
 
