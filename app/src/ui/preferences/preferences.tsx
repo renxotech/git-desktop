@@ -48,6 +48,11 @@ import { Repository } from '../../models/repository'
 import { Notifications } from './notifications'
 import { Accessibility } from './accessibility'
 import { CopilotPreferences } from './copilot'
+import { AIProvidersPreferences } from './ai-providers'
+import {
+  enableAIProviderSettings,
+  enableCopilotAccountInfo,
+} from '../../lib/feature-flag'
 import type {
   CopilotFeature,
   CopilotModelsByAccount,
@@ -240,7 +245,11 @@ export class Preferences extends React.Component<
     super(props)
 
     this.state = {
-      selectedIndex: this.props.initialSelectedTab || PreferencesTab.Accounts,
+      selectedIndex:
+        this.props.initialSelectedTab === PreferencesTab.Copilot &&
+        !this.isAISettingsEnabled
+          ? PreferencesTab.Accounts
+          : this.props.initialSelectedTab || PreferencesTab.Accounts,
       gitExecutableSelection: (() => {
         try {
           return readGitExecutableSelection()
@@ -454,10 +463,10 @@ export class Preferences extends React.Component<
                 Editors, Shells and other Integrations
               </span>
             </span>
-            {this.isCopilotSdkEnabled && (
+            {this.isAISettingsEnabled && (
               <span id={this.getTabId(PreferencesTab.Copilot)}>
-                <Octicon className="icon" symbol={octicons.copilot} />
-                Copilot
+                <Octicon className="icon" symbol={octicons.gear} />
+                AI
               </span>
             )}
             <span id={this.getTabId(PreferencesTab.Git)}>
@@ -634,30 +643,42 @@ export class Preferences extends React.Component<
       }
       case PreferencesTab.Copilot:
         View = (
-          <CopilotPreferences
-            selectedCopilotModelsByAccount={
-              this.state.selectedCopilotModelsByAccount
-            }
-            copilotModelsByAccount={this.props.copilotModelsByAccount}
-            copilotQuotaSnapshotsByAccount={
-              this.props.copilotQuotaSnapshotsByAccount
-            }
-            accounts={this.props.accounts}
-            byokProviders={this.props.byokProviders}
-            showBYOKSettings={this.shouldShowBYOKSettings()}
-            onSignIn={this.onCopilotSignIn}
-            onOpenCopilotPlans={this.onOpenCopilotPlans}
-            onOpenCopilotFeatureSettings={this.onOpenCopilotFeatureSettings}
-            alwaysUseCopilotForConflictResolution={
-              this.state.alwaysUseCopilotForConflictResolution
-            }
-            onSelectedCopilotModelChanged={this.onSelectedCopilotModelChanged}
-            onAlwaysUseCopilotForConflictResolutionChanged={
-              this.onAlwaysUseCopilotForConflictResolutionChanged
-            }
-            onConfigureCustomProviders={this.onConfigureCustomProviders}
-            onConfigureModels={this.onConfigureCopilotModels}
-          />
+          <>
+            {enableAIProviderSettings() && (
+              <AIProvidersPreferences
+                providers={this.props.byokProviders}
+                onConfigureProviders={this.onConfigureCustomProviders}
+              />
+            )}
+            {this.isCopilotSdkEnabled && (
+              <CopilotPreferences
+                selectedCopilotModelsByAccount={
+                  this.state.selectedCopilotModelsByAccount
+                }
+                copilotModelsByAccount={this.props.copilotModelsByAccount}
+                copilotQuotaSnapshotsByAccount={
+                  this.props.copilotQuotaSnapshotsByAccount
+                }
+                accounts={this.props.accounts}
+                byokProviders={this.props.byokProviders}
+                showBYOKSettings={this.shouldShowBYOKSettings()}
+                onSignIn={this.onCopilotSignIn}
+                onOpenCopilotPlans={this.onOpenCopilotPlans}
+                onOpenCopilotFeatureSettings={this.onOpenCopilotFeatureSettings}
+                alwaysUseCopilotForConflictResolution={
+                  this.state.alwaysUseCopilotForConflictResolution
+                }
+                onSelectedCopilotModelChanged={
+                  this.onSelectedCopilotModelChanged
+                }
+                onAlwaysUseCopilotForConflictResolutionChanged={
+                  this.onAlwaysUseCopilotForConflictResolutionChanged
+                }
+                onConfigureCustomProviders={this.onConfigureCustomProviders}
+                onConfigureModels={this.onConfigureCopilotModels}
+              />
+            )}
+          </>
         )
         break
       case PreferencesTab.Git: {
@@ -1044,7 +1065,7 @@ export class Preferences extends React.Component<
   }
 
   private shouldShowBYOKSettings(): boolean {
-    return this.props.accounts.some(enableCopilotSdkCommitMessageGeneration)
+    return enableAIProviderSettings()
   }
 
   private onConfigureCustomProviders = () => {
@@ -1394,18 +1415,25 @@ export class Preferences extends React.Component<
   }
 
   private get isCopilotSdkEnabled(): boolean {
-    return this.props.accounts.some(enableCopilotSdkCommitMessageGeneration)
+    return (
+      enableCopilotAccountInfo() &&
+      this.props.accounts.some(enableCopilotSdkCommitMessageGeneration)
+    )
+  }
+
+  private get isAISettingsEnabled(): boolean {
+    return enableAIProviderSettings() || this.isCopilotSdkEnabled
   }
 
   private tabToVisualIndex(tab: PreferencesTab): number {
-    if (!this.isCopilotSdkEnabled && tab > PreferencesTab.Copilot) {
+    if (!this.isAISettingsEnabled && tab > PreferencesTab.Copilot) {
       return tab - 1
     }
     return tab
   }
 
   private visualIndexToTab(index: number): PreferencesTab {
-    if (!this.isCopilotSdkEnabled && index >= PreferencesTab.Copilot) {
+    if (!this.isAISettingsEnabled && index >= PreferencesTab.Copilot) {
       return index + 1
     }
     return index

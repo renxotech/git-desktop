@@ -770,6 +770,9 @@ export class CommitMessage extends React.Component<
 
   /** Whether Copilot will be creating the commits. */
   private get isCopilotCommitMode() {
+    if (!__AI_BUILD_FLAGS__.assistedCommits) {
+      return false
+    }
     if (
       this.props.assistedCommitState !== undefined &&
       isAssistedCommitRepositoryLocked(this.props.assistedCommitState)

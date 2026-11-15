@@ -1209,7 +1209,7 @@ describe('CopilotPreferences', () => {
     )
   })
 
-  it('falls back to the default Copilot model when the BYOK provider for the persisted selection is gone', () => {
+  it('does not show Copilot as selected when the chosen BYOK provider is gone', () => {
     const view = render(
       <CopilotPreferences
         {...defaults()}
@@ -1224,8 +1224,9 @@ describe('CopilotPreferences', () => {
     )
 
     assert.ok(
-      getModelPickerButtonText(view.container).includes('Auto (default)')
+      !getModelPickerButtonText(view.container).includes('Auto (default)')
     )
+    assert.ok(view.getByText(/selected provider or model is unavailable/))
   })
 
   it('falls back to the first available Copilot model when DefaultCopilotModel is unavailable', () => {

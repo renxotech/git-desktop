@@ -22,3 +22,8 @@ app/static/logos/dev/**/*.json
 .worktrees/
 dist-build/
 tmp/
+
+# Historical packages and validation evidence are not editable source.
+preserved-builds/
+docs/tasks/
+docs/reviews/

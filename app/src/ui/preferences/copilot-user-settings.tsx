@@ -172,6 +172,14 @@ export class CopilotUserSettings extends React.Component<ICopilotUserSettingsPro
     const { byokProviders, selectedCopilotModels } = this.props
 
     const rawSelection = selectedCopilotModels[feature] ?? null
+    const key = rawSelection === null ? null : parseModelKey(rawSelection)
+    const unavailableProvider =
+      key?.kind === 'byok' &&
+      !byokProviders.some(
+        provider =>
+          provider.id === key.providerId &&
+          provider.models.some(model => model.id === key.modelId)
+      )
     const value = this.resolveSelectionValue(
       copilotModels,
       byokProviders,
@@ -197,6 +205,11 @@ export class CopilotUserSettings extends React.Component<ICopilotUserSettingsPro
           }
           maxHeight={maxHeight}
         />
+        {unavailableProvider && (
+          <p role="status">
+            The selected provider or model is unavailable. Choose another model.
+          </p>
+        )}
         {selectionInfo === null ? null : (
           <CopilotModelSelectionInfo
             feature={feature}
@@ -215,10 +228,8 @@ export class CopilotUserSettings extends React.Component<ICopilotUserSettingsPro
     if (raw !== null) {
       const key = parseModelKey(raw)
       if (key.kind === 'byok') {
-        const provider = byokProviders.find(p => p.id === key.providerId)
-        if (provider && provider.models.some(m => m.id === key.modelId)) {
-          return encodeModelKey(key)
-        }
+        // An unavailable provider must not look like a Copilot selection.
+        return raw
       } else if (
         key.modelId !== '' &&
         copilotModels.some(m => m.id === key.modelId)

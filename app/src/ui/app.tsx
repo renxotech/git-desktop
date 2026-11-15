@@ -1915,6 +1915,9 @@ export class App extends React.Component<IAppProps, IAppState> {
           />
         )
       case PopupType.CopilotUserSettings:
+        if (!__AI_BUILD_FLAGS__.accountInfo) {
+          return null
+        }
         return (
           <CopilotSettingsDialog
             key={`copilot-settings-${getCopilotAccountCacheKey(popup.account)}`}
@@ -1942,6 +1945,9 @@ export class App extends React.Component<IAppProps, IAppState> {
           />
         )
       case PopupType.CopilotCustomProviders:
+        if (!__AI_BUILD_FLAGS__.providerSettings) {
+          return null
+        }
         return (
           <CopilotCustomProvidersDialog
             key="copilot-custom-providers"
@@ -2117,6 +2123,9 @@ export class App extends React.Component<IAppProps, IAppState> {
           />
         )
       case PopupType.EditCopilotBYOKProvider:
+        if (!__AI_BUILD_FLAGS__.providerSettings) {
+          return null
+        }
         return (
           <EditCopilotBYOKProviderDialog
             key="edit-copilot-byok-provider"
@@ -2127,6 +2136,9 @@ export class App extends React.Component<IAppProps, IAppState> {
           />
         )
       case PopupType.EditCopilotBYOKModel:
+        if (!__AI_BUILD_FLAGS__.providerSettings) {
+          return null
+        }
         return (
           <EditCopilotBYOKModelDialog
             key="edit-copilot-byok-model"
@@ -2137,6 +2149,9 @@ export class App extends React.Component<IAppProps, IAppState> {
           />
         )
       case PopupType.ConfirmDeleteCopilotBYOKProvider:
+        if (!__AI_BUILD_FLAGS__.providerSettings) {
+          return null
+        }
         return (
           <ConfirmDeleteCopilotBYOKProviderDialog
             key="confirm-delete-copilot-byok-provider"
@@ -3012,6 +3027,9 @@ export class App extends React.Component<IAppProps, IAppState> {
           />
         )
       case PopupType.TestCopilotSnapshotCard:
+        if (!__AI_BUILD_FLAGS__.accountInfo) {
+          return null
+        }
         return (
           <TestCopilotSnapshotCardDialog
             key="test-copilot-snapshot-card"

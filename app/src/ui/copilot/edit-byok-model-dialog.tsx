@@ -4,12 +4,12 @@ import { OkCancelButtonGroup } from '../dialog/ok-cancel-button-group'
 import { TextBox } from '../lib/text-box'
 import { Select } from '../lib/select'
 import { Row } from '../lib/row'
-import { IBYOKModel } from '../../lib/copilot/byok'
+import { IBYOKModel } from '../../lib/ai/providers'
 import {
   formatReasoningEffort,
   ReasoningEffort,
   ReasoningEffortOrder,
-} from '../../lib/stores/copilot-store'
+} from '../../lib/ai/reasoning-effort'
 
 const NoReasoningEffort = '__none__'
 
@@ -81,7 +81,7 @@ export class EditCopilotBYOKModelDialog extends React.Component<
               autoFocus={true}
             />
             <p className="copilot-byok-field-hint">
-              The friendly name shown in the Copilot model picker.
+              The friendly name used to identify this model.
             </p>
           </Row>
           <Row className="copilot-byok-field">

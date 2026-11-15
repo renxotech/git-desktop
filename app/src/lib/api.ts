@@ -1952,6 +1952,9 @@ export class API {
     path: string,
     message: string
   ): Promise<CopilotChatCompletionResponse> {
+    if (!__AI_BUILD_FLAGS__.commitMessages) {
+      throw new Error('AI commit messages are disabled in this build')
+    }
     if (!this.copilotEndpoint) {
       throw new Error('No Copilot endpoint available')
     }

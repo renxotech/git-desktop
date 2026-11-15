@@ -66,7 +66,8 @@ import {
 import { updateLicenseDump } from './licenses/update-license-dump'
 import { verifyInjectedSassVariables } from './validate-sass/validate-all'
 import { join } from 'path'
-import { copyCopilotDependency } from './copilot'
+import { prepareCopilotDependency } from './copilot'
+import { getAIBuildFlags } from '../app/src/lib/ai/build-flags'
 import { getNpmCommand } from './npm'
 import { copyStaticResources } from './static-resources'
 
@@ -366,12 +367,17 @@ function copyDependencies() {
     { recursive: true, verbatimSymlinks: true }
   )
 
-  console.log('  Copying copilot…')
-  copyCopilotDependency(
+  console.log(
+    getAIBuildFlags(process.env).copilot
+      ? '  Copying optional Copilot runtime.'
+      : '  Skipping disabled Copilot runtime.'
+  )
+  prepareCopilotDependency(
     path.join(projectRoot, 'app', 'node_modules'),
-    path.join(outRoot, 'copilot'),
+    outRoot,
     process.platform,
-    getDistArchitecture()
+    getDistArchitecture(),
+    getAIBuildFlags(process.env).copilot
   )
 
   // Dev builds for macOS require a SSH wrapper to use SSH_ASKPASS

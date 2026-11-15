@@ -63,6 +63,12 @@ it('handles Copilot runtime exit with browser timer globals', async t => {
     },
     resolve: {
       ...renderer.resolve,
+      // This suite explicitly exercises the optional SDK, not the default build.
+      alias: {
+        '@github/copilot-sdk$': require.resolve('@github/copilot-sdk', {
+          paths: [join(__dirname, '../app')],
+        }),
+      },
       modules: [join(__dirname, '../app/node_modules'), 'node_modules'],
     },
     externals: ['koffi'],

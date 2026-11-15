@@ -1,7 +1,23 @@
 /* eslint-disable no-sync */
 import { cpSync, rmSync, statSync } from 'fs'
-import { dirname, join } from 'path'
+import { dirname, join, resolve } from 'path'
 import { getCopilotRuntimePath } from '../app/src/lib/copilot-runtime'
+
+/** Prepare the build output's runtime directory, removing stale opt-in artifacts. */
+export function prepareCopilotDependency(
+  nodeModulesRoot: string,
+  outputRoot: string,
+  platform: NodeJS.Platform,
+  arch: string,
+  enabled: boolean
+): void {
+  const destination = join(resolve(outputRoot), 'copilot')
+  if (!enabled) {
+    rmSync(destination, { recursive: true, force: true })
+    return
+  }
+  copyCopilotDependency(nodeModulesRoot, destination, platform, arch)
+}
 
 /** Copy the SDK's target-specific runtime and its companion assets. */
 export function copyCopilotDependency(

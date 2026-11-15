@@ -90,13 +90,15 @@ describe('encode/parseModelKey', () => {
     assert.deepStrictEqual(parseModelKey(encodeModelKey(key)), key)
   })
 
-  it('falls back to an empty copilot model on a malformed BYOK key', () => {
+  it('preserves BYOK intent on a malformed key', () => {
     assert.deepStrictEqual(parseModelKey('byok:'), {
-      kind: 'copilot',
+      kind: 'byok',
+      providerId: '',
       modelId: '',
     })
     assert.deepStrictEqual(parseModelKey('byok:onlyone'), {
-      kind: 'copilot',
+      kind: 'byok',
+      providerId: '',
       modelId: '',
     })
   })

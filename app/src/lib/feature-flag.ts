@@ -96,6 +96,7 @@ export const enableResizingToolbarButtons = () => true
 
 export const enableCommitMessageGeneration = (account: Account) => {
   return (
+    __AI_BUILD_FLAGS__.commitMessages &&
     (account.features ?? []).includes(
       'desktop_copilot_generate_commit_message'
     ) &&
@@ -109,10 +110,11 @@ export const enableCopilotSdkCommitMessageGeneration = (account: Account) => {
   // Enabled for all users in beta and development channels, and for users with
   // the feature flag enabled in production.
   return (
-    enableBetaFeatures() ||
-    (account.features ?? []).includes(
-      'desktop_enable_copilot_sdk_commit_message_generation'
-    )
+    __AI_BUILD_FLAGS__.copilot &&
+    (enableBetaFeatures() ||
+      (account.features ?? []).includes(
+        'desktop_enable_copilot_sdk_commit_message_generation'
+      ))
   )
 }
 
@@ -120,10 +122,19 @@ export const enableCopilotSdkCommitMessageGeneration = (account: Account) => {
  * Should we offer the Copilot-assisted commit mode, where Copilot splits the
  * selected changes into commits and writes their messages?
  */
-export const enableCopilotAssistedCommit = enableDevelopmentFeatures
+export const enableCopilotAssistedCommit = () =>
+  __AI_BUILD_FLAGS__.assistedCommits && enableDevelopmentFeatures()
 
 /** Should we enable Copilot-powered merge conflict resolution? */
-export const enableCopilotConflictResolution = () => true
+export const enableCopilotConflictResolution = () =>
+  __AI_BUILD_FLAGS__.conflictResolution
+
+/** Provider management is local and does not require GitHub or Copilot. */
+export const enableAIProviderSettings = () =>
+  __AI_BUILD_FLAGS__.providerSettings
+
+/** Copilot account metadata is a separate, optional network capability. */
+export const enableCopilotAccountInfo = () => __AI_BUILD_FLAGS__.accountInfo
 
 export function enableAccessibleListToolTips(): boolean {
   return enableBetaFeatures()
@@ -140,7 +151,9 @@ export const enableWorktreeSupport = () => true
 
 /** Should the app offer handoff to the GitHub Copilot app? */
 export const enableCopilotAppHandoff = () =>
-  (__DARWIN__ || __WIN32__) && enableBetaFeatures()
+  __AI_BUILD_FLAGS__.appHandoff &&
+  (__DARWIN__ || __WIN32__) &&
+  enableBetaFeatures()
 
 /** Should stats be sent to the new telemetry endpoint? */
 export function enableNewStatsEndpoint(): boolean {

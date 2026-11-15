@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { isLocalBaseUrl, type IBYOKProvider } from '../../lib/copilot/byok'
+import { isLocalBaseUrl, type IBYOKProvider } from '../../lib/ai/providers'
 import { Button } from '../lib/button'
 import { Dialog, DialogContent, DialogFooter } from '../dialog'
 import { OkCancelButtonGroup } from '../dialog/ok-cancel-button-group'

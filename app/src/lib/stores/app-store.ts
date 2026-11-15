@@ -1,3 +1,4 @@
+import { requireAIProviderModel } from '../ai/providers'
 import {
   IWorktreeBranchRemoval,
   removeCheckedWorktreeAndBranch,
@@ -355,6 +356,7 @@ import {
   enableCopilotConflictResolution,
   enableCopilotAppHandoff,
   enableCopilotSdkCommitMessageGeneration,
+  enableCopilotAccountInfo,
   enableCustomIntegration,
   enableWorktreeSupport,
 } from '../feature-flag'
@@ -1233,6 +1235,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
   }
 
   private getCopilotSettingsAccounts(): ReadonlyArray<Account> {
+    if (!enableCopilotAccountInfo()) {
+      return []
+    }
     return this.accounts.filter(
       account =>
         !isGHES(account.endpoint) &&
@@ -5066,6 +5071,38 @@ export class AppStore extends TypedBaseStore<IAppState> {
 
   /** This shouldn't be called directly. See `Dispatcher`. */
   public async _showPopup(popup: Popup): Promise<void> {
+    switch (popup.type) {
+      case PopupType.CopilotCustomProviders:
+      case PopupType.EditCopilotBYOKProvider:
+      case PopupType.EditCopilotBYOKModel:
+      case PopupType.ConfirmDeleteCopilotBYOKProvider:
+        if (!__AI_BUILD_FLAGS__.providerSettings) {
+          return
+        }
+        break
+      case PopupType.CopilotUserSettings:
+      case PopupType.TestCopilotSnapshotCard:
+        if (!__AI_BUILD_FLAGS__.accountInfo) {
+          return
+        }
+        break
+      case PopupType.GenerateCommitMessageDisclaimer:
+        if (!__AI_BUILD_FLAGS__.commitMessages) {
+          return
+        }
+        break
+      case PopupType.CopilotConflictResolutionDisclaimer:
+      case PopupType.CopilotConflictResolutionAlwaysNudge:
+        if (!__AI_BUILD_FLAGS__.conflictResolution) {
+          return
+        }
+        break
+      case PopupType.CopilotAppNotFound:
+        if (!__AI_BUILD_FLAGS__.appHandoff) {
+          return
+        }
+        break
+    }
     // Always close the app menu when showing a pop up. This is only
     // applicable on Windows where we draw a custom app menu.
     this._closeFoldout(FoldoutType.AppMenu)
@@ -12929,12 +12966,11 @@ export class AppStore extends TypedBaseStore<IAppState> {
       }
     }
 
-    const provider = this.byokProviders.find(p => p.id === key.providerId)
-    const model = provider?.models.find(m => m.id === key.modelId)
-    if (provider === undefined || model === undefined) {
-      // Selection points at a deleted provider/model; fall back to default.
-      return { kind: 'copilot', modelId: null }
-    }
+    const { provider, model } = requireAIProviderModel(
+      this.byokProviders,
+      key.providerId,
+      key.modelId
+    )
 
     let secret: string | null = null
     if (provider.authKind !== 'none') {
@@ -12943,7 +12979,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e)
         throw new Error(
-          `Could not read the credential for the custom Copilot provider ` +
+          `Could not read the credential for the AI provider ` +
             `'${provider.name}' from the OS keychain: ${message}`
         )
       }
@@ -12953,8 +12989,8 @@ export class AppStore extends TypedBaseStore<IAppState> {
       throw new Error(
         `No ${
           provider.authKind === 'bearer' ? 'bearer token' : 'API key'
-        } is stored for the custom Copilot provider '${provider.name}'. ` +
-          `Open Settings → Copilot → Providers and re-enter the credential.`
+        } is stored for the AI provider '${provider.name}'. ` +
+          `Open Settings → AI → Manage providers and re-enter the credential.`
       )
     }
 
@@ -12992,6 +13028,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
     provider: IBYOKProvider,
     secret: string | null
   ): Promise<void> {
+    if (!__AI_BUILD_FLAGS__.providerSettings) {
+      throw new Error('AI provider settings are disabled in this build')
+    }
     // Write the secret first so a keychain failure doesn't leave a provider
     // in localStorage without its credentials.
     if (secret !== null && secret.length > 0) {
@@ -13014,6 +13053,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
     provider: IBYOKProvider,
     secret: string | null | undefined
   ): Promise<void> {
+    if (!__AI_BUILD_FLAGS__.providerSettings) {
+      throw new Error('AI provider settings are disabled in this build')
+    }
     const idx = this.byokProviders.findIndex(p => p.id === provider.id)
     if (idx === -1) {
       // Treat as add to keep the call idempotent from the UI's perspective.
@@ -13043,6 +13085,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
 
   /** This shouldn't be called directly. See 'Dispatcher'. */
   public async _deleteCopilotBYOKProvider(id: string): Promise<void> {
+    if (!__AI_BUILD_FLAGS__.providerSettings) {
+      throw new Error('AI provider settings are disabled in this build')
+    }
     if (!this.byokProviders.some(p => p.id === id)) {
       return
     }
@@ -13062,8 +13107,8 @@ export class AppStore extends TypedBaseStore<IAppState> {
   }
 
   /**
-   * Drops any per-feature model selection that points at a BYOK
-   * provider/model that no longer exists, or at a Copilot model that is
+   * Preserves explicit BYOK selections even when unavailable, so requests fail
+   * closed. Drops selections pointing at a Copilot model that is
    * no longer offered by the loaded model list. Copilot selections are
    * only scrubbed once we have a definitive model list (i.e. the list has
    * been fetched at least once); while still loading we leave them alone
@@ -13106,15 +13151,8 @@ export class AppStore extends TypedBaseStore<IAppState> {
         continue
       }
       const key = parseModelKey(raw)
-      if (key.kind === 'byok') {
-        const provider = this.byokProviders.find(p => p.id === key.providerId)
-        if (
-          provider === undefined ||
-          !provider.models.some(m => m.id === key.modelId)
-        ) {
-          continue
-        }
-      } else if (
+      // Keep unavailable explicit BYOK selections: dropping them selects Copilot.
+      if (
         key.kind === 'copilot' &&
         key.modelId !== '' &&
         copilotModels !== undefined &&

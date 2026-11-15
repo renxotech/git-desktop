@@ -8,6 +8,17 @@ const packageInfo = await import('../package.json')
 
 Object.assign(globalThis, {
   __DEV__: false,
+  // Existing optional-feature suites explicitly exercise an AI-enabled build.
+  // ai-build-policy-test covers the default-disabled production policy.
+  __AI_BUILD_FLAGS__: {
+    copilot: true,
+    commitMessages: true,
+    assistedCommits: true,
+    conflictResolution: true,
+    appHandoff: true,
+    providerSettings: true,
+    accountInfo: true,
+  },
   __TEST__: true,
   __DEV_SECRETS__: false,
   __APP_NAME__: packageInfo.productName,

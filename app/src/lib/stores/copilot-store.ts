@@ -1,3 +1,9 @@
+import { ReasoningEffort, ReasoningEffortOrder } from '../ai/reasoning-effort'
+export {
+  ReasoningEffortOrder,
+  formatReasoningEffort,
+} from '../ai/reasoning-effort'
+export type { ReasoningEffort } from '../ai/reasoning-effort'
 import {
   CopilotClient,
   CopilotSession,
@@ -586,18 +592,6 @@ ${tags.repoRulesClose}
 ${diffBlock}`
 }
 
-/** Ordered reasoning effort levels from lowest to highest. */
-export const ReasoningEffortOrder = ['low', 'medium', 'high', 'xhigh'] as const
-
-export type ReasoningEffort = typeof ReasoningEffortOrder[number]
-
-/** Formats a reasoning effort for display, e.g. 'xhigh' → 'Extra high'. */
-export function formatReasoningEffort(effort: ReasoningEffort): string {
-  return effort === 'xhigh'
-    ? 'Extra high'
-    : effort.charAt(0).toUpperCase() + effort.slice(1)
-}
-
 /**
  * Returns the lowest reasoning effort supported by the given model, or
  * undefined if the model does not support reasoning effort configuration.
@@ -958,6 +952,9 @@ export class CopilotStore extends BaseStore {
     ),
     options: Pick<CopilotClientOptions, 'logLevel' | 'env'> = {}
   ): Promise<CopilotClient> {
+    if (!__AI_BUILD_FLAGS__.copilot) {
+      throw new Error('Copilot is disabled in this build')
+    }
     const runtimePath = getCopilotRuntimePath(join(__dirname, 'copilot'))
     if (!(await pathExists(runtimePath))) {
       throw new Error(
@@ -1038,7 +1035,10 @@ export class CopilotStore extends BaseStore {
 
   /** Whether the packaged SDK runtime needed for assisted commit planning is installed. */
   public async isAssistedCommitRuntimeAvailable(): Promise<boolean> {
-    return pathExists(getCopilotRuntimePath(join(__dirname, 'copilot')))
+    return (
+      __AI_BUILD_FLAGS__.assistedCommits &&
+      pathExists(getCopilotRuntimePath(join(__dirname, 'copilot')))
+    )
   }
 
   /** Reuse current session-bound authentication with the planner's isolated runtime policy. */
@@ -1091,6 +1091,9 @@ export class CopilotStore extends BaseStore {
     repositoryPath: string,
     options: ICopilotAssistedCommitPlanningOptions = {}
   ): Promise<CopilotAssistedCommitResponse> {
+    if (!__AI_BUILD_FLAGS__.assistedCommits) {
+      throw new Error('AI-assisted commits are disabled in this build')
+    }
     assertAssistedCommitAnalysis(analysis)
     const request = options.request
     const timeoutMs =
@@ -1274,6 +1277,9 @@ export class CopilotStore extends BaseStore {
     commitMessageRules?: ReadonlyArray<IRepoRulesMetadataRule>,
     signal?: AbortSignal
   ): Promise<ICopilotCommitMessage> {
+    if (!__AI_BUILD_FLAGS__.commitMessages) {
+      throw new Error('AI commit messages are disabled in this build')
+    }
     const throwIfCancelled = () => {
       if (signal?.aborted) {
         throw new CommitMessageGenerationCancelledError()
@@ -1492,6 +1498,9 @@ export class CopilotStore extends BaseStore {
     onProgress?: (progress: IConflictResolutionProgress) => void,
     signal?: AbortSignal
   ): Promise<IReassembledConflictResolutionResponse> {
+    if (!__AI_BUILD_FLAGS__.conflictResolution) {
+      throw new Error('AI conflict resolution is disabled in this build')
+    }
     const resolvableFiles = context.files.filter(f => !f.skippedReason)
     const filesTotal = resolvableFiles.length
 
@@ -1845,6 +1854,7 @@ export class CopilotStore extends BaseStore {
   ): Promise<CopilotQuotaSnapshots | null> {
     const key = getCopilotAccountCacheKey(account)
     if (
+      !__AI_BUILD_FLAGS__.accountInfo ||
       !this.signedInAccountKeys.has(key) ||
       !enableCopilotSdkCommitMessageGeneration(account)
     ) {

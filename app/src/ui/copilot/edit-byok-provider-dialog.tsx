@@ -15,8 +15,8 @@ import {
   BYOKWireApi,
   isValidBYOKBaseUrl,
   requiresNewBYOKSecret,
-} from '../../lib/copilot/byok'
-import { formatReasoningEffort } from '../../lib/stores/copilot-store'
+} from '../../lib/ai/providers'
+import { formatReasoningEffort } from '../../lib/ai/reasoning-effort'
 import { Dispatcher } from '../dispatcher'
 import { PopupType } from '../../models/popup'
 
@@ -289,7 +289,7 @@ export class EditCopilotBYOKProviderDialog extends React.Component<
         <legend>Models</legend>
         <p className="copilot-byok-section-hint">
           Tell Desktop which models this provider offers. Each one will appear
-          in the model picker for Copilot features.
+          for use with this provider.
         </p>
         {this.state.models.length === 0 ? (
           <p className="copilot-byok-empty">

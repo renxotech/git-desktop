@@ -2,11 +2,34 @@ import assert from 'node:assert'
 import { describe, it } from 'node:test'
 import { chmod, mkdir, readFile, readdir, stat, writeFile } from 'fs/promises'
 import { dirname, join, relative } from 'path'
-import { copyCopilotDependency } from './copilot'
+import { copyCopilotDependency, prepareCopilotDependency } from './copilot'
 import { createTempDirectory } from '../app/test/helpers/temp'
 import { getCopilotRuntimePath } from '../app/src/lib/copilot-runtime'
 
 describe('copyCopilotDependency', () => {
+  it('omits the runtime by default and removes a stale enabled-build copy', async t => {
+    const root = await createTempDirectory(t)
+    const output = join(root, 'output')
+    await mkdir(join(output, 'copilot'), { recursive: true })
+    await writeFile(join(output, 'copilot', 'old-runtime'), 'old')
+    await writeFile(join(output, 'keep'), 'unrelated output')
+    prepareCopilotDependency(
+      join(root, 'missing-dependencies'),
+      output,
+      'win32',
+      'x64',
+      false
+    )
+    assert.deepEqual(await readdir(output), ['keep'])
+    prepareCopilotDependency(
+      join(root, 'missing-dependencies'),
+      output,
+      'win32',
+      'x64',
+      false
+    )
+    assert.deepEqual(await readdir(output), ['keep'])
+  })
   for (const platform of ['darwin', 'win32', 'linux'] as const) {
     for (const arch of ['arm64', 'x64']) {
       it(`copies the ${platform}-${arch} runtime and assets`, async t => {

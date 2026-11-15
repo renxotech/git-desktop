@@ -7,6 +7,7 @@ import { nativeTypeCheckPlugin } from '../script/type-check-plugin'
 import { productName } from './package.json'
 import { getDistArchitecture } from '../script/dist-info'
 import { getKoffiWebpackConfig } from '../script/webpack-koffi'
+import { getAIBuildFlags } from './src/lib/ai/build-flags'
 
 export const externals = ['7zip']
 
@@ -53,6 +54,14 @@ const commonConfig: webpack.Configuration = {
   },
   resolve: {
     extensions: ['.js', '.ts', '.tsx'],
+    alias: getAIBuildFlags(process.env).copilot
+      ? {}
+      : {
+          '@github/copilot-sdk$': path.resolve(
+            __dirname,
+            'src/lib/ai/disabled-copilot-sdk.ts'
+          ),
+        },
   },
   node: {
     __dirname: false,
