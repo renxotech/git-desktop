@@ -5,18 +5,21 @@ as some need to be handled differently to others
 
 ## General Guidelines
 
-In the interest of stability and caution we tend to stay a version (or more) behind on our most critical dependencies. We vary whether this is a major, minor, or patch version depending on the development practices of the dependency's project.
+In the interest of stability and caution we tend to stay a version (or more)
+behind on our most critical dependencies. We vary whether this is a major,
+minor, or patch version depending on the development practices of the
+dependency's project.
 
-| Dependency | Versions Behind Latest |
-| --- | --- |
-| electron | >= 1 major |
-| electron-packager | >= 1 major |
-| electron-winstaller | >= 1 minor |
-| typescript | >= 1 minor |
-| codemirror | >= 1 minor |
-| react | >= 1 minor |
-| react-dom | >= 1 minor |
-| keytar | >= 1 minor |
+| Dependency          | Versions Behind Latest |
+| ------------------- | ---------------------- |
+| electron            | >= 1 major             |
+| electron-packager   | >= 1 major             |
+| electron-winstaller | >= 1 minor             |
+| typescript          | >= 1 minor             |
+| codemirror          | >= 1 minor             |
+| react               | >= 1 minor             |
+| react-dom           | >= 1 minor             |
+| keytar              | >= 1 minor             |
 
 ## The Impact Of A Dependency
 
@@ -35,33 +38,33 @@ questions, and some examples of answers here will help with the next section.
 
 ### How is this dependency used in the project?
 
-  - Core dependencies like Electron, React and Typescript are critical to
-    Desktop - without these dependencies we'd have a very different product
-  - Application dependencies are other external packages which are needed at
-    runtime - how can we test they still work as expected?
-  - Tooling dependencies help to build and verify Desktop works as expected, but
-    aren't shipped to users
+- Core dependencies like Electron, React and Typescript are critical to
+  Desktop - without these dependencies we'd have a very different product
+- Application dependencies are other external packages which are needed at
+  runtime - how can we test they still work as expected?
+- Tooling dependencies help to build and verify Desktop works as expected, but
+  aren't shipped to users
 
 ### If we ship a bad update due to updating a dependency, what is the impact to users?
 
-  - If a core dependency is broken, it may cause the app to crash, lose the
-    user's work, or require the user to reinstall an old version of Desktop to
-    get back to a usable state
-  - An application dependency breaking may affect some user's workflows and
-    their ability to work
-  - Broken tooling impacts the developers and their ability to work on the
-    project, and potentially affects shipping builds to users, but otherwise
-    might not be seen
+- If a core dependency is broken, it may cause the app to crash, lose the user's
+  work, or require the user to reinstall an old version of Desktop to get back
+  to a usable state
+- An application dependency breaking may affect some user's workflows and their
+  ability to work
+- Broken tooling impacts the developers and their ability to work on the
+  project, and potentially affects shipping builds to users, but otherwise might
+  not be seen
 
 ### Can we leverage automation to verify a change is safe?
 
-  - Core dependencies need to be tested in a variety of setups due to their
-    complexity, and may still require manual testing in some cases even with
-    automated tests in place
-  - Application dependencies may be able to be wrapped in tests, to help
-    identify regressions before a change is released to users
-  - Tooling dependencies are used heavily as part of continuous integration
-    tests, and any potential problems will be caught early
+- Core dependencies need to be tested in a variety of setups due to their
+  complexity, and may still require manual testing in some cases even with
+  automated tests in place
+- Application dependencies may be able to be wrapped in tests, to help identify
+  regressions before a change is released to users
+- Tooling dependencies are used heavily as part of continuous integration tests,
+  and any potential problems will be caught early
 
 ## Grouping dependencies by impact
 
@@ -72,19 +75,19 @@ help guide when they should be updated.
 
 These are the most important dependencies to the app, and include:
 
- - `package.json`
-   - `@types/node`
-   - `electron`
-   - `electron-packager`
-   - `electron-winstaller`
-   - `typescript`
-   - `webpack` and related dependencies
- - `app/package.json`
-   - `codemirror`
-   - `dugite`
-   - `react`
-   - `react-dom`
-   - `keytar`
+- `package.json`
+  - `@types/node`
+  - `electron`
+  - `electron-packager`
+  - `electron-winstaller`
+  - `typescript`
+  - `webpack` and related dependencies
+- `app/package.json`
+  - `codemirror`
+  - `dugite`
+  - `react`
+  - `react-dom`
+  - `keytar`
 
 Anyone who wants to get involved with updating these versions should be very
 familiar with both the library and what has changed between versions, so the
@@ -101,9 +104,9 @@ This group of dependencies represent the rest of the listed dependencies in
 `app/package.json` - there are lots of small dependencies which are approachable
 for external contributions.
 
-If you are interested in upgrading one of these, take a look at where it is
-used in the application and confirm that the affected functionality works as
-expected before opening a pull request.
+If you are interested in upgrading one of these, take a look at where it is used
+in the application and confirm that the affected functionality works as expected
+before opening a pull request.
 
 ### Tooling dependencies
 
@@ -117,9 +120,11 @@ specific set of dependencies - this will make reviews easier to perform.
 
 ## TypeScript upgrades
 
-The application, build scripts, custom ESLint rules, and native modules use
-TypeScript 6. Keep the compiler versions in the root package and the three
-TypeScript-based packages under `vendor/` aligned, including their lockfiles.
+The application, build scripts, custom ESLint rules, and native modules are
+checked with native TypeScript 7. Keep `@typescript/native` in the root package
+and `typescript` in the three TypeScript-based packages under `vendor/`
+aligned, including their lockfiles. The root `typescript` dependency is a
+separate TypeScript 6 compiler API bridge for ESLint and API-based tooling.
 
 Webpack compiles the application and syntax-highlighting worker using `bundler`
 module resolution. Build scripts use `nodenext`, and native modules use `node16`
@@ -130,16 +135,15 @@ private implementation paths.
 
 Compiler upgrades must preserve strictness and library declaration checking.
 Update incompatible dependencies or fix their callers rather than disabling
-checks or suppressing deprecation diagnostics. Keep the TypeScript ESLint parser,
-plugin, and utilities on a release that supports the installed compiler.
+checks or suppressing deprecation diagnostics. Keep the TypeScript ESLint
+parser, plugin, and utilities on a release that supports the installed compiler.
 
 Validate all compiler projects, development and production builds, the unit and
 script suites, and custom ESLint rule tests:
 
 ```shell
-npm exec -- tsc --noEmit
+npm run typecheck
 npm run compile:script
-npm exec -- tsc -p app/src/highlighter --noEmit
 npm run check:eslint
 npm run compile:dev
 npm run compile:prod
@@ -149,8 +153,8 @@ npm run test:eslint
 npm run lint
 ```
 
-Also run `npm run build` in each TypeScript-based native module and `npm test` in
-`vendor/desktop-trampoline`.
+Also run `npm run build` in each TypeScript-based native module and `npm test`
+in `vendor/desktop-trampoline`.
 
 Check emitted paths, not only successful compilation: a `rootDir` change can
 move output away from a package's published entry points. For example,
@@ -158,6 +162,19 @@ move output away from a package's published entry points. For example,
 not `dist/lib/index.js`. The native-module output tests in `npm run test:script`
 capture fresh compiler output in memory so stale build files cannot hide this
 regression.
+
+### Native TypeScript 7 and compiler API dependencies
+
+Keep `@typescript/native` pinned with the TypeScript version in the three vendor
+packages. Their build runners resolve native 7.0.2 explicitly for both
+standalone vendor installs and copied application dependencies. Update the root
+and vendor npm lockfiles together. The `typescript` alias remains a separate
+TypeScript 6 API bridge for ESLint and in-memory compiler API checks.
+
+Run `npm run typecheck` after compiler changes. Keep webpack's native
+diagnostics gate and the checked script runner when changing transpilers.
+Preserve current runtime dependency versions: this migration does not require
+downgrading Dexie 4 or applying the older branch's Dexie 3 declaration patch.
 
 ## DefinitelyTyped dependencies
 
@@ -168,11 +185,11 @@ These are the rough rules for handling `@types/*` dependency updates, using
 `keytar` as an example as it has a corresponding type declaration package
 `@types/keytar`:
 
- - if you are upgrading `keytar`, ensure that you also upgrade `@types/keytar`
-   and that any code affected by the type declarations change is also updated
- - if there is no `keytar` upgrade but a new version of `@types/keytar` is
-   available, this suggests that some declarations have been updated - ensure
-   that the app code works fine with it
+- if you are upgrading `keytar`, ensure that you also upgrade `@types/keytar`
+  and that any code affected by the type declarations change is also updated
+- if there is no `keytar` upgrade but a new version of `@types/keytar` is
+  available, this suggests that some declarations have been updated - ensure
+  that the app code works fine with it
 
 Not all libraries will have a corresponding `@types/` dependency, but as we use
 TypeScript heavily in the codebase we want to ensure we're working against the

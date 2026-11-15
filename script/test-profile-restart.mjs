@@ -3,7 +3,6 @@
 // Optionally repeat with a read-only copy of an existing profile.
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
-import { once } from 'node:events'
 import { cp, mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -17,6 +16,10 @@ if (process.platform !== 'win32') {
 }
 const root = resolve(import.meta.dirname, '..')
 const qa = await mkdtemp(join(tmpdir(), 'git-desktop-profile-restart-'))
+assert.ok(
+  process.env.SystemRoot,
+  'SystemRoot must identify the Windows directory'
+)
 const powershell = join(
   process.env.SystemRoot,
   'System32/WindowsPowerShell/v1.0/powershell.exe'
@@ -25,6 +28,7 @@ const launcher = join(root, 'script/start-test.ps1')
 const sourceIndex = process.argv.indexOf('--source-profile')
 const sourceProfile =
   sourceIndex === -1 ? undefined : process.argv[sourceIndex + 1]
+/** @type {Record<string, string | undefined>} */
 const env = {
   ...process.env,
   GIT_CONFIG_GLOBAL: join(qa, 'gitconfig'),
@@ -34,12 +38,19 @@ delete env.ELECTRON_RUN_AS_NODE
 
 async function freePort() {
   const server = createServer()
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
-  const port = server.address().port
-  await new Promise(resolve => server.close(resolve))
+  await new Promise(resolve =>
+    server.listen(0, '127.0.0.1', () => resolve(undefined))
+  )
+  const address = server.address()
+  assert.ok(address && typeof address !== 'string')
+  const port = address.port
+  await new Promise((resolve, reject) =>
+    server.close(error => (error ? reject(error) : resolve(undefined)))
+  )
   return port
 }
 
+/** @param {import('playwright').Page} page */
 async function snapshot(page) {
   return page.evaluate(async () => {
     const repositories = await new Promise((resolve, reject) => {
@@ -70,6 +81,11 @@ async function snapshot(page) {
   })
 }
 
+/**
+ * @param {string} profile
+ * @param {string} name
+ * @param {((page: import('playwright').Page) => Promise<void>)=} action
+ */
 async function launchAndClose(profile, name, action) {
   const port = await freePort()
   await run(
@@ -98,11 +114,14 @@ async function launchAndClose(profile, name, action) {
   }
   assert.ok(browser, 'Launcher must expose the QA browser within 20 seconds')
   const page = browser.contexts()[0].pages()[0]
+  /** @type {string[]} */
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
   try {
     await page.locator('#desktop-app-chrome').waitFor({ timeout: 30000 })
-    if (action) await action(page)
+    if (action) {
+      await action(page)
+    }
     assert.equal(
       await page.locator('#welcome').count(),
       0,
@@ -115,8 +134,12 @@ async function launchAndClose(profile, name, action) {
     assert.deepEqual(errors, [])
     await page.screenshot({ path: join(qa, `${name}.png`) })
     // This is the same X button the user clicks; do not substitute app.quit().
-    const closed = once(browser, 'disconnected', {
-      signal: AbortSignal.timeout(20000),
+    const closed = new Promise((resolve, reject) => {
+      const signal = AbortSignal.timeout(20000)
+      signal.addEventListener('abort', () => reject(signal.reason), {
+        once: true,
+      })
+      browser.once('disconnected', () => resolve(undefined))
     })
     await page.locator('#desktop-app-title-bar .window-control.close').click()
     await closed

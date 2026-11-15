@@ -17,3 +17,8 @@ gemoji
 *.md
 app/static/logos/prod/**/*.json
 app/static/logos/dev/**/*.json
+
+# Local isolated worktrees and temporary packaging/task output.
+.worktrees/
+dist-build/
+tmp/

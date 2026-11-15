@@ -3,6 +3,7 @@ import HtmlWebpackPlugin from 'html-webpack-plugin'
 import webpack from 'webpack'
 import merge from 'webpack-merge'
 import { getReplacements } from './app-info'
+import { nativeTypeCheckPlugin } from '../script/type-check-plugin'
 import { productName } from './package.json'
 import { getDistArchitecture } from '../script/dist-info'
 import { getKoffiWebpackConfig } from '../script/webpack-koffi'
@@ -32,7 +33,11 @@ const commonConfig: webpack.Configuration = {
         include: path.resolve(__dirname, 'src'),
         use: [
           {
-            loader: 'ts-loader',
+            loader: 'esbuild-loader',
+            options: {
+              target: 'es2022',
+              tsconfig: path.resolve(__dirname, '../tsconfig.json'),
+            },
           },
         ],
         exclude: /node_modules/,
@@ -59,6 +64,7 @@ export const main = merge({}, commonConfig, {
   entry: { main: path.resolve(__dirname, 'src/main-process/main') },
   target: 'electron-main',
   plugins: [
+    nativeTypeCheckPlugin('tsconfig.json'),
     new webpack.DefinePlugin(
       Object.assign({}, replacements, {
         __PROCESS_KIND__: JSON.stringify('main'),
@@ -91,6 +97,7 @@ export const renderer = merge(
       ],
     },
     plugins: [
+      nativeTypeCheckPlugin('tsconfig.json'),
       new HtmlWebpackPlugin({
         title: productName,
         template: path.join(__dirname, 'static', 'index.html'),
@@ -125,6 +132,7 @@ export const crash = merge({}, commonConfig, {
   entry: { crash: path.resolve(__dirname, 'src/crash/index') },
   target: 'electron-renderer',
   plugins: [
+    nativeTypeCheckPlugin('tsconfig.json'),
     new HtmlWebpackPlugin({
       title: productName,
       filename: 'crash.html',
@@ -142,6 +150,7 @@ export const cli = merge({}, commonConfig, {
   entry: { cli: path.resolve(__dirname, 'src/cli/main') },
   target: 'node',
   plugins: [
+    nativeTypeCheckPlugin('tsconfig.json'),
     new webpack.DefinePlugin(
       Object.assign({}, replacements, {
         __PROCESS_KIND__: JSON.stringify('cli'),
@@ -188,6 +197,7 @@ export const highlighter = merge({}, commonConfig, {
   },
   target: 'webworker',
   plugins: [
+    nativeTypeCheckPlugin('app/src/highlighter/tsconfig.json'),
     new webpack.DefinePlugin(
       Object.assign({}, replacements, {
         __PROCESS_KIND__: JSON.stringify('highlighter'),
@@ -216,9 +226,10 @@ highlighter.module!.rules = [
     include: path.resolve(__dirname, 'src/highlighter'),
     use: [
       {
-        loader: 'ts-loader',
+        loader: 'esbuild-loader',
         options: {
-          configFile: path.resolve(__dirname, 'src/highlighter/tsconfig.json'),
+          target: 'es2021',
+          tsconfig: path.resolve(__dirname, 'src/highlighter/tsconfig.json'),
         },
       },
     ],

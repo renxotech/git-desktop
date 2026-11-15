@@ -13,7 +13,9 @@
     "strict": true,
     "outDir": "../../../out",
     "lib": ["scripthost", "webworker", "es2021"],
-    "types": []
+    "types": [],
+    "isolatedModules": true,
+    "noEmitOnError": true
   },
   "compileOnSave": false
 }

@@ -15,7 +15,19 @@
     "sourceMap": false,
     "noEmit": true,
     "strict": true,
-    "types": ["node"]
+    "types": ["node"],
+    "isolatedModules": true,
+    "allowJs": true,
+    "checkJs": true,
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable",
+      "ScriptHost",
+      "WebWorker.ImportScripts"
+    ]
   },
-  "compileOnSave": false
+  "compileOnSave": false,
+  "include": ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.mjs"],
+  "exclude": ["generate-example-usage-data.mjs"]
 }

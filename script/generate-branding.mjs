@@ -15,6 +15,10 @@ const browser = await chromium.launch({
 })
 try {
   const page = await browser.newPage({ deviceScaleFactor: 1 })
+  /**
+   * @param {string} svg
+   * @param {number} size
+   */
   async function render(svg, size) {
     await page.setViewportSize({ width: size, height: size })
     await page.setContent(
@@ -33,9 +37,11 @@ try {
       await writeFile(join(common, 'git-desktop-dev.svg'), svg)
     }
     const sizes = [16, 20, 24, 32, 40, 48, 64, 128, 256]
-    const images = sizes.map(size => ({ size, png: null }))
+    const images = []
     // Screenshot calls share a page and must remain sequential.
-    for (const entry of images) entry.png = await render(svg, entry.size)
+    for (const size of sizes) {
+      images.push({ size, png: await render(svg, size) })
+    }
     const header = Buffer.alloc(6 + images.length * 16)
     header.writeUInt16LE(1, 2)
     header.writeUInt16LE(images.length, 4)
@@ -54,7 +60,8 @@ try {
       Buffer.concat([header, ...images.map(x => x.png)])
     )
     const chunks = []
-    for (const [size, type] of [
+    /** @type {Array<[number, string]>} */
+    const iconSizes = [
       [16, 'icp4'],
       [32, 'icp5'],
       [64, 'icp6'],
@@ -62,7 +69,8 @@ try {
       [256, 'ic08'],
       [512, 'ic09'],
       [1024, 'ic10'],
-    ]) {
+    ]
+    for (const [size, type] of iconSizes) {
       const png = await render(svg, size)
       const chunk = Buffer.alloc(8)
       chunk.write(type)

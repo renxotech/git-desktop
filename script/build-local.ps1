@@ -116,11 +116,11 @@ try {
         $env:NODE_ENV = 'production'
         if ($AnalyzeBundle) { $env:DESKTOP_BUNDLE_ANALYZE = 'true' }
         Invoke-DesktopBuildStage -Name 'Compile' -Action {
-            Invoke-Npm -Arguments @('exec', '--', 'cross-env', 'NODE_ENV=production', 'TS_NODE_PROJECT=script/tsconfig.json', 'NODE_OPTIONS=--max_old_space_size=8192', 'webpack', '--config', 'app/webpack.production.ts')
+            Invoke-Npm -Arguments @('exec', '--', 'cross-env', 'NODE_ENV=production', 'NODE_OPTIONS=--max_old_space_size=8192', 'node', 'script/checked-run.mjs', 'scripts', 'node_modules/webpack-cli/bin/cli.js', '--disable-interpret', '--config', 'app/webpack.production.ts')
         }
         $env:DESKTOP_SKIP_PACKAGE = '1'
         Invoke-DesktopBuildStage -Name 'Resource preparation' -Action {
-            Invoke-Npm -Arguments @('exec', '--', 'ts-node', '-P', 'script/tsconfig.json', 'script/build.ts')
+            Invoke-Npm -Arguments @('exec', '--', 'node', 'script/checked-run.mjs', 'scripts', 'script/build.ts')
         }
         $env:DESKTOP_LOCAL_BUNDLE = 'out'
         Invoke-DesktopBuildStage -Name 'Package' -Action {

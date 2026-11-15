@@ -71,6 +71,7 @@ jobs:
             app/package-lock.json
             vendor/*/package-lock.json
       - run: npm ci
+      - run: npm run typecheck
       - run: npm run validate-electron-version
       - run: npm run lint
       - run: npm run validate-changelog
@@ -144,6 +145,8 @@ jobs:
             ${{ secrets.GATEWATCHER_APP_STORE_CONNECT_API_ISSUER_ID }}
           app-store-connect-api-key-base64-private-key:
             ${{ secrets.GATEWATCHER_APP_STORE_CONNECT_API_BASE64_PRIVATE_KEY }}
+      - name: Check all TypeScript projects
+        run: npm run typecheck
       - name: Build production app
         run: npm run build:prod
         env:

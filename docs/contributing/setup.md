@@ -1,16 +1,16 @@
-#  Development Environment Setup
+# Development Environment Setup
 
 ## Setup
 
 Refer to the specific instructions for each platform:
 
- - [macOS](./setup-macos.md)
- - [Windows](./setup-windows.md)
- - [Linux](./setup-linux.md)
+- [macOS](./setup-macos.md)
+- [Windows](./setup-windows.md)
+- [Linux](./setup-linux.md)
 
 Experimental support for building Desktop is also available for these platforms:
 
- - [ARM64](./building-arm64.md)
+- [ARM64](./building-arm64.md)
 
 ## Verification
 
@@ -36,16 +36,20 @@ editor to work nicely with the GitHub Desktop repository.
 
 ## Building Desktop
 
-First, create a fork of `desktop/desktop` and then clone the repository to your local machine. You'll need to be inside the repository in order to build the application locally.
+First, create a fork of `desktop/desktop` and then clone the repository to your
+local machine. You'll need to be inside the repository in order to build the
+application locally.
 
 The typical workflow to get up running is as follows:
 
-* Run `npm ci` to get all required dependencies on your machine.
-* Run `npm run build:dev` to create a development build of the app.
-* Run `npm start` to launch the application. Changes will be compiled in the
-  background. The app can then be reloaded to see the changes (<kbd>Ctrl/Command+Alt+R</kbd>).
+- Run `npm ci` to get all required dependencies on your machine.
+- Run `npm run build:dev` to create a development build of the app.
+- Run `npm start` to launch the application. Changes will be compiled in the
+  background. The app can then be reloaded to see the changes
+  (<kbd>Ctrl/Command+Alt+R</kbd>).
 
-**Optional Tip**: On macOS and Linux, you can use `screen` to avoid filling your terminal with logging output:
+**Optional Tip**: On macOS and Linux, you can use `screen` to avoid filling your
+terminal with logging output:
 
 ```shellsession
 $ screen -S "desktop" npm start # -S sets the name of the session; you can pick anything
@@ -55,15 +59,36 @@ $ screen -R "desktop" # to reopen the session, read the logs, and exit (Ctrl+C)
 [screen is terminating]
 ```
 
-If you've made changes in the `main-process` folder you need to run `npm run
-build:dev` to rebuild the package, and then `npm start` for these changes to be
-reflected in the running app.
+If you've made changes in the `main-process` folder you need to run
+`npm run build:dev` to rebuild the package, and then `npm start` for these
+changes to be reflected in the running app.
 
-If you are using GitHub Enterprise with your development build of GitHub Desktop, you will need to follow a few extra steps to [authenticate properly](github-enterprise-auth-from-dev-build.md).
+If you are using GitHub Enterprise with your development build of GitHub
+Desktop, you will need to follow a few extra steps to
+[authenticate properly](github-enterprise-auth-from-dev-build.md).
 
 If you're still encountering issues with building, refer to our
-[troubleshooting](troubleshooting.md) guide for more common
-problems.
+[troubleshooting](troubleshooting.md) guide for more common problems.
+
+## TypeScript checking
+
+Run `npm run typecheck` to check all nine native TypeScript 7 projects. To check
+one project, use `node script/type-check.mjs <scope>` with `app`, `scripts`,
+`bootstrap`, `highlighter`, `eslint`, `trampoline`, `trampoline-tests`,
+`notifications`, or `argv`.
+
+Webpack uses esbuild-loader for transpilation and runs the native checker before
+emitting bundles, including development rebuilds and files outside the bundle.
+Script commands use `node script/checked-run.mjs <scope> <file> [arguments...]`
+to check before execution with tsx. The Windows local build wrapper preserves
+its resource preparation, packaging, memory limit and launch controls.
+
+`@typescript/native` supplies the pinned native 7.0.2 checker. The `typescript`
+dependency is Microsoft's TypeScript 6 compiler API bridge for ESLint and tools
+that use the JavaScript compiler API. Native entry points resolve the package
+explicitly so competing `tsc` command shims cannot select the older compiler.
+The application scope also checks the usage-data generator because it imports
+application helpers; other scripts retain their NodeNext configuration.
 
 ## Running tests
 
@@ -72,9 +97,12 @@ problems.
 - `npm run test:eslint` - Runs all eslint tests
 - `npm run test:unit` - Runs all unit tests
   - Add `-- <file>` to only run tests in the specified file
-  - Add `-- <directory>` to search for tests matching our test pattern in the given directory
-  - Add `-- --test-name-pattern=<pattern>` to only match tests whose name matches the pattern
-  - For more information on these and other arguments, see [Node CLI options](https://nodejs.org/api/test.html)
+  - Add `-- <directory>` to search for tests matching our test pattern in the
+    given directory
+  - Add `-- --test-name-pattern=<pattern>` to only match tests whose name
+    matches the pattern
+  - For more information on these and other arguments, see
+    [Node CLI options](https://nodejs.org/api/test.html)
 
 ## Debugging
 
@@ -92,7 +120,7 @@ should automatically install itself on first start when in development mode.
 
 You're almost there! Here's a couple of things we recommend you read next:
 
- - [Help Wanted](../../.github/CONTRIBUTING.md#help-wanted) - we've marked some
-   tasks in the backlog that are ideal for external contributors
- - [Notes for Contributors](../process/notes-for-contributors.md) - some notes
-   for new contributors getting started
+- [Help Wanted](../../.github/CONTRIBUTING.md#help-wanted) - we've marked some
+  tasks in the backlog that are ideal for external contributors
+- [Notes for Contributors](../process/notes-for-contributors.md) - some notes
+  for new contributors getting started

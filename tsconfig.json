@@ -18,9 +18,19 @@
     "outDir": "./out",
     "useUnknownInCatchVariables": false,
     "lib": ["ES2023", "DOM", "DOM.Iterable", "ESNext.Array"],
-    "types": ["node"]
+    "types": ["node"],
+    "isolatedModules": true,
+    "allowJs": true,
+    "checkJs": true,
+    "noEmitOnError": true
   },
-  "include": ["app/**/*.ts", "app/**/*.tsx", "app/**/*.d.tsx"],
+  "include": [
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "app/**/*.mts",
+    "script/generate-example-usage-data.mjs",
+    "app/**/*.d.tsx"
+  ],
   "exclude": [
     "node_modules",
     "app/node_modules",

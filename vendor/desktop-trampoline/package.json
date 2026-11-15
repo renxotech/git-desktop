@@ -7,11 +7,11 @@
     "desktop-trampoline": "build/Release/desktop-trampoline"
   },
   "scripts": {
-    "build": "tsc",
-    "install": "node-gyp rebuild && tsc",
+    "build": "node script/compile-typescript.cjs",
+    "install": "node-gyp rebuild && node script/compile-typescript.cjs",
     "lint": "prettier -c **/*.js **/*.md",
     "lint:fix": "prettier --write **/*.js **/*.md",
-    "test": "node script/test.mjs"
+    "test": "node script/compile-typescript.cjs -p tsconfig.test.json && node script/test.mjs"
   },
   "dependencies": {
     "node-addon-api": "^7.0.0"
@@ -20,9 +20,11 @@
     "node-test-github-reporter": "^1.2.0",
     "tsx": "^4.10.5",
     "node-gyp": "^10.1.0",
-    "typescript": "^6.0.3",
+    "typescript": "7.0.2",
     "prettier": "^3.3.1",
-    "split2": "^4.1.0"
+    "split2": "^4.1.0",
+    "@types/node": "22.10.9",
+    "@types/split2": "4.2.3"
   },
   "binary": {
     "napi_versions": [
@@ -32,5 +34,6 @@
   "config": {
     "runtime": "napi",
     "target": 4
-  }
+  },
+  "type": "commonjs"
 }

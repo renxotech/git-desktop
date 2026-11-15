@@ -5,8 +5,8 @@
   "license": "MIT",
   "main": "dist/index.js",
   "scripts": {
-    "install": "node-gyp rebuild --napi_build_version=4 && tsc && node script/build-receipt.cjs",
-    "build": "tsc",
+    "install": "node-gyp rebuild --napi_build_version=4 && node script/compile-typescript.cjs && node script/build-receipt.cjs",
+    "build": "node script/compile-typescript.cjs",
     "pretest": "npm run build",
     "prettify": "prettier --write \"./**/*.{ts,tsx,js,json,jsx,scss,html,yaml,yml}\"",
     "check-prettier": "prettier --check \"./**/*.{ts,tsx,js,json,jsx,scss,html,yaml,yml}\""
@@ -14,7 +14,8 @@
   "devDependencies": {
     "node-gyp": "^10.1.0",
     "prettier": "^2.0.5",
-    "typescript": "^6.0.3"
+    "typescript": "7.0.2",
+    "@types/node": "22.10.9"
   },
   "dependencies": {
     "node-addon-api": "^7.0.0"
@@ -27,5 +28,6 @@
   "config": {
     "runtime": "napi",
     "target": 4
-  }
+  },
+  "type": "commonjs"
 }

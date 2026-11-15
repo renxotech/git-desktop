@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
-    "module": "node16",
-    "moduleResolution": "node16",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "rootDir": ".",
     "types": ["node"],
     "target": "ES2022",
@@ -16,7 +16,8 @@
     "sourceMap": true,
     "strict": true,
     "outDir": "./build",
-    "useUnknownInCatchVariables": false
+    "useUnknownInCatchVariables": false,
+    "noEmitOnError": true
   },
   "include": ["*.ts"],
   "exclude": ["node_modules", "build"],
