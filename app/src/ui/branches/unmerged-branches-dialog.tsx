@@ -36,7 +36,12 @@ interface IState {
   readonly branches: ReadonlyArray<IUnmergedBranch>
   readonly loadedBranches: ReadonlyArray<Branch>
   readonly includeRemotes: boolean
-  readonly busy: boolean
+  readonly busy:
+    | 'loading-branches'
+    | 'checking-worktree'
+    | 'merging'
+    | 'removing-worktree'
+    | null
   readonly error: string | null
   readonly selected: string
   readonly filter: string
@@ -48,6 +53,7 @@ interface IState {
 }
 export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
   private request = 0
+  private actionInProgress = false
   public constructor(props: IProps) {
     super(props)
     this.state = {
@@ -56,7 +62,7 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
       branches: [],
       loadedBranches: [],
       includeRemotes: false,
-      busy: true,
+      busy: 'loading-branches',
       error: null,
       selected: '',
       filter: '',
@@ -76,7 +82,7 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
   private refresh = async () => {
     const request = ++this.request
     const { target } = this.state
-    this.setState({ busy: true, error: null, selected: '' })
+    this.setState({ busy: 'loading-branches', error: null, selected: '' })
     try {
       const [targets, branches, loadedBranches] = await Promise.all([
         getUnmergedBranchTargets(this.props.repository.path),
@@ -90,7 +96,7 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
         getBranches(this.props.repository),
       ])
       if (request === this.request) {
-        this.setState({ targets, branches, loadedBranches, busy: false })
+        this.setState({ targets, branches, loadedBranches, busy: null })
       }
     } catch (error) {
       if (request === this.request) {
@@ -98,7 +104,7 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
           targets: [],
           branches: [],
           loadedBranches: [],
-          busy: false,
+          busy: null,
           error: errorMessage(error),
         })
       }
@@ -132,11 +138,13 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
       !branch ||
       !current ||
       this.state.target !== 'HEAD' ||
-      this.state.busy
+      this.state.busy ||
+      this.actionInProgress
     ) {
       return
     }
-    this.setState({ busy: true, error: null })
+    this.actionInProgress = true
+    this.setState({ busy: 'merging', error: null })
     const request = ++this.request
     try {
       const status = await determineMergeability(
@@ -152,7 +160,7 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
         status.kind === ComputedAction.Loading
       ) {
         this.setState({
-          busy: false,
+          busy: null,
           error: 'These branches cannot be merged.',
         })
         return
@@ -164,8 +172,10 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
       )
     } catch (error) {
       if (request === this.request) {
-        this.setState({ busy: false, error: errorMessage(error) })
+        this.setState({ busy: null, error: errorMessage(error) })
       }
+    } finally {
+      this.actionInProgress = false
     }
   }
   private onTargetChanged = (e: React.FormEvent<HTMLSelectElement>) =>
@@ -179,7 +189,12 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
   private onRemove = () => {
     const branch = this.state.branches.find(b => b.ref === this.state.selected)
     const selected = this.state.loadedBranches.find(b => b.ref === branch?.ref)
-    if (!this.state.busy && selected && this.removalReason(branch) === null) {
+    if (
+      !this.state.busy &&
+      !this.actionInProgress &&
+      selected &&
+      this.removalReason(branch) === null
+    ) {
       this.setState({ deleting: selected })
     }
   }
@@ -188,12 +203,14 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
     const branch = this.state.branches.find(b => b.ref === this.state.selected)
     if (
       this.state.busy ||
+      this.actionInProgress ||
       !branch ||
       this.removalReason(branch) !== 'This branch is checked out in a worktree.'
     ) {
       return
     }
-    this.setState({ busy: true, error: null })
+    this.actionInProgress = true
+    this.setState({ busy: 'checking-worktree', error: null })
     const request = ++this.request
     try {
       const removal = await checkWorktreeBranchRemoval(
@@ -204,15 +221,17 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
       if (request === this.request) {
         this.setState({
           removal,
-          busy: false,
+          busy: null,
           includeIgnored: false,
           includeSubmodules: false,
         })
       }
     } catch (error) {
       if (request === this.request) {
-        this.setState({ error: errorMessage(error), busy: false })
+        this.setState({ error: errorMessage(error), busy: null })
       }
+    } finally {
+      this.actionInProgress = false
     }
   }
   private onIgnoredChanged = (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -221,10 +240,12 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
     this.setState({ includeSubmodules: e.currentTarget.checked })
   private onCancelRemoval = () => this.setState({ removal: null, error: null })
   private onConfirmRemoval = async () => {
-    if (!this.state.removal || this.state.busy) {
+    if (!this.state.removal || this.state.busy || this.actionInProgress) {
       return
     }
-    this.setState({ busy: true, error: null })
+    this.actionInProgress = true
+    this.setState({ busy: 'removing-worktree', error: null })
+    const request = ++this.request
     try {
       const metadataBackup =
         await this.props.dispatcher.removeMergedWorktreeAndBranch(
@@ -233,16 +254,31 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
           this.state.includeIgnored,
           this.state.includeSubmodules
         )
+      if (request !== this.request) {
+        return
+      }
       this.setState({ removal: null, metadataBackup })
       await this.refresh()
     } catch (error) {
-      this.setState({ busy: false, error: errorMessage(error) })
+      if (request === this.request) {
+        this.setState({ busy: null, error: errorMessage(error) })
+      }
+    } finally {
+      this.actionInProgress = false
     }
   }
 
   public render() {
-    const { busy, target, targets, error, includeRemotes, deleting } =
-      this.state
+    const { target, targets, error, includeRemotes, deleting } = this.state
+    const busy = this.state.busy !== null
+    const busyMessage =
+      this.state.busy === 'checking-worktree'
+        ? 'Checking worktree and branch…'
+        : this.state.busy === 'merging'
+        ? 'Preparing merge…'
+        : this.state.busy === 'removing-worktree'
+        ? 'Removing worktree and branch…'
+        : 'Checking branches…'
     const merged = this.props.merged === true
     const currentUpstream = this.props.currentBranch?.upstream
     const currentUpstreamRef = currentUpstream
@@ -276,6 +312,8 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
           type="warning"
           onDismissed={this.onCancelRemoval}
           disabled={busy}
+          dismissDisabled={busy}
+          loading={busy}
         >
           <DialogContent>
             <p>
@@ -403,8 +441,9 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
             <Button disabled={busy} onClick={this.onCancelRemoval}>
               Back
             </Button>
+            <span role="status">{busy ? busyMessage : error}</span>
             <Button disabled={busy || blocked} onClick={this.onConfirmRemoval}>
-              Remove worktree and branch
+              {busy ? 'Removing…' : 'Remove worktree and branch'}
             </Button>
           </DialogFooter>
         </Dialog>
@@ -440,109 +479,126 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
         id="unmerged-branches"
         title={merged ? 'Merged branches' : 'Unmerged branches'}
         onDismissed={this.props.onDismissed}
+        loading={busy}
       >
         <DialogContent>
-          <p className="health-path">{this.props.repository.path}</p>
-          {this.state.metadataBackup && (
-            <p>
-              Worktree removed. Submodule Git metadata retained at:{' '}
-              <span className="health-path">{this.state.metadataBackup}</span>
-            </p>
-          )}
-          <Select
-            label={merged ? 'Merged into' : 'Not merged into'}
-            value={target}
-            disabled={busy}
-            onChange={this.onTargetChanged}
-          >
-            <option value="HEAD">
-              Current branch:{' '}
-              {this.props.currentBranch?.name ?? 'detached HEAD'}
-            </option>
-            {targets.map(b => (
-              <option key={b.ref} value={b.ref}>
-                {b.name}
-                {b.remote ? ' (remote)' : ''}
+          <div className="branch-dialog-controls">
+            <Select
+              label={merged ? 'Merged into' : 'Not merged into'}
+              value={target}
+              disabled={busy}
+              onChange={this.onTargetChanged}
+            >
+              <option value="HEAD">
+                Current branch:{' '}
+                {this.props.currentBranch?.name ?? 'detached HEAD'}
               </option>
-            ))}
-          </Select>
-          <input
-            aria-label="Filter branches"
-            placeholder="Filter branches"
-            value={this.state.filter}
-            onChange={this.onFilterChanged}
-          />
-          <label>
-            <input
-              type="checkbox"
-              checked={includeRemotes}
-              onChange={this.onRemotesChanged}
-            />{' '}
-            Include remote branches
-          </label>
-          <p>
-            {merged
-              ? 'Branch tips contained in the selected target’s history.'
-              : 'Branches with commits outside the selected target’s history.'}{' '}
-            This checks ancestry; squash merges and cherry-picks may still
-            appear as unmerged. Remote branches use cached refs. Sorted by
-            newest last commit.
-          </p>
-          <p role="status">
-            {busy
-              ? 'Checking branches…'
-              : `${branches.length} ${merged ? 'merged' : 'unmerged'} branches`}
-          </p>
-          {error && <p className="health-error">{error}</p>}
-          {!busy && !error && !branches.length && <p>No matching branches.</p>}
-          {!busy && (
-            <ul className="unmerged-branch-results">
-              {branches.map(b => (
-                <li key={b.ref}>
-                  <label>
-                    <input
-                      type="radio"
-                      name="selected-branch"
-                      checked={this.state.selected === b.ref}
-                      value={b.ref}
-                      onChange={this.onSelectionChanged}
-                    />
-                    <strong>{b.name}</strong>{' '}
-                    {b.remote ? '(remote)' : '(local)'}
-                  </label>
-                  {!merged && (
-                    <span>
-                      {b.commitsOutsideTarget} commits to merge
-                      {b.commitsOnlyInTarget > 0
-                        ? ` · Diverged: ${b.commitsOnlyInTarget} commits only in target`
-                        : ''}{' '}
-                      ·{' '}
-                    </span>
-                  )}
-                  <span>{b.lastCommitDate}</span>
-                  {b.worktreePaths.map(path => (
-                    <div className="health-path" key={path}>
-                      {path}
-                    </div>
-                  ))}
-                </li>
+              {targets.map(b => (
+                <option key={b.ref} value={b.ref}>
+                  {b.name}
+                  {b.remote ? ' (remote)' : ''}
+                </option>
               ))}
-            </ul>
-          )}
+            </Select>
+            <input
+              aria-label="Filter branches"
+              placeholder="Filter branches"
+              value={this.state.filter}
+              onChange={this.onFilterChanged}
+              disabled={busy}
+            />
+            <label>
+              <input
+                type="checkbox"
+                checked={includeRemotes}
+                onChange={this.onRemotesChanged}
+                disabled={busy}
+              />{' '}
+              Include remote branches
+            </label>
+          </div>
+          <div className="branch-dialog-results" aria-busy={busy}>
+            <p className="health-path">{this.props.repository.path}</p>
+            {this.state.metadataBackup && (
+              <p>
+                Worktree removed. Submodule Git metadata retained at:{' '}
+                <span className="health-path">{this.state.metadataBackup}</span>
+              </p>
+            )}
+            <p>
+              {merged
+                ? 'Branch tips contained in the selected target’s history.'
+                : 'Branches with commits outside the selected target’s history.'}{' '}
+              This checks ancestry; squash merges and cherry-picks may still
+              appear as unmerged. Remote branches use cached refs. Sorted by
+              newest last commit.
+            </p>
+            <p role="status">
+              {busy
+                ? busyMessage
+                : `${branches.length} ${
+                    merged ? 'merged' : 'unmerged'
+                  } branches`}
+            </p>
+            {error && <p className="health-error">{error}</p>}
+            {!busy && !error && !branches.length && (
+              <p>No matching branches.</p>
+            )}
+            {this.state.busy !== 'loading-branches' && (
+              <ul className="unmerged-branch-results">
+                {branches.map(b => (
+                  <li key={b.ref}>
+                    <label>
+                      <input
+                        type="radio"
+                        name="selected-branch"
+                        checked={this.state.selected === b.ref}
+                        value={b.ref}
+                        onChange={this.onSelectionChanged}
+                        disabled={busy}
+                      />
+                      <strong>{b.name}</strong>{' '}
+                      {b.remote ? '(remote)' : '(local)'}
+                    </label>
+                    {!merged && (
+                      <span>
+                        {b.commitsOutsideTarget} commits to merge
+                        {b.commitsOnlyInTarget > 0
+                          ? ` · Diverged: ${b.commitsOnlyInTarget} commits only in target`
+                          : ''}{' '}
+                        ·{' '}
+                      </span>
+                    )}
+                    <span>{b.lastCommitDate}</span>
+                    {b.worktreePaths.map(path => (
+                      <div className="health-path" key={path}>
+                        {path}
+                      </div>
+                    ))}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </DialogContent>
         <DialogFooter>
           <span role="status">
-            {merged
-              ? reason ?? selected?.name
-              : target !== 'HEAD'
-              ? 'Switch to this branch to merge into it.'
-              : `${selected?.name ?? 'Select a branch'} → ${
-                  this.props.currentBranch?.name ?? 'detached HEAD'
-                }`}
+            {busy
+              ? busyMessage
+              : error ??
+                (merged
+                  ? reason ?? selected?.name
+                  : target !== 'HEAD'
+                  ? 'Switch to this branch to merge into it.'
+                  : `${selected?.name ?? 'Select a branch'} → ${
+                      this.props.currentBranch?.name ?? 'detached HEAD'
+                    }`)}
           </span>
           {merged && reason === 'This branch is checked out in a worktree.' && (
             <Button disabled={busy} onClick={this.onRemoveWorktree}>
-              Remove worktree and branch…
+              {this.state.busy === 'checking-worktree'
+                ? 'Checking worktree…'
+                : 'Remove worktree and branch…'}
             </Button>
           )}
           <Button

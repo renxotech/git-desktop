@@ -11,8 +11,7 @@
   flex-shrink: 0;
 }
 
-#repository-health,
-#unmerged-branches {
+#repository-health {
   width: 820px;
   max-width: calc(100vw - 40px);
 
@@ -104,8 +103,100 @@
 }
 
 #unmerged-branches {
+  width: 820px;
+  max-width: calc(100vw - 40px);
+  height: calc(100vh - 60px);
+  max-height: 720px;
+
+  > .dialog-header {
+    flex-shrink: 0;
+  }
+
+  > form {
+    // Give the fieldset's anonymous content box a definite height instead of
+    // relying on intrinsic sizing through an automatically sized form.
+    height: calc(100% - 50px);
+    flex-shrink: 0;
+
+    > fieldset {
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto;
+    }
+  }
+
+  .dialog-content {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .branch-dialog-controls,
+  .branch-dialog-results {
+    min-width: 0;
+  }
+
+  .branch-dialog-results {
+    min-height: 0;
+    overflow-y: auto;
+    overflow-wrap: anywhere;
+  }
+
+  .health-path {
+    color: var(--text-secondary-color);
+    overflow-wrap: anywhere;
+  }
+
+  .health-error {
+    color: var(--form-error-text-color);
+    overflow-wrap: anywhere;
+    user-select: text;
+  }
+
+  .dialog-footer {
+    flex-direction: row;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    row-gap: var(--spacing);
+  }
+
+  @media (max-height: 550px) {
+    .dialog-content {
+      // The shared short-window rule otherwise caps and scrolls the body.
+      max-height: none !important;
+    }
+  }
+
+  @media (max-height: 450px) {
+    // When the controls themselves cannot fit, scroll the form as one unit
+    // so every filter and action remains reachable without nested scrollers.
+    > form {
+      overflow-y: auto;
+
+      > fieldset {
+        display: block;
+        height: auto;
+        max-height: none;
+      }
+    }
+
+    .dialog-content {
+      display: block;
+      overflow: visible;
+    }
+
+    .branch-dialog-results {
+      overflow: visible;
+    }
+  }
+}
+
+#unmerged-branches {
   label {
     display: flex;
+    gap: var(--spacing-half);
+    align-items: center;
     margin-bottom: var(--spacing);
   }
   .unmerged-branch-results {
@@ -127,8 +218,6 @@
   }
 }
 #unmerged-branches .unmerged-branch-results {
-  max-height: 45vh;
-  overflow-y: auto;
   list-style: none;
   padding-left: 0;
 }

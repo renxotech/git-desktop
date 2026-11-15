@@ -24,7 +24,6 @@ import {
 import { shell } from '../../lib/app-shell'
 import {
   CompareAction,
-  SelectionType,
   Foldout,
   FoldoutType,
   ICompareFormUpdate,
@@ -1483,7 +1482,7 @@ export class Dispatcher {
     return this.appStore._mergeBranch(repository, branch, mergeStatus, isSquash)
   }
 
-  /** Return to branch selection after a successful merge without obscuring conflicts. */
+  /** Hand off the selected branch to the merge flow and dismiss branch selection. */
   public async mergeFromBranchList(
     repository: Repository,
     branch: Branch,
@@ -1491,16 +1490,11 @@ export class Dispatcher {
   ) {
     this.initializeMergeOperation(repository, false, branch)
     this.closePopup(PopupType.UnmergedBranches)
-    await this.mergeBranch(repository, branch, status)
-    const state = this.appStore.getState()
-    if (
-      this.repositoryStateManager.get(repository).multiCommitOperationState ===
-        null &&
-      state.currentPopup === null &&
-      state.selectedState?.type === SelectionType.Repository &&
-      state.selectedState.repository.id === repository.id
-    ) {
-      await this.showPopup({ type: PopupType.UnmergedBranches, repository })
+    try {
+      await this.mergeBranch(repository, branch, status)
+    } catch (error) {
+      // Branch selection is already dismissed; use the application error flow.
+      await this.postError(error)
     }
   }
 
