@@ -10,8 +10,10 @@ import {
   writeFile,
 } from 'node:fs/promises'
 import { createRequire } from 'node:module'
+import { execFile } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { promisify } from 'node:util'
 
 const require = createRequire(import.meta.url)
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -51,6 +53,12 @@ try {
     join(app, 'package.json'),
     JSON.stringify({ ...pkg, dependencies: {}, devDependencies: {} })
   )
+  // Validate the staged Git runtime before replacing any existing package.
+  await promisify(execFile)(join(app, 'git', 'cmd', 'git.exe'), ['--version'], {
+    cwd: app,
+    windowsHide: true,
+    timeout: 30000,
+  })
   const { resedit } = require(join(
     dirname(require.resolve('@electron/packager')),
     'resedit.js'

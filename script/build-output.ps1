@@ -97,9 +97,21 @@ function Complete-DesktopBuildOutput {
         $taskMarkerPath = Join-Path $taskOutput '.desktop-build-output.json'
         Assert-DesktopOutputPath -Root $Root -Path $taskMarkerPath
         @{ schema = 1; kind = 'git-desktop-default-output'; checkout = [IO.Path]::GetFullPath($Root); version = $Label } | ConvertTo-Json | Set-Content -LiteralPath $taskMarkerPath -Encoding UTF8
-        foreach ($taskOld in Get-DesktopOwnedOutputs -Root $Root) {
+        $taskOlderOutputs = @(Get-DesktopOwnedOutputs -Root $Root | Where-Object { $_.Version -lt $taskCurrentVersion } | Sort-Object Version, BuiltAt -Descending)
+        # Keep the previous successful package available for rollback, even when idle.
+        $taskPreviousOutput = $taskOlderOutputs | Select-Object -First 1
+        foreach ($taskOld in $taskOlderOutputs) {
             if ($taskOld.Path -eq $taskOutput -or $taskOld.Version -ge $taskCurrentVersion) { continue }
+            if ($taskOld.Path -eq $taskPreviousOutput.Path) { continue }
             try {
+                # Windows can delete unlocked resources before failing on a running
+                # executable. Check before recursive deletion, not after it fails.
+                $taskRunning = @(Get-Process -Name GitDesktop -ErrorAction SilentlyContinue)
+                $taskOutputPrefix = $taskOld.Path + [IO.Path]::DirectorySeparatorChar
+                if ($taskRunning | Where-Object { !$_.Path -or $_.Path.StartsWith($taskOutputPrefix, [StringComparison]::OrdinalIgnoreCase) }) {
+                    Write-Host "Preserving running build output: $($taskOld.Path)"
+                    continue
+                }
                 # Recheck the absolute deletion target; never traverse linked contents.
                 Assert-DesktopOutputPath -Root $taskDist -Path $taskOld.Path
                 Assert-DesktopOutputTreeNoLinks -Path $taskOld.Path

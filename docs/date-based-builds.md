@@ -51,6 +51,14 @@ skip default-output housekeeping; launch-only runs have no build timings.
 These durations exclude prerequisite checks, launch and optional tests, and
 are wall-clock stage durations rather than summed webpack compiler durations.
 
+Local packaging runs the staged bundled Git executable with `--version` before
+promoting the package. Default-output housekeeping retains the previous
+successful build for rollback and skips older packages used by running Git
+Desktop processes. If a process's executable path cannot be inspected, older
+packages are preserved. Close the older app and open the latest build after
+building; recursive deletion of a running package can otherwise remove its Git
+resources even when Windows keeps the app executable locked.
+
 The date uses the Windows machine's local calendar. The counter starts at 01
 each day and increments above the highest matching local tag across all
 branches. It grows to 100 after 99. Tags are not fetched automatically; fetch
@@ -83,8 +91,9 @@ using the selected output must be closed before that output can be replaced.
 After packaging and version finalization succeed, default outputs receive a
 `.desktop-build-output.json` ownership receipt. The builder then attempts to
 remove strictly older version folders with matching ownership and build receipts
-from this checkout's `dist`. Current/equal/newer versions, legacy folders,
-explicit outputs and unmarked folders are preserved. Linked folders or contents
+from this checkout's `dist`. The immediately previous successful build, running
+builds, current/equal/newer versions, legacy folders, explicit outputs and
+unmarked folders are preserved. Linked folders or contents
 are preserved. Locked files or other cleanup failures warn and leave the new
 build successful. Explicitly reusing a formerly automatic folder removes its
 cleanup ownership receipt. Existing custom output folders are not migrated or
@@ -106,6 +115,7 @@ Validate version/tag behavior without compiling the app:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File script/build-version-test.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File script/build-output-test.ps1
 ```
 
 The validation uses a disposable local repository and does not modify this
