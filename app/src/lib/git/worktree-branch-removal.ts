@@ -609,8 +609,22 @@ async function removeCheckedWorktreeAndBranchCore(
     )
   }
   if (JSON.stringify(fresh.files) !== JSON.stringify(confirmed.files)) {
+    const previous = new Map(confirmed.files.map(entry => [entry.path, entry]))
+    const current = new Map(fresh.files.map(entry => [entry.path, entry]))
+    const changed = fresh.files.find(
+      entry =>
+        JSON.stringify(previous.get(entry.path)) !== JSON.stringify(entry)
+    )
+    const removed = confirmed.files.find(entry => !current.has(entry.path))
+    const detail = changed
+      ? `${JSON.stringify(changed.path || '.')} (${
+          previous.has(changed.path) ? 'changed' : 'added'
+        })`
+      : removed
+      ? `${JSON.stringify(removed.path || '.')} (removed)`
+      : 'entry order changed'
     throw new Error(
-      'The worktree file inventory changed. Review removal again.'
+      `The worktree file inventory changed: ${detail}. Review removal again.`
     )
   }
   // A second complete Git check follows inventory and precedes all mutations.

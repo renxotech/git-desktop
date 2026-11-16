@@ -441,9 +441,16 @@ export class UnmergedBranchesDialog extends React.Component<IProps, IState> {
             <Button disabled={busy} onClick={this.onCancelRemoval}>
               Back
             </Button>
-            <span role="status">{busy ? busyMessage : error}</span>
-            <Button disabled={busy || blocked} onClick={this.onConfirmRemoval}>
-              {busy ? 'Removing…' : 'Remove worktree and branch'}
+            <span role="status">{busy ? busyMessage : null}</span>
+            <Button
+              disabled={busy || (error === null && blocked)}
+              onClick={error ? this.onRemoveWorktree : this.onConfirmRemoval}
+            >
+              {busy
+                ? busyMessage
+                : error
+                ? 'Review removal again'
+                : 'Remove worktree and branch'}
             </Button>
           </DialogFooter>
         </Dialog>

@@ -732,10 +732,17 @@ describe('safe worktree removal with real filesystem fixtures', () => {
     await Fs.writeFile(output, 'reviewed output')
     const confirmed = await f.check()
     await Fs.writeFile(output, 'new output must be reviewed')
-    await assert.rejects(
-      remove(f.repo.path, confirmed, true),
-      /inventory changed/
-    )
+    await assert.rejects(remove(f.repo.path, confirmed, true), error => {
+      assert.ok(error instanceof Error)
+      assert.ok(
+        error.message.includes(
+          `inventory changed: ${JSON.stringify(
+            Path.join('dist', 'bundle.js')
+          )} (changed)`
+        )
+      )
+      return true
+    })
     assert.equal(
       await Fs.readFile(output, 'utf8'),
       'new output must be reviewed'
