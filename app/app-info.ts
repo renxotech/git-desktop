@@ -31,7 +31,8 @@ export function getReplacements() {
     ),
     __APP_VERSION__: s(process.env.DESKTOP_BUILD_VERSION ?? version),
     __DEV__: isDevBuild,
-    __AI_BUILD_FLAGS__: s(getAIBuildFlags(process.env)),
+    // DefinePlugin inserts this as code, including in concise arrow bodies.
+    __AI_BUILD_FLAGS__: `(${s(getAIBuildFlags(process.env))})`,
     __DEV_SECRETS__: isDevBuild || !process.env.DESKTOP_OAUTH_CLIENT_SECRET,
     __RELEASE_CHANNEL__: s(channel),
     __UPDATES_URL__: s(process.env.DESKTOP_E2E_UPDATES_URL ?? getUpdatesURL()),
