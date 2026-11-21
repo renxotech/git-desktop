@@ -3,6 +3,8 @@ import { before, describe, it, mock, type TestContext } from 'node:test'
 import * as Fs from 'fs/promises'
 import * as Path from 'path'
 import { createHash } from 'crypto'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import * as dugite from 'dugite'
 import { createTempDirectory } from '../../helpers/temp'
 
@@ -723,6 +725,60 @@ describe('safe worktree removal with real filesystem fixtures', () => {
       'keep'
     )
     assert.match(await f.branch(), /finished/)
+  })
+
+  it('inventories and removes an Electron ASAR archive as one file', async t => {
+    const root = await Fs.realpath(await createTempDirectory(t))
+    const output = Path.join(root, 'dist')
+    await Fs.mkdir(output)
+    const electronDir = Path.dirname(require.resolve('electron/package.json'))
+    const executable = await Fs.readFile(
+      Path.join(electronDir, 'path.txt'),
+      'utf8'
+    )
+    const electron = Path.join(electronDir, 'dist', executable.trim())
+    const resources = Path.resolve(
+      Path.dirname(electron),
+      process.platform === 'darwin' ? '../Resources' : 'resources'
+    )
+    await Fs.copyFile(
+      Path.join(resources, 'default_app.asar'),
+      Path.join(output, 'default_app.asar')
+    )
+
+    await promisify(execFile)(
+      electron,
+      [
+        '-r',
+        'tsx/cjs',
+        '-e',
+        `
+          const assert = require('node:assert/strict')
+          const { inventoryCleanupFiles, removeCleanupFiles } = require(process.argv[1])
+          const output = process.argv[2]
+          async function test() {
+            const entries = await inventoryCleanupFiles(output)
+            assert.deepEqual(entries.map(({ path, kind }) => [path, kind]), [
+              ['', 'directory'], ['default_app.asar', 'file'],
+            ])
+            assert.deepEqual(await inventoryCleanupFiles(output), entries)
+            await removeCleanupFiles(output, entries, [])
+          }
+          test().catch(error => {
+            console.error(error)
+            process.exitCode = 1
+          })
+        `,
+        require.resolve('../../../src/lib/git/worktree-cleanup-files'),
+        output,
+      ],
+      {
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+        timeout: 30000,
+        windowsHide: true,
+      }
+    )
+    assert.equal(await exists(output), false)
   })
 
   it('rejects changed content under an unchanged ignored path list', async t => {

@@ -1,8 +1,8 @@
-import * as Fs from 'fs/promises'
 import * as Path from 'path'
 import { createHash } from 'crypto'
 import { constants } from 'fs'
 import {
+  cleanupFs as Fs,
   ICleanupEntry,
   inventoryCleanupFiles,
   verifyOrdinaryDirectory,

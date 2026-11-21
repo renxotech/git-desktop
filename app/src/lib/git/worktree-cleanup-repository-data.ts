@@ -1,8 +1,7 @@
-import * as Fs from 'fs/promises'
 import * as Path from 'path'
 import { createHash } from 'crypto'
 import { git } from './core'
-import { ICleanupEntry } from './worktree-cleanup-files'
+import { cleanupFs as Fs, ICleanupEntry } from './worktree-cleanup-files'
 
 /**
  * Recognize repository-shaped committed data without trusting its name or Git

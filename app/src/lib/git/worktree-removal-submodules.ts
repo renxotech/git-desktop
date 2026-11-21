@@ -1,5 +1,4 @@
 import * as Path from 'path'
-import * as Fs from 'fs/promises'
 import { git } from './core'
 import { listWorktrees } from './worktree'
 import {
@@ -7,6 +6,7 @@ import {
   partitionDisposablePaths,
 } from './worktree-disposable-files'
 import {
+  cleanupFs as Fs,
   inventoryCleanupFiles,
   verifyOrdinaryDirectory,
 } from './worktree-cleanup-files'

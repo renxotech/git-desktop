@@ -1,5 +1,10 @@
-import * as Fs from 'fs/promises'
+import { promises } from 'fs'
 import * as Path from 'path'
+
+/** Use physical filesystem entries throughout cleanup, including ASAR files. */
+export const cleanupFs: typeof promises = process.versions.electron
+  ? require('original-fs').promises
+  : promises
 
 export interface ICleanupEntry {
   readonly path: string
@@ -8,7 +13,7 @@ export interface ICleanupEntry {
   readonly target?: string
 }
 
-function identity(stat: Awaited<ReturnType<typeof Fs.lstat>>) {
+function identity(stat: Awaited<ReturnType<typeof cleanupFs.lstat>>) {
   const object = `${stat.dev}:${stat.ino}:${stat.mode}:`
   // Directory times change when a now-absent temporary file was added/removed.
   // Exact child inventory detects new contents; identity detects replacement.
@@ -27,9 +32,9 @@ export async function verifyOrdinaryDirectory(
   if (parent !== absolute) {
     await verifyOrdinaryDirectory(parent, allowMissing)
   }
-  let stat: Awaited<ReturnType<typeof Fs.lstat>>
+  let stat: Awaited<ReturnType<typeof cleanupFs.lstat>>
   try {
-    stat = await Fs.lstat(absolute)
+    stat = await cleanupFs.lstat(absolute)
   } catch (error) {
     if (
       allowMissing === true &&
@@ -44,7 +49,7 @@ export async function verifyOrdinaryDirectory(
   if (!stat.isDirectory() || stat.isSymbolicLink()) {
     throw new Error(`Cleanup requires an ordinary directory: ${absolute}`)
   }
-  if (Path.resolve(await Fs.realpath(absolute)) !== absolute) {
+  if (Path.resolve(await cleanupFs.realpath(absolute)) !== absolute) {
     throw new Error(`Cannot verify the cleanup directory: ${absolute}`)
   }
 }
@@ -57,7 +62,7 @@ export async function inventoryCleanupFiles(
   await verifyOrdinaryDirectory(root)
   const entries: ICleanupEntry[] = []
   const visit = async (path: string): Promise<void> => {
-    const stat = await Fs.lstat(path)
+    const stat = await cleanupFs.lstat(path)
     const kind = stat.isSymbolicLink()
       ? 'link'
       : stat.isDirectory()
@@ -72,11 +77,11 @@ export async function inventoryCleanupFiles(
       path: Path.relative(root, path),
       kind,
       identity: identity(stat),
-      ...(kind === 'link' ? { target: await Fs.readlink(path) } : {}),
+      ...(kind === 'link' ? { target: await cleanupFs.readlink(path) } : {}),
     })
     if (kind === 'directory' && !preserved.includes(path)) {
       await verifyOrdinaryDirectory(path)
-      const names = (await Fs.readdir(path)).sort()
+      const names = (await cleanupFs.readdir(path)).sort()
       for (const name of names) {
         await visit(Path.join(path, name))
       }
@@ -98,7 +103,7 @@ export async function removeCleanupFiles(
       continue
     }
     await verifyOrdinaryDirectory(Path.dirname(path))
-    const stat = await Fs.lstat(path)
+    const stat = await cleanupFs.lstat(path)
     if (entry.kind === 'directory') {
       // Child removals change directory times and size; its object identity must
       // still match and rmdir independently refuses any newly added contents.
@@ -110,13 +115,13 @@ export async function removeCleanupFiles(
       ) {
         throw new Error(`The cleanup directory changed: ${path}`)
       }
-      await Fs.rmdir(path)
+      await cleanupFs.rmdir(path)
     } else {
       if (identity(stat) !== entry.identity) {
         throw new Error(`The cleanup file or link changed: ${path}`)
       }
       // unlink removes a Windows junction/symlink entry, never its target.
-      await Fs.unlink(path)
+      await cleanupFs.unlink(path)
     }
   }
 }

@@ -1,8 +1,8 @@
-import * as Fs from 'fs/promises'
 import * as Path from 'path'
 import { constants } from 'fs'
 import ignore from 'ignore'
 import {
+  cleanupFs as Fs,
   inventoryCleanupFiles,
   verifyOrdinaryDirectory,
 } from './worktree-cleanup-files'

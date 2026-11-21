@@ -1,5 +1,4 @@
 import * as Path from 'path'
-import * as Fs from 'fs/promises'
 import { randomUUID } from 'crypto'
 import { assertSandboxMutationAllowed } from '../sandbox-rule'
 import { git } from './core'
@@ -15,6 +14,7 @@ import {
   removeWorktree,
 } from './worktree'
 import {
+  cleanupFs as Fs,
   ICleanupEntry,
   inventoryCleanupFiles,
   removeCleanupFiles,
