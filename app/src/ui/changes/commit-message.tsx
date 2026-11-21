@@ -73,13 +73,11 @@ import { formatCommitMessage } from '../../lib/format-commit-message'
 import { useRepoRulesLogic } from '../../lib/helpers/repo-rules'
 import { isDotCom } from '../../lib/endpoint-capabilities'
 import { WorkingDirectoryFileChange } from '../../models/status'
+import { enableHooksEnvironment } from '../../lib/feature-flag'
 import {
-  enableCommitMessageGeneration,
-  enableCopilotAssistedCommit,
-  enableCopilotSdkCommitMessageGeneration,
-  enableHooksEnvironment,
-} from '../../lib/feature-flag'
-import { getAccountForCommitMessageGeneration } from '../../lib/get-account-for-repository'
+  getAccountForCopilot,
+  getAccountForCopilotAssistedCommits,
+} from '../../lib/get-account-for-repository'
 import { AriaLiveContainer } from '../accessibility/aria-live-container'
 import { HookProgress } from '../../lib/git'
 import { assertNever } from '../../lib/fatal-error'
@@ -150,6 +148,7 @@ interface ICommitMessageProps {
   /** Repository-owned preference. Omitted in manual-only contexts. */
   readonly commitMode?: CommitMode
   readonly onCommitModeChanged?: (mode: CommitMode) => void
+  readonly onCommitModeDropdownOpened?: () => void
   readonly pushAfterCommit?: boolean
   readonly canPushAfterCommit?: boolean
   readonly onPushAfterCommitChanged?: (enabled: boolean) => void
@@ -334,21 +333,19 @@ interface ICommitMessageState {
 }
 
 function isCopilotAssistedCommitAvailable(props: ICommitMessageProps) {
-  const account = getAccountForCommitMessageGeneration(
+  const account = getAccountForCopilotAssistedCommits(
     props.accounts,
     props.repository
   )
 
   return (
-    enableCopilotAssistedCommit() &&
     props.onCreateCopilotAssistedCommits !== undefined &&
     props.onCommitModeChanged !== undefined &&
     props.commitMode !== undefined &&
     props.commitToAmend === null &&
     !props.repository.isTutorialRepository &&
     account !== undefined &&
-    account.token.length > 0 &&
-    enableCopilotSdkCommitMessageGeneration(account)
+    account.token.length > 0
   )
 }
 
@@ -757,7 +754,19 @@ export class CommitMessage extends React.Component<
 
     const commitMode: CommitMode =
       option.id === 'copilot' ? 'copilot' : 'manual'
-    this.props.onCommitModeChanged?.(commitMode)
+    if (
+      this.props.onCommitModeChanged === undefined ||
+      commitMode === (this.isCopilotCommitMode ? 'copilot' : 'manual')
+    ) {
+      return
+    }
+    this.props.onCommitModeChanged(commitMode)
+  }
+
+  private onCommitModeDropdownOpened = () => {
+    if (this.isCopilotAssistedCommitAvailable && !this.isBusy) {
+      this.props.onCommitModeDropdownOpened?.()
+    }
   }
 
   /**
@@ -1306,7 +1315,7 @@ export class CommitMessage extends React.Component<
       this.props
 
     if (
-      !accounts.some(enableCommitMessageGeneration) ||
+      !accounts.some(account => account.isCopilotDesktopEnabled === true) ||
       onGenerateCommitMessage === undefined
     ) {
       return null
@@ -1696,7 +1705,7 @@ export class CommitMessage extends React.Component<
   private get isCopilotButtonEnabled() {
     const { accounts, onGenerateCommitMessage } = this.props
     return (
-      accounts.some(enableCommitMessageGeneration) &&
+      accounts.some(account => account.isCopilotDesktopEnabled === true) &&
       onGenerateCommitMessage !== undefined
     )
   }
@@ -1705,14 +1714,13 @@ export class CommitMessage extends React.Component<
    * Whether an in-flight commit message generation can be cancelled.
    */
   private get canCancelGenerateCommitMessage() {
-    const account = getAccountForCommitMessageGeneration(
+    const account = getAccountForCopilot(
       this.props.accounts,
       this.props.repository
     )
 
     return (
       account !== undefined &&
-      enableCopilotSdkCommitMessageGeneration(account) &&
       this.props.onCancelGenerateCommitMessage !== undefined
     )
   }
@@ -2155,6 +2163,7 @@ export class CommitMessage extends React.Component<
         ariaDescribedBy={ariaDescribedBy}
         dropdownAriaLabel="Choose how to commit"
         onCheckedOptionChange={this.onCommitModeChanged}
+        onDropdownOpened={this.onCommitModeDropdownOpened}
         onSubmit={this.onSubmit}
         renderInvokeButtonContent={
           isCopilotCommitMode
