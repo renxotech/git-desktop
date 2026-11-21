@@ -6,20 +6,23 @@ import { createHash } from 'crypto'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import * as dugite from 'dugite'
+import * as selectedGit from '../../../src/lib/git/executable'
 import { createTempDirectory } from '../../helpers/temp'
 
-type ExecArgs = Parameters<typeof dugite.exec>
+type ExecArgs = Parameters<typeof selectedGit.exec>
 let intercept: ((args: ExecArgs) => Promise<void>) | undefined
 const exec = async (...args: ExecArgs) => {
   await intercept?.(args)
-  return dugite.exec(...args)
+  return selectedGit.exec(...args)
 }
 let check: typeof import('../../../src/lib/git/worktree-branch-removal').checkWorktreeBranchRemoval
 let remove: typeof import('../../../src/lib/git/worktree-branch-removal').removeCheckedWorktreeAndBranch
 let setup: typeof import('../../helpers/repositories').setupEmptyRepository
 
 before(async () => {
-  mock.module('dugite', { namedExports: { ...dugite, exec } })
+  mock.module('../../../src/lib/git/executable.ts', {
+    namedExports: { ...selectedGit, exec },
+  })
   ;({
     checkWorktreeBranchRemoval: check,
     removeCheckedWorktreeAndBranch: remove,
