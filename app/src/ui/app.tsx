@@ -1922,7 +1922,7 @@ export class App extends React.Component<IAppProps, IAppState> {
               popup.account
             )}
             byokProviders={this.state.byokProviders}
-            showBYOKSettings={true}
+            showBYOKSettings={__AI_BUILD_FLAGS__.providerSettings}
             alwaysUseCopilotForConflictResolution={
               this.state.alwaysUseCopilotForConflictResolution
             }

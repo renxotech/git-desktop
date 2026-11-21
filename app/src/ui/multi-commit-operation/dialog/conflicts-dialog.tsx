@@ -276,6 +276,7 @@ export class ConflictsDialog extends React.Component<
     if (
       onResolveWithCopilot === undefined ||
       conflictedFilesCount === 0 ||
+      !__AI_BUILD_FLAGS__.conflictResolution ||
       getAccountForCopilot(accounts, repository) === undefined
     ) {
       return null

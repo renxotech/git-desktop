@@ -58,6 +58,9 @@ function props(
 ): React.ComponentProps<typeof RepositoriesList> {
   return {
     repositories,
+    folderGroups: [],
+    onAddFolderGroup: async () => {},
+    onFolderGroupsChanged: () => {},
     accounts,
     selectedRepository: null,
     recentRepositories: [],

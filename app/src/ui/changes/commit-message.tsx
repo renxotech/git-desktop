@@ -1315,6 +1315,7 @@ export class CommitMessage extends React.Component<
       this.props
 
     if (
+      !__AI_BUILD_FLAGS__.commitMessages ||
       !accounts.some(account => account.isCopilotDesktopEnabled === true) ||
       onGenerateCommitMessage === undefined
     ) {
@@ -1705,6 +1706,7 @@ export class CommitMessage extends React.Component<
   private get isCopilotButtonEnabled() {
     const { accounts, onGenerateCommitMessage } = this.props
     return (
+      __AI_BUILD_FLAGS__.commitMessages &&
       accounts.some(account => account.isCopilotDesktopEnabled === true) &&
       onGenerateCommitMessage !== undefined
     )

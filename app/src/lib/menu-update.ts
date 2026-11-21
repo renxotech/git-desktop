@@ -11,7 +11,7 @@ import { updateMenuState as ipcUpdateMenuState } from '../ui/main-process-proxy'
 import { AppMenu, MenuItem } from '../models/app-menu'
 import { hasConflictedFiles } from './status'
 import { findContributionTargetDefaultBranch } from './branch'
-import { enableWorktreeSupport } from './feature-flag'
+import { enableCopilotAppHandoff, enableWorktreeSupport } from './feature-flag'
 import { isAssistedCommitRepositoryLocked } from '../models/assisted-commit-run'
 import { isRepositoryAffectedByAssistedCommit } from './git/repository-operation'
 
@@ -146,7 +146,7 @@ const allMenuIds: ReadonlyArray<MenuIDs> = [
   'open-working-directory',
   'show-repository-settings',
   'open-external-editor',
-  'open-in-copilot-app',
+  ...(enableCopilotAppHandoff() ? (['open-in-copilot-app'] as const) : []),
   'open-with-external-editor',
   'remove-repository',
   'new-repository',
@@ -276,7 +276,7 @@ function getRepositoryMenuBuilder(state: IAppState): MenuStateBuilder {
     'show-worktrees-list',
     'show-stashes',
     'open-external-editor',
-    'open-in-copilot-app',
+    ...(enableCopilotAppHandoff() ? (['open-in-copilot-app'] as const) : []),
     'open-with-external-editor',
     'compare-to-branch',
     'toggle-changes-filter',
