@@ -31,14 +31,9 @@ import { IMatches } from '../../lib/fuzzy-find'
 import { startTimer } from '../lib/timing'
 import { dragAndDropManager } from '../../lib/drag-and-drop-manager'
 import { DragType, DropTargetType } from '../../models/drag-drop'
-import {
-  enablePullRequestQuickView,
-  enableResizingToolbarButtons,
-  enableWorktreeSupport,
-} from '../../lib/feature-flag'
+import { enablePullRequestQuickView } from '../../lib/feature-flag'
 import { PullRequestQuickView } from '../pull-request-quick-view'
 import { Emoji } from '../../lib/emoji'
-import classNames from 'classnames'
 
 interface IBranchesContainerProps {
   readonly folderActions?: ReadonlyArray<IMenuItem>
@@ -123,11 +118,8 @@ export class BranchesContainer extends React.Component<
   }
 
   public render() {
-    const classes = classNames('branches-container', {
-      resizable: enableResizingToolbarButtons(),
-    })
     return (
-      <div className={classes}>
+      <div className="branches-container">
         {this.renderTabBar()}
         <div className="branch-status-buttons">
           <Button
@@ -306,11 +298,7 @@ export class BranchesContainer extends React.Component<
             renderPreList={this.renderPreList}
             onRenameBranch={this.props.onRenameBranch}
             onDeleteBranch={this.props.onDeleteBranch}
-            onCheckoutInNewWorktree={
-              enableWorktreeSupport()
-                ? this.props.onCheckoutInNewWorktree
-                : undefined
-            }
+            onCheckoutInNewWorktree={this.props.onCheckoutInNewWorktree}
           />
         )
       case BranchesTab.PullRequests: {
@@ -404,11 +392,7 @@ export class BranchesContainer extends React.Component<
         isLoadingPullRequests={this.props.isLoadingPullRequests}
         onMouseEnterPullRequest={this.onMouseEnterPullRequestListItem}
         onMouseLeavePullRequest={this.onMouseLeavePullRequestListItem}
-        onCheckoutInNewWorktree={
-          enableWorktreeSupport()
-            ? this.props.onCheckoutPRInNewWorktree
-            : undefined
-        }
+        onCheckoutInNewWorktree={this.props.onCheckoutPRInNewWorktree}
       />
     )
   }
