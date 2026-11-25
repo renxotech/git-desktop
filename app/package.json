@@ -4,7 +4,7 @@
   "bundleID": "com.github.GitHubClient",
   "companyName": "Git Desktop contributors",
   "version": "1.0.0",
-  "upstreamVersion": "3.7.0",
+  "upstreamVersion": "3.7.1-beta1",
   "main": "./main.js",
   "repository": {
     "type": "git",

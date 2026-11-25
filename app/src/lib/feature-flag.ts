@@ -122,11 +122,11 @@ export const enableCopilotSdkCommitMessageGeneration = (account: Account) => {
  * Should we offer the Copilot-assisted commit mode, where Copilot splits the
  * selected changes into commits and writes their messages?
  *
- * Enabled in development/preview or through the account rollout.
+ * Enabled in beta or through the account rollout.
  */
 export const enableCopilotAssistedCommit = (account?: Account) =>
   __AI_BUILD_FLAGS__.assistedCommits &&
-  (enableDevelopmentFeatures() ||
+  (enableBetaFeatures() ||
     (account?.features ?? []).includes('desktop_copilot_assisted_commits'))
 
 /** Should we enable Copilot-powered merge conflict resolution? */
