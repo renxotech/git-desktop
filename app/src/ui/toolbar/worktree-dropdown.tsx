@@ -12,6 +12,8 @@ import { showContextualMenu, IMenuItem } from '../../lib/menu-item'
 import { generateWorktreeContextMenuItems } from '../worktrees/worktree-list-item-context-menu'
 import { PopupType } from '../../models/popup'
 import { Resizable } from '../resizable'
+import { getUnmergedBranchTargets } from '../../lib/git/unmerged-branches'
+import { sortWorktreesByCommitDate } from '../../lib/worktree-dropdown'
 
 interface IWorktreeDropdownProps {
   readonly getFolderActions: (path: string) => ReadonlyArray<IMenuItem>
@@ -27,17 +29,69 @@ interface IWorktreeDropdownProps {
 
 interface IWorktreeDropdownState {
   readonly filterText: string
+  readonly branchCommitDates?: {
+    readonly path: string
+    readonly dates: ReadonlyMap<string, number>
+  }
 }
 
 export class WorktreeDropdown extends React.Component<
   IWorktreeDropdownProps,
   IWorktreeDropdownState
 > {
+  private dateRequest = 0
+
   public constructor(props: IWorktreeDropdownProps) {
     super(props)
     this.state = {
       filterText: '',
     }
+  }
+
+  public componentDidMount() {
+    if (this.props.isOpen) {
+      this.loadBranchCommitDates()
+    }
+  }
+
+  public componentDidUpdate(prevProps: IWorktreeDropdownProps) {
+    if (
+      this.props.isOpen &&
+      (!prevProps.isOpen ||
+        prevProps.repository.path !== this.props.repository.path ||
+        prevProps.worktrees !== this.props.worktrees)
+    ) {
+      this.loadBranchCommitDates()
+    }
+  }
+
+  public componentWillUnmount() {
+    this.dateRequest++
+  }
+
+  private loadBranchCommitDates() {
+    const path = this.props.repository.path
+    const request = ++this.dateRequest
+    getUnmergedBranchTargets(path)
+      .then(branches => {
+        if (
+          request === this.dateRequest &&
+          path === this.props.repository.path
+        ) {
+          this.setState({
+            branchCommitDates: {
+              path,
+              dates: new Map(
+                branches.map(b => [
+                  b.ref,
+                  Date.parse(b.lastCommitDate ?? '') || 0,
+                ])
+              ),
+            },
+          })
+        }
+      })
+      .catch(e => log.error('Failed to load worktree branch commit dates', e))
   }
 
   private onWorktreeClick = async (worktree: WorktreeEntry) => {
@@ -179,10 +233,15 @@ export class WorktreeDropdown extends React.Component<
       return null
     }
     const worktrees = this.getWorktrees()
+    const { branchCommitDates } = this.state
 
     return (
       <WorktreeList
-        worktrees={worktrees}
+        worktrees={
+          branchCommitDates?.path === this.props.repository.path
+            ? sortWorktreesByCommitDate(worktrees, branchCommitDates.dates)
+            : worktrees
+        }
         currentWorktree={this.getCurrentWorktree()}
         onWorktreeClick={this.onWorktreeClick}
         filterText={this.state.filterText}
