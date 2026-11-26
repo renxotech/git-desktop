@@ -107,6 +107,13 @@
       font-size: var(--font-size-sm);
     }
 
+    .change-indicator-wrapper {
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      color: var(--tab-bar-active-color);
+    }
+
     .description {
       margin-right: var(--spacing-half);
       color: var(--text-secondary-color);

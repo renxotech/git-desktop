@@ -1,6 +1,6 @@
 import assert from 'node:assert'
 import * as Path from 'path'
-import { realpath, rm } from 'fs/promises'
+import { realpath, rm, writeFile } from 'fs/promises'
 import { describe, it, type TestContext } from 'node:test'
 import { exec } from 'dugite'
 import { setupEmptyRepository } from '../../helpers/repositories'
@@ -10,10 +10,39 @@ import {
   listWorktrees,
   listWorktreesFromGitDir,
   resolveMainWorktreePath,
+  hasWorktreeChanges,
 } from '../../../src/lib/git'
 import { Repository } from '../../../src/models/repository'
 
 describe('git/worktree', () => {
+  it('detects changes in the linked checkout independently of the main checkout', async t => {
+    const repo = await setupEmptyRepository(t, 'main')
+    await makeCommit(repo, {
+      entries: [
+        { path: 'README', contents: 'hello' },
+        { path: '.gitignore', contents: 'ignored.txt\n/linked/\n' },
+      ],
+    })
+    const linked = Path.join(repo.path, 'linked')
+    assert.equal(
+      (await exec(['worktree', 'add', '--detach', linked], repo.path)).exitCode,
+      0
+    )
+    await writeFile(Path.join(linked, 'ignored.txt'), 'ignored')
+    assert.equal(await hasWorktreeChanges(linked), false)
+
+    const untracked = Path.join(linked, 'new.txt')
+    await writeFile(untracked, 'untracked')
+    assert.equal(await hasWorktreeChanges(linked), true)
+    await rm(untracked)
+
+    await writeFile(Path.join(linked, 'README'), 'edited')
+    assert.equal(await hasWorktreeChanges(linked), true)
+    assert.equal((await exec(['add', '--', 'README'], linked)).exitCode, 0)
+    assert.equal(await hasWorktreeChanges(linked), true)
+    assert.equal(await hasWorktreeChanges(repo.path), false)
+  })
+
   describe('parseWorktreePorcelainOutput', () => {
     it('returns empty array for empty output', () => {
       assert.deepStrictEqual(parseWorktreePorcelainOutput(''), [])

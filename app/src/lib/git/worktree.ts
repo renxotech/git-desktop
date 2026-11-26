@@ -4,6 +4,22 @@ import type { WorktreeEntry, WorktreeType } from '../../models/worktree'
 import { pathExists } from '../path-exists'
 import { git } from './core'
 
+/** Check for staged, unstaged, or untracked changes in a worktree. */
+export async function hasWorktreeChanges(path: string): Promise<boolean> {
+  const result = await git(
+    [
+      '--no-optional-locks',
+      'status',
+      '--porcelain',
+      '-z',
+      '--untracked-files=normal',
+    ],
+    path,
+    'hasWorktreeChanges'
+  )
+  return result.stdout.length > 0
+}
+
 export function parseWorktreePorcelainOutput(
   stdout: string
 ): ReadonlyArray<WorktreeEntry> {

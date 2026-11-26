@@ -14,6 +14,10 @@ import { PopupType } from '../../models/popup'
 import { Resizable } from '../resizable'
 import { getUnmergedBranchTargets } from '../../lib/git/unmerged-branches'
 import { sortWorktreesByCommitDate } from '../../lib/worktree-dropdown'
+import { hasWorktreeChanges } from '../../lib/git/worktree'
+import pLimit from 'p-limit'
+
+const limitWorktreeStatus = pLimit(4)
 
 interface IWorktreeDropdownProps {
   readonly getFolderActions: (path: string) => ReadonlyArray<IMenuItem>
@@ -29,6 +33,10 @@ interface IWorktreeDropdownProps {
 
 interface IWorktreeDropdownState {
   readonly filterText: string
+  readonly dirtyWorktrees?: {
+    readonly repositoryPath: string
+    readonly paths: ReadonlySet<string>
+  }
   readonly branchCommitDates?: {
     readonly path: string
     readonly dates: ReadonlyMap<string, number>
@@ -39,7 +47,7 @@ export class WorktreeDropdown extends React.Component<
   IWorktreeDropdownProps,
   IWorktreeDropdownState
 > {
-  private dateRequest = 0
+  private detailsRequest = 0
 
   public constructor(props: IWorktreeDropdownProps) {
     super(props)
@@ -50,7 +58,7 @@ export class WorktreeDropdown extends React.Component<
 
   public componentDidMount() {
     if (this.props.isOpen) {
-      this.loadBranchCommitDates()
+      this.loadWorktreeDetails()
     }
   }
 
@@ -61,23 +69,55 @@ export class WorktreeDropdown extends React.Component<
         prevProps.repository.path !== this.props.repository.path ||
         prevProps.worktrees !== this.props.worktrees)
     ) {
-      this.loadBranchCommitDates()
+      this.loadWorktreeDetails()
+    } else if (!this.props.isOpen && prevProps.isOpen) {
+      this.detailsRequest++
     }
   }
 
   public componentWillUnmount() {
-    this.dateRequest++
+    this.detailsRequest++
   }
 
-  private loadBranchCommitDates() {
+  private loadWorktreeDetails() {
     const path = this.props.repository.path
-    const request = ++this.dateRequest
+    const request = ++this.detailsRequest
+    const isCurrent = () => request === this.detailsRequest
+    Promise.all(
+      this.props.worktrees
+        .filter(worktree => !worktree.isPrunable)
+        .map(worktree =>
+          limitWorktreeStatus(async () => {
+            if (!isCurrent()) {
+              return []
+            }
+            try {
+              return (await hasWorktreeChanges(worktree.path))
+                ? [worktree.path]
+                : []
+            } catch (error) {
+              log.warn(
+                `Failed to check worktree status at ${worktree.path}`,
+                error
+              )
+              return []
+            }
+          })
+        )
+    ).then(results => {
+      if (isCurrent()) {
+        this.setState({
+          dirtyWorktrees: {
+            repositoryPath: path,
+            paths: new Set(results.flat()),
+          },
+        })
+      }
+    })
+
     getUnmergedBranchTargets(path)
       .then(branches => {
-        if (
-          request === this.dateRequest &&
-          path === this.props.repository.path
-        ) {
+        if (isCurrent()) {
           this.setState({
             branchCommitDates: {
               path,
@@ -166,6 +206,10 @@ export class WorktreeDropdown extends React.Component<
       ...w,
       alias: getWorktreeAlias(w.path),
       isPinned: isWorktreePinned(w.path),
+      hasUncommittedChanges:
+        this.state.dirtyWorktrees?.repositoryPath ===
+          this.props.repository.path &&
+        this.state.dirtyWorktrees.paths.has(w.path),
     }))
   private onRenameWorktree = (path: string) => {
     this.props.dispatcher.closeFoldout(FoldoutType.Worktree)

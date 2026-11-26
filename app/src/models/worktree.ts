@@ -9,6 +9,7 @@ export type WorktreeEntry = {
   readonly path: string
   readonly alias?: string | null
   readonly isPinned?: boolean
+  readonly hasUncommittedChanges?: boolean
   readonly sandboxRule?: import('../lib/sandbox-rule').ISandboxRule
   readonly head: string
   /** Full ref name (e.g. `refs/heads/main`), or `null` when HEAD is detached */
@@ -66,7 +67,11 @@ export function getWorktreeDescription(worktree: WorktreeEntry): string {
 /** The accessible name for a worktree list row. */
 export function getWorktreeAriaLabel(worktree: WorktreeEntry): string {
   const missing = worktree.isPrunable ? ', missing' : ''
+  const changes =
+    !worktree.isPrunable && worktree.hasUncommittedChanges
+      ? ', uncommitted changes'
+      : ''
   return `${getWorktreeDisplayName(
     worktree
-  )}${missing}, ${getWorktreeDescription(worktree)}`
+  )}${missing}, ${getWorktreeDescription(worktree)}${changes}`
 }

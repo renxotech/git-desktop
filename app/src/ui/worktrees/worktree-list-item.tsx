@@ -58,6 +58,15 @@ export class WorktreeListItem extends React.Component<IWorktreeListItemProps> {
         >
           {description}
         </TooltippedContent>
+        {!isMissing && worktree.hasUncommittedChanges && (
+          <TooltippedContent
+            className="change-indicator-wrapper"
+            tooltip="There are uncommitted changes in this worktree"
+            disabled={enableAccessibleListToolTips()}
+          >
+            <Octicon symbol={octicons.dotFill} />
+          </TooltippedContent>
+        )}
       </div>
     )
   }

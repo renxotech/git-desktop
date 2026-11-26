@@ -2,7 +2,10 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import * as React from 'react'
 
-import { WorktreeEntry } from '../../../src/models/worktree'
+import {
+  getWorktreeAriaLabel,
+  WorktreeEntry,
+} from '../../../src/models/worktree'
 import { WorktreeListItem } from '../../../src/ui/worktrees/worktree-list-item'
 import { IMatches } from '../../../src/lib/fuzzy-find'
 import { render, screen } from '../../helpers/ui/render'
@@ -40,6 +43,14 @@ describe('WorktreeListItem', () => {
     assert.notEqual(screen.queryByText('feature'), null)
   })
 
+  it('shows a dot and includes uncommitted changes in the row label', () => {
+    const entry = worktree({ hasUncommittedChanges: true })
+    renderItem(entry)
+
+    assert.ok(document.querySelector('.change-indicator-wrapper svg'))
+    assert.match(getWorktreeAriaLabel(entry), /uncommitted changes/)
+  })
+
   it('marks a worktree whose folder is gone', () => {
     renderItem(worktree({ isPrunable: true }))
 
@@ -50,6 +61,7 @@ describe('WorktreeListItem', () => {
     renderItem(worktree())
 
     assert.equal(screen.queryByText('(missing)'), null)
+    assert.equal(document.querySelector('.change-indicator-wrapper'), null)
   })
 
   it('still shows the branch of a missing worktree', () => {
